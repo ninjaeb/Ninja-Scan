@@ -55,6 +55,10 @@ object ImageOptimizer {
         return pageNumber
     }
 
+    /** Decodes [uri] bounded to [maxDimension] on its longest side. */
+    fun decodeImage(context: Context, uri: Uri, maxDimension: Int): Bitmap? =
+        decodeBounded(context, uri, maxDimension)
+
     /** Writes a small JPEG thumbnail of [pageUri] to [target]. */
     fun writeThumbnail(context: Context, pageUri: Uri, target: File): Boolean {
         val bitmap = decodeBounded(context, pageUri, THUMBNAIL_DIMENSION_PX) ?: return false

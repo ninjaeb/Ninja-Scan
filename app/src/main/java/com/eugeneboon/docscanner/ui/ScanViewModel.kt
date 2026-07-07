@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -35,15 +36,33 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
-    /** Library contents; filtered by title and recognized text when searching. */
+    private val _folderFilter = MutableStateFlow<String?>(null)
+    val folderFilter: StateFlow<String?> = _folderFilter
+
+    /** All folder names currently in use, for the filter chips and dialogs. */
+    val folders: StateFlow<List<String>> = repository.folders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Library contents; narrowed by search text and the selected folder. */
     val scans: StateFlow<List<ScanDocument>> = _searchQuery
         .flatMapLatest { query ->
             if (query.isBlank()) repository.scans else repository.search(query.trim())
+        }
+        .combine(_folderFilter) { list, folder ->
+            if (folder == null) list else list.filter { it.folder == folder }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+    }
+
+    fun onFolderFilterChange(folder: String?) {
+        _folderFilter.value = folder
+    }
+
+    fun moveToFolder(scan: ScanDocument, folder: String?) {
+        viewModelScope.launch { repository.moveToFolder(scan, folder) }
     }
 
     private val _driveBackupEnabled = MutableStateFlow(false)

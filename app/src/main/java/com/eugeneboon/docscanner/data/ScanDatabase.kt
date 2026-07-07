@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ScanDocument::class], version = 3, exportSchema = false)
+@Database(entities = [ScanDocument::class], version = 4, exportSchema = false)
 abstract class ScanDatabase : RoomDatabase() {
 
     abstract fun scanDao(): ScanDao
@@ -25,6 +25,12 @@ abstract class ScanDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE scans ADD COLUMN folder TEXT")
+            }
+        }
+
         @Volatile
         private var instance: ScanDatabase? = null
 
@@ -35,7 +41,7 @@ abstract class ScanDatabase : RoomDatabase() {
                     ScanDatabase::class.java,
                     "scans.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -64,16 +66,21 @@ import java.io.File
 fun ScanListScreen(
     scans: List<ScanDocument>,
     searchQuery: String,
+    folders: List<String>,
+    folderFilter: String?,
     driveBackupEnabled: Boolean,
     snackbarHostState: SnackbarHostState,
     onSearchQueryChange: (String) -> Unit,
+    onFolderFilterChange: (String?) -> Unit,
     onToggleDriveBackup: () -> Unit,
     onScanClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
     onOpenWith: (ScanDocument) -> Unit,
+    onEdit: (ScanDocument) -> Unit,
     onShare: (ScanDocument) -> Unit,
     onSaveToCloud: (ScanDocument) -> Unit,
     onRename: (ScanDocument, String) -> Unit,
+    onMoveToFolder: (ScanDocument, String?) -> Unit,
     onDelete: (ScanDocument) -> Unit,
 ) {
     Scaffold(
@@ -108,7 +115,7 @@ fun ScanListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (scans.isNotEmpty() || searching) {
+            if (scans.isNotEmpty() || searching || folderFilter != null) {
                 SearchField(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange,
@@ -116,6 +123,33 @@ fun ScanListScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+            }
+            if (folders.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 16.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = folderFilter == null,
+                            onClick = { onFolderFilterChange(null) },
+                            label = { Text(stringResource(R.string.all_scans)) },
+                        )
+                    }
+                    items(folders) { folder ->
+                        FilterChip(
+                            selected = folderFilter == folder,
+                            onClick = {
+                                onFolderFilterChange(
+                                    if (folderFilter == folder) null else folder
+                                )
+                            },
+                            label = { Text(folder) },
+                        )
+                    }
+                }
             }
             when {
                 scans.isEmpty() && searching -> {
@@ -138,11 +172,14 @@ fun ScanListScreen(
                     items(scans, key = { it.id }) { scan ->
                         ScanRow(
                             scan = scan,
+                            folders = folders,
                             onOpen = { onOpen(scan) },
                             onOpenWith = { onOpenWith(scan) },
+                            onEdit = { onEdit(scan) },
                             onShare = { onShare(scan) },
                             onSaveToCloud = { onSaveToCloud(scan) },
                             onRename = { onRename(scan, it) },
+                            onMoveToFolder = { onMoveToFolder(scan, it) },
                             onDelete = { onDelete(scan) },
                         )
                     }
@@ -211,16 +248,20 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 @Composable
 private fun ScanRow(
     scan: ScanDocument,
+    folders: List<String>,
     onOpen: () -> Unit,
     onOpenWith: () -> Unit,
+    onEdit: () -> Unit,
     onShare: () -> Unit,
     onSaveToCloud: () -> Unit,
     onRename: (String) -> Unit,
+    onMoveToFolder: (String?) -> Unit,
     onDelete: () -> Unit,
 ) {
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var movingToFolder by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -291,6 +332,14 @@ private fun ScanRow(
                         onClick = { menuOpen = false; onOpenWith() },
                     )
                     DropdownMenuItem(
+                        text = { Text(stringResource(R.string.edit_pages)) },
+                        onClick = { menuOpen = false; onEdit() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.move_to_folder)) },
+                        onClick = { menuOpen = false; movingToFolder = true },
+                    )
+                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.share)) },
                         onClick = { menuOpen = false; onShare() },
                     )
@@ -330,6 +379,61 @@ private fun ScanRow(
             },
             dismissButton = {
                 TextButton(onClick = { renaming = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (movingToFolder) {
+        var newFolder by remember(scan.id) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { movingToFolder = false },
+            title = { Text(stringResource(R.string.move_to_folder)) },
+            text = {
+                Column {
+                    folders.forEach { folder ->
+                        androidx.compose.material3.TextButton(
+                            onClick = { movingToFolder = false; onMoveToFolder(folder) },
+                        ) {
+                            Text(
+                                folder,
+                                color = if (folder == scan.folder) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                            )
+                        }
+                    }
+                    if (scan.folder != null) {
+                        androidx.compose.material3.TextButton(
+                            onClick = { movingToFolder = false; onMoveToFolder(null) },
+                        ) {
+                            Text(stringResource(R.string.remove_from_folder))
+                        }
+                    }
+                    OutlinedTextField(
+                        value = newFolder,
+                        onValueChange = { newFolder = it },
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.new_folder_hint)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        movingToFolder = false
+                        onMoveToFolder(newFolder.trim())
+                    },
+                    enabled = newFolder.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.move))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { movingToFolder = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             },

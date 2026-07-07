@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.core.content.FileProvider
 import com.eugeneboon.docscanner.data.ScanDocument
 import com.eugeneboon.docscanner.drive.DriveBackup
+import com.eugeneboon.docscanner.editor.PageEditorActivity
 import com.eugeneboon.docscanner.ui.ScanEvent
 import com.eugeneboon.docscanner.ui.ScanListScreen
 import com.eugeneboon.docscanner.ui.ScanViewModel
@@ -55,6 +56,8 @@ class MainActivity : ComponentActivity() {
             DocScannerTheme {
                 val scans by viewModel.scans.collectAsState()
                 val searchQuery by viewModel.searchQuery.collectAsState()
+                val folders by viewModel.folders.collectAsState()
+                val folderFilter by viewModel.folderFilter.collectAsState()
                 val driveBackupEnabled by viewModel.driveBackupEnabled.collectAsState()
                 val snackbarHostState = remember { SnackbarHostState() }
 
@@ -107,9 +110,12 @@ class MainActivity : ComponentActivity() {
                 ScanListScreen(
                     scans = scans,
                     searchQuery = searchQuery,
+                    folders = folders,
+                    folderFilter = folderFilter,
                     driveBackupEnabled = driveBackupEnabled,
                     snackbarHostState = snackbarHostState,
                     onSearchQueryChange = viewModel::onSearchQueryChange,
+                    onFolderFilterChange = viewModel::onFolderFilterChange,
                     onToggleDriveBackup = {
                         if (driveBackupEnabled) {
                             DriveBackup.setEnabled(this, false)
@@ -140,12 +146,16 @@ class MainActivity : ComponentActivity() {
                         startActivity(PdfViewerActivity.intent(this, scan.pdfPath, scan.title))
                     },
                     onOpenWith = ::openPdf,
+                    onEdit = { scan ->
+                        startActivity(PageEditorActivity.intent(this, scan.id))
+                    },
                     onShare = ::sharePdf,
                     onSaveToCloud = { scan ->
                         viewModel.requestExport(scan)
                         exportLauncher.launch("${scan.title}.pdf")
                     },
                     onRename = viewModel::rename,
+                    onMoveToFolder = viewModel::moveToFolder,
                     onDelete = viewModel::delete,
                 )
             }

@@ -26,6 +26,13 @@ Dropbox, or any other cloud provider.
 - **In-app PDF viewer** — tap a scan to read it inside the app (platform
   `PdfRenderer`, no external PDF app needed). "Open with…" still hands the
   file to any installed PDF reader.
+- **Folders** — move scans into named folders ("Move to folder…") and
+  filter the library with chips under the search bar.
+- **Page editor with watermark** — "Edit pages" opens an editor to
+  reorder, rotate, and remove pages, scan additional pages into the
+  document, and stamp an optional diagonal text watermark across every
+  page. Saving rebuilds the PDF, refreshes the thumbnail and OCR text,
+  and re-queues the scan for Drive backup.
 - **Automatic Google Drive backup** — toggle the cloud icon in the top bar
   to turn it on. Every scan (including older, not-yet-uploaded ones) is
   uploaded by a background WorkManager job into a "Doc Scanner" folder in
