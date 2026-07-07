@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             DocScannerTheme {
                 val scans by viewModel.scans.collectAsState()
+                val searchQuery by viewModel.searchQuery.collectAsState()
                 val snackbarHostState = remember { SnackbarHostState() }
 
                 val scannerLauncher = rememberLauncherForActivityResult(
@@ -80,7 +81,9 @@ class MainActivity : ComponentActivity() {
 
                 ScanListScreen(
                     scans = scans,
+                    searchQuery = searchQuery,
                     snackbarHostState = snackbarHostState,
+                    onSearchQueryChange = viewModel::onSearchQueryChange,
                     onScanClick = {
                         GmsDocumentScanning.getClient(scannerOptions)
                             .getStartScanIntent(this)

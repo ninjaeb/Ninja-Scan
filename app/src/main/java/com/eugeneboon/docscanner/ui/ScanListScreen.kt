@@ -15,9 +15,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -59,7 +61,9 @@ import java.io.File
 @Composable
 fun ScanListScreen(
     scans: List<ScanDocument>,
+    searchQuery: String,
     snackbarHostState: SnackbarHostState,
+    onSearchQueryChange: (String) -> Unit,
     onScanClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
     onShare: (ScanDocument) -> Unit,
@@ -78,31 +82,80 @@ fun ScanListScreen(
             )
         },
     ) { padding ->
-        if (scans.isEmpty()) {
-            EmptyLibrary(Modifier.padding(padding))
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(scans, key = { it.id }) { scan ->
-                    ScanRow(
-                        scan = scan,
-                        onOpen = { onOpen(scan) },
-                        onShare = { onShare(scan) },
-                        onSaveToCloud = { onSaveToCloud(scan) },
-                        onRename = { onRename(scan, it) },
-                        onDelete = { onDelete(scan) },
-                    )
+        val searching = searchQuery.isNotBlank()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (scans.isNotEmpty() || searching) {
+                SearchField(
+                    query = searchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            when {
+                scans.isEmpty() && searching -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            stringResource(R.string.no_results),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                scans.isEmpty() -> EmptyLibrary()
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(scans, key = { it.id }) { scan ->
+                        ScanRow(
+                            scan = scan,
+                            onOpen = { onOpen(scan) },
+                            onShare = { onShare(scan) },
+                            onSaveToCloud = { onSaveToCloud(scan) },
+                            onRename = { onRename(scan, it) },
+                            onDelete = { onDelete(scan) },
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier,
+        singleLine = true,
+        placeholder = { Text(stringResource(R.string.search_hint)) },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        Icons.Filled.Clear,
+                        contentDescription = stringResource(R.string.clear_search),
+                    )
+                }
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+    )
 }
 
 @Composable

@@ -57,6 +57,10 @@ dependencies {
     // ML Kit document scanner: capture, edge detection, auto-crop, cleanup filters
     implementation(libs.mlkit.document.scanner)
 
+    // ML Kit text recognition (on-device, via Play services): searchable scans
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.kotlinx.coroutines.play.services)
+
     // Local library of scans
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

@@ -9,10 +9,13 @@ import com.eugeneboon.docscanner.DocScannerApp
 import com.eugeneboon.docscanner.data.ScanDocument
 import com.eugeneboon.docscanner.data.ScanRepository
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -23,10 +26,22 @@ sealed interface ScanEvent {
     data object ExportFailed : ScanEvent
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
 
-    val scans: StateFlow<List<ScanDocument>> = repository.scans
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    /** Library contents; filtered by title and recognized text when searching. */
+    val scans: StateFlow<List<ScanDocument>> = _searchQuery
+        .flatMapLatest { query ->
+            if (query.isBlank()) repository.scans else repository.search(query.trim())
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+    }
 
     private val _events = MutableSharedFlow<ScanEvent>()
     val events: SharedFlow<ScanEvent> = _events

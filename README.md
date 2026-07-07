@@ -20,6 +20,9 @@ Dropbox, or any other cloud provider.
 - **Digital library** — every scan is stored on-device with a thumbnail,
   page count, file size, and date, backed by a Room database. Rename,
   open, and delete from the list.
+- **Full-text search (OCR)** — each page is run through ML Kit's on-device
+  text recognition when a scan is saved, and the search bar matches both
+  titles and the recognized document text.
 - **Cloud storage**
   - *Save to cloud*: exports the PDF through the Android document picker
     (Storage Access Framework), so you can drop it straight into Google
