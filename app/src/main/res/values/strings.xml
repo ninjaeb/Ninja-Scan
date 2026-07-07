@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Doc Scanner</string>
+    <string name="scan_document">Scan document</string>
+    <string name="empty_library_title">No scans yet</string>
+    <string name="empty_library_body">Tap the scan button to capture a document. Edges are detected and cropped automatically, and the result is optimized for cloud storage.</string>
+    <string name="share">Share</string>
+    <string name="save_to_cloud">Save to cloud</string>
+    <string name="delete">Delete</string>
+    <string name="open">Open</string>
+    <string name="rename">Rename</string>
+    <string name="pages">%1$d pages</string>
+    <string name="page">1 page</string>
+    <string name="delete_dialog_title">Delete scan?</string>
+    <string name="delete_dialog_body">“%1$s” and its PDF will be removed from this device.</string>
+    <string name="cancel">Cancel</string>
+    <string name="scan_failed">Scanning failed: %1$s</string>
+    <string name="scan_saved">Scan saved (%1$s)</string>
+    <string name="exported">Saved to cloud location</string>
+    <string name="export_failed">Export failed</string>
+    <string name="no_pdf_viewer">No PDF viewer installed</string>
+</resources>
