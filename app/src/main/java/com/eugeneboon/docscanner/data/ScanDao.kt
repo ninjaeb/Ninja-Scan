@@ -13,6 +13,12 @@ interface ScanDao {
     @Query("SELECT * FROM scans ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<ScanDocument>>
 
+    @Query(
+        "SELECT * FROM scans WHERE title LIKE '%' || :query || '%' " +
+            "OR ocrText LIKE '%' || :query || '%' ORDER BY createdAt DESC"
+    )
+    fun search(query: String): Flow<List<ScanDocument>>
+
     @Query("SELECT * FROM scans WHERE id = :id")
     suspend fun getById(id: Long): ScanDocument?
 

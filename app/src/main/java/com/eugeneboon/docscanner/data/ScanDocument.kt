@@ -6,6 +6,7 @@ import androidx.room.PrimaryKey
 /**
  * A scanned document stored on disk. [pdfPath] points to the cloud-optimized
  * PDF and [thumbnailPath] to a small JPEG of the first page used in the list UI.
+ * [ocrText] holds the text recognized on all pages, used for full-text search.
  */
 @Entity(tableName = "scans")
 data class ScanDocument(
@@ -16,4 +17,5 @@ data class ScanDocument(
     val pdfPath: String,
     val thumbnailPath: String?,
     val sizeBytes: Long,
+    val ocrText: String = "",
 )

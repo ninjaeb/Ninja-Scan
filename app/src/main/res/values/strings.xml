@@ -18,4 +18,7 @@
     <string name="exported">Saved to cloud location</string>
     <string name="export_failed">Export failed</string>
     <string name="no_pdf_viewer">No PDF viewer installed</string>
+    <string name="search_hint">Search titles and document text</string>
+    <string name="no_results">No scans match your search</string>
+    <string name="clear_search">Clear search</string>
 </resources>

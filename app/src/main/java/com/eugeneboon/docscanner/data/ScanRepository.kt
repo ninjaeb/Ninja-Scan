@@ -3,9 +3,13 @@ package com.eugeneboon.docscanner.data
 import android.content.Context
 import android.net.Uri
 import com.eugeneboon.docscanner.util.ImageOptimizer
+import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
@@ -18,6 +22,8 @@ class ScanRepository(
 ) {
 
     val scans: Flow<List<ScanDocument>> = dao.observeAll()
+
+    fun search(query: String): Flow<List<ScanDocument>> = dao.search(query)
 
     private val scansDir: File
         get() = File(context.filesDir, "scans").apply { mkdirs() }
@@ -63,9 +69,30 @@ class ScanRepository(
                 pdfPath = pdfFile.absolutePath,
                 thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
                 sizeBytes = pdfFile.length(),
+                ocrText = recognizeText(pageUris),
             )
             scan.copy(id = dao.insert(scan))
         }
+
+    /**
+     * Runs on-device text recognition over every page so scans are full-text
+     * searchable. Best-effort: pages that fail to process contribute nothing.
+     */
+    private suspend fun recognizeText(pageUris: List<Uri>): String {
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        return try {
+            pageUris.mapNotNull { uri ->
+                runCatching {
+                    recognizer.process(InputImage.fromFilePath(context, uri))
+                        .await().text.takeIf { it.isNotBlank() }
+                }.getOrNull()
+            }.joinToString("\n\n")
+        } catch (e: Exception) {
+            ""
+        } finally {
+            recognizer.close()
+        }
+    }
 
     suspend fun rename(scan: ScanDocument, title: String) {
         val trimmed = title.trim()
