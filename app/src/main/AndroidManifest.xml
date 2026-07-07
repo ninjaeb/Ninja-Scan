@@ -36,6 +36,11 @@
             android:exported="false"
             android:theme="@style/Theme.DocScanner" />
 
+        <activity
+            android:name=".editor.PageEditorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DocScanner" />
+
         <!-- Ask Play services to download the scanner and OCR modules at install time -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
