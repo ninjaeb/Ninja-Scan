@@ -20,7 +20,7 @@ import com.google.android.gms.common.api.Scope
 object DriveBackup {
 
     const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
-    const val FOLDER_NAME = "Doc Scanner"
+    const val FOLDER_NAME = "Ninja Scan"
 
     private const val PREFS = "drive_backup"
     private const val KEY_ENABLED = "enabled"

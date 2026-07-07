@@ -83,6 +83,10 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
     var pendingExport: ScanDocument? = null
         private set
 
+    /** The scan just saved, pending the name-and-organize dialog. */
+    private val _justSaved = MutableStateFlow<ScanDocument?>(null)
+    val justSaved: StateFlow<ScanDocument?> = _justSaved
+
     fun onScanResult(result: GmsDocumentScanningResult?, app: DocScannerApp) {
         if (result == null) return
         viewModelScope.launch {
@@ -91,11 +95,24 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
                     _events.emit(
                         ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
                     )
+                    _justSaved.value = scan
                     if (com.eugeneboon.docscanner.drive.DriveBackup.isEnabled(app)) {
                         com.eugeneboon.docscanner.drive.DriveBackup.enqueue(app)
                     }
                 }
                 .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }
+        }
+    }
+
+    fun dismissScanDetails() {
+        _justSaved.value = null
+    }
+
+    fun confirmScanDetails(scan: ScanDocument, title: String, folder: String?) {
+        _justSaved.value = null
+        viewModelScope.launch {
+            repository.rename(scan, title)
+            repository.moveToFolder(scan, folder)
         }
     }
 

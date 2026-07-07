@@ -18,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.core.content.FileProvider
+import com.eugeneboon.docscanner.cards.CardsActivity
 import com.eugeneboon.docscanner.data.ScanDocument
 import com.eugeneboon.docscanner.drive.DriveBackup
 import com.eugeneboon.docscanner.editor.PageEditorActivity
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
                 val folders by viewModel.folders.collectAsState()
                 val folderFilter by viewModel.folderFilter.collectAsState()
                 val driveBackupEnabled by viewModel.driveBackupEnabled.collectAsState()
+                val justSaved by viewModel.justSaved.collectAsState()
                 val snackbarHostState = remember { SnackbarHostState() }
 
                 val driveConsentLauncher = rememberLauncherForActivityResult(
@@ -115,9 +117,13 @@ class MainActivity : ComponentActivity() {
                     folders = folders,
                     folderFilter = folderFilter,
                     driveBackupEnabled = driveBackupEnabled,
+                    justSaved = justSaved,
                     snackbarHostState = snackbarHostState,
+                    onConfirmScanDetails = viewModel::confirmScanDetails,
+                    onDismissScanDetails = viewModel::dismissScanDetails,
                     onSearchQueryChange = viewModel::onSearchQueryChange,
                     onFolderFilterChange = viewModel::onFolderFilterChange,
+                    onOpenCards = { startActivity(CardsActivity.intent(this)) },
                     onToggleDriveBackup = {
                         if (driveBackupEnabled) {
                             DriveBackup.setEnabled(this, false)

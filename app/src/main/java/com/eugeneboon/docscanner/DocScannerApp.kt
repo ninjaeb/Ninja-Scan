@@ -7,6 +7,7 @@ import com.eugeneboon.docscanner.data.ScanRepository
 class DocScannerApp : Application() {
 
     val repository: ScanRepository by lazy {
-        ScanRepository(this, ScanDatabase.get(this).scanDao())
+        val database = ScanDatabase.get(this)
+        ScanRepository(this, database.scanDao(), database.cardDao())
     }
 }

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.MoreVert
@@ -69,10 +70,14 @@ fun ScanListScreen(
     folders: List<String>,
     folderFilter: String?,
     driveBackupEnabled: Boolean,
+    justSaved: ScanDocument?,
     snackbarHostState: SnackbarHostState,
+    onConfirmScanDetails: (ScanDocument, String, String?) -> Unit,
+    onDismissScanDetails: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onFolderFilterChange: (String?) -> Unit,
     onToggleDriveBackup: () -> Unit,
+    onOpenCards: () -> Unit,
     onScanClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
     onOpenWith: (ScanDocument) -> Unit,
@@ -84,11 +89,26 @@ fun ScanListScreen(
     onMoveToFolder: (ScanDocument, String?) -> Unit,
     onDelete: (ScanDocument) -> Unit,
 ) {
+    justSaved?.let { scan ->
+        SaveDetailsDialog(
+            scan = scan,
+            folders = folders,
+            onConfirm = { title, folder -> onConfirmScanDetails(scan, title, folder) },
+            onDismiss = onDismissScanDetails,
+        )
+    }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = onOpenCards) {
+                        Icon(
+                            Icons.Filled.ContactPage,
+                            contentDescription = stringResource(R.string.business_cards),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     IconButton(onClick = onToggleDriveBackup) {
                         Icon(
                             if (driveBackupEnabled) Icons.Filled.CloudDone
@@ -189,6 +209,75 @@ fun ScanListScreen(
             }
         }
     }
+}
+
+/** Shown right after a scan is saved: set the name and pick a folder. */
+@Composable
+private fun SaveDetailsDialog(
+    scan: ScanDocument,
+    folders: List<String>,
+    onConfirm: (title: String, folder: String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var title by remember(scan.id) { mutableStateOf(scan.title) }
+    var selectedFolder by remember(scan.id) { mutableStateOf(scan.folder) }
+    var newFolder by remember(scan.id) { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.save_details_title)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.field_name)) },
+                )
+                if (folders.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.save_details_folder),
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    )
+                    folders.forEach { folder ->
+                        TextButton(onClick = {
+                            selectedFolder = if (selectedFolder == folder) null else folder
+                            newFolder = ""
+                        }) {
+                            Text(
+                                folder,
+                                color = if (folder == selectedFolder) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = newFolder,
+                    onValueChange = { newFolder = it; if (it.isNotBlank()) selectedFolder = null },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.new_folder_hint)) },
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(title, newFolder.trim().ifEmpty { selectedFolder })
+            }) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.skip))
+            }
+        },
+    )
 }
 
 @Composable

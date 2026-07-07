@@ -7,10 +7,16 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [ScanDocument::class], version = 5, exportSchema = false)
+@Database(
+    entities = [ScanDocument::class, BusinessCard::class],
+    version = 7,
+    exportSchema = false,
+)
 abstract class ScanDatabase : RoomDatabase() {
 
     abstract fun scanDao(): ScanDao
+
+    abstract fun cardDao(): BusinessCardDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -37,6 +43,26 @@ abstract class ScanDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `business_cards` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `company` TEXT NOT NULL, " +
+                        "`jobTitle` TEXT NOT NULL, `phone` TEXT NOT NULL, " +
+                        "`email` TEXT NOT NULL, `website` TEXT NOT NULL, " +
+                        "`address` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                        "`thumbnailPath` TEXT)"
+                )
+            }
+        }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE scans ADD COLUMN originalsDir TEXT")
+            }
+        }
+
         @Volatile
         private var instance: ScanDatabase? = null
 
@@ -47,7 +73,10 @@ abstract class ScanDatabase : RoomDatabase() {
                     ScanDatabase::class.java,
                     "scans.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+                        MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                    )
                     .build()
                     .also { instance = it }
             }

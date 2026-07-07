@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Doc Scanner"
+rootProject.name = "Ninja Scan"
 include(":app")

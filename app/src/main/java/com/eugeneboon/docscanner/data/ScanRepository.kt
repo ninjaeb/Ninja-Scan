@@ -1,10 +1,13 @@
 package com.eugeneboon.docscanner.data
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
+import com.eugeneboon.docscanner.util.CardParser
 import com.eugeneboon.docscanner.util.EditPage
 import com.eugeneboon.docscanner.util.ImageOptimizer
 import com.eugeneboon.docscanner.util.PdfEditor
+import com.eugeneboon.docscanner.util.XlsxWriter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import com.google.mlkit.vision.text.TextRecognition
@@ -14,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,10 +25,19 @@ import java.util.Locale
 class ScanRepository(
     private val context: Context,
     private val dao: ScanDao,
+    private val cardDao: BusinessCardDao,
 ) {
 
     private companion object {
         const val OCR_RENDER_DIMENSION_PX = 1600
+        const val ORIGINAL_MAX_DIMENSION_PX = 4096
+        const val ORIGINAL_JPEG_QUALITY = 92
+        val CARD_COLUMNS = listOf(
+            "Name", "Company", "Job Title", "Phone", "Email", "Website", "Address",
+        )
+
+        fun pageFileName(index: Int): String =
+            "page-%03d.jpg".format(Locale.US, index + 1)
     }
 
     val scans: Flow<List<ScanDocument>> = dao.observeAll()
@@ -67,14 +80,48 @@ class ScanRepository(
         var pageCount = scan.pageCount
         var ocrText = scan.ocrText
         var thumbnailPath = scan.thumbnailPath
+        var originalsDirPath = scan.originalsDir
         if (pagesChanged) {
+            val oldOriginals = scan.originalsDir?.let(::File)?.takeIf { it.isDirectory }
+
+            // Prefer the untouched full-resolution originals as page sources
+            // so repeated edits don't degrade quality.
+            val effectivePages = pages.map { page ->
+                if (page is EditPage.FromPdf) {
+                    val original = oldOriginals
+                        ?.let { File(it, pageFileName(page.index)) }
+                        ?.takeIf { it.exists() }
+                    if (original != null) {
+                        EditPage.FromImage(Uri.fromFile(original), page.rotation)
+                    } else {
+                        page
+                    }
+                } else {
+                    page
+                }
+            }
+
             val rebuilt = File(scansDir, "${source.nameWithoutExtension}.rebuild.pdf")
-            pageCount = PdfEditor.rebuildPdf(context, source, pages, null, rebuilt)
+            pageCount = PdfEditor.rebuildPdf(context, source, effectivePages, null, rebuilt)
             check(pageCount > 0) { "Could not rebuild the document" }
+
+            // Regenerate the originals to mirror the new page composition
+            // before swapping the PDF (sources reference the old files).
+            val newOriginals = rebuildOriginals(pages, oldOriginals, source)
+
             if (!rebuilt.renameTo(source)) {
                 rebuilt.copyTo(source, overwrite = true)
                 rebuilt.delete()
             }
+            if (newOriginals != null) {
+                oldOriginals?.deleteRecursively()
+                val finalDir = File(scansDir, "originals/${source.nameWithoutExtension}")
+                finalDir.deleteRecursively()
+                originalsDirPath =
+                    if (newOriginals.renameTo(finalDir)) finalDir.absolutePath
+                    else newOriginals.absolutePath
+            }
+
             val thumbPath = scan.thumbnailPath
                 ?: File(scansDir, "${source.nameWithoutExtension}.thumb.jpg").absolutePath
             if (PdfEditor.writeThumbnail(source, File(thumbPath))) thumbnailPath = thumbPath
@@ -87,6 +134,7 @@ class ScanRepository(
             thumbnailPath = thumbnailPath,
             ocrText = ocrText,
             watermark = cleanedWatermark,
+            originalsDir = originalsDirPath,
             driveFileId = if (pagesChanged || cleanedWatermark != scan.watermark) {
                 null
             } else {
@@ -95,6 +143,73 @@ class ScanRepository(
         )
         dao.update(updated)
         updated
+    }
+
+    /**
+     * Writes a fresh originals directory matching the edited page order.
+     * Unrotated pages are copied byte-for-byte; rotated or missing sources
+     * are re-encoded at high resolution.
+     */
+    private fun rebuildOriginals(
+        pages: List<EditPage>,
+        oldOriginals: File?,
+        sourcePdf: File,
+    ): File? = runCatching {
+        val newDir = File(scansDir, "originals/${sourcePdf.nameWithoutExtension}.new")
+        newDir.deleteRecursively()
+        newDir.mkdirs()
+        pages.forEachIndexed { index, page ->
+            val target = File(newDir, pageFileName(index))
+            runCatching {
+                when (page) {
+                    is EditPage.FromPdf -> {
+                        val original = oldOriginals
+                            ?.let { File(it, pageFileName(page.index)) }
+                            ?.takeIf { it.exists() }
+                        when {
+                            original != null && page.rotation % 360 == 0 ->
+                                original.copyTo(target, overwrite = true)
+                            original != null ->
+                                writeRotatedJpeg(Uri.fromFile(original), page.rotation, target)
+                            else -> {
+                                val bitmap = PdfEditor.renderPageFromFile(
+                                    sourcePdf, page.index, ORIGINAL_MAX_DIMENSION_PX,
+                                    page.rotation,
+                                )
+                                if (bitmap != null) {
+                                    FileOutputStream(target).use {
+                                        bitmap.compress(
+                                            Bitmap.CompressFormat.JPEG,
+                                            ORIGINAL_JPEG_QUALITY, it,
+                                        )
+                                    }
+                                    bitmap.recycle()
+                                }
+                            }
+                        }
+                    }
+                    is EditPage.FromImage -> {
+                        if (page.rotation % 360 == 0) {
+                            context.contentResolver.openInputStream(page.uri)?.use { input ->
+                                target.outputStream().use { input.copyTo(it) }
+                            }
+                        } else {
+                            writeRotatedJpeg(page.uri, page.rotation, target)
+                        }
+                    }
+                }
+            }
+        }
+        newDir
+    }.getOrNull()
+
+    private fun writeRotatedJpeg(uri: Uri, rotation: Int, target: File) {
+        val bitmap = ImageOptimizer.decodeImage(context, uri, ORIGINAL_MAX_DIMENSION_PX) ?: return
+        val rotated = PdfEditor.rotate(bitmap, rotation)
+        FileOutputStream(target).use {
+            rotated.compress(Bitmap.CompressFormat.JPEG, ORIGINAL_JPEG_QUALITY, it)
+        }
+        rotated.recycle()
     }
 
     private val shareDir: File
@@ -128,6 +243,72 @@ class ScanRepository(
                 shareBaseName(scan),
             )
         }
+
+    // ---------------------------------------------------------------------
+    // Business cards
+    // ---------------------------------------------------------------------
+
+    val cards: Flow<List<BusinessCard>> = cardDao.observeAll()
+
+    /** OCRs a scanned card image and extracts contact fields, best-effort. */
+    suspend fun parseCardImage(imageUri: Uri): BusinessCard = withContext(Dispatchers.IO) {
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        val text = try {
+            recognizer.process(InputImage.fromFilePath(context, imageUri)).await().text
+        } catch (e: Exception) {
+            ""
+        } finally {
+            recognizer.close()
+        }
+        val cardsDir = File(context.filesDir, "cards").apply { mkdirs() }
+        val thumb = File(cardsDir, "card_${System.currentTimeMillis()}.jpg")
+        val hasThumb = ImageOptimizer.writeThumbnail(context, imageUri, thumb)
+        CardParser.parse(text).copy(
+            createdAt = System.currentTimeMillis(),
+            thumbnailPath = if (hasThumb) thumb.absolutePath else null,
+        )
+    }
+
+    suspend fun saveCard(card: BusinessCard): BusinessCard =
+        if (card.id == 0L) card.copy(id = cardDao.insert(card)) else card.also { cardDao.update(it) }
+
+    suspend fun deleteCard(card: BusinessCard) {
+        card.thumbnailPath?.let { File(it).delete() }
+        cardDao.delete(card)
+    }
+
+    /** Writes all cards as CSV to a user-chosen SAF destination. */
+    suspend fun exportCardsCsv(cards: List<BusinessCard>, destination: Uri): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openOutputStream(destination)?.use { output ->
+                    output.write(buildCsv(cards).toByteArray(Charsets.UTF_8))
+                } != null
+            }.getOrDefault(false)
+        }
+
+    /** Writes all cards as an Excel workbook to a SAF destination. */
+    suspend fun exportCardsXlsx(cards: List<BusinessCard>, destination: Uri): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openOutputStream(destination)?.use { output ->
+                    XlsxWriter.write(output, "Contacts", CARD_COLUMNS, cards.map(::cardRow))
+                } != null
+            }.getOrDefault(false)
+        }
+
+    private fun buildCsv(cards: List<BusinessCard>): String = buildString {
+        fun quote(value: String) = "\"" + value.replace("\"", "\"\"") + "\""
+        append(CARD_COLUMNS.joinToString(",") { quote(it) }).append("\r\n")
+        for (card in cards) {
+            append(cardRow(card).joinToString(",") { quote(it) }).append("\r\n")
+        }
+    }
+
+    private fun cardRow(card: BusinessCard): List<String> = listOf(
+        card.name, card.company, card.jobTitle, card.phone,
+        card.email, card.website, card.address,
+    )
 
     /** Re-runs on-device OCR over a rebuilt PDF, page by page. Best-effort. */
     private suspend fun recognizeTextFromPdf(pdf: File): String {
@@ -188,6 +369,18 @@ class ScanRepository(
             val thumbFile = File(scansDir, "$baseName.thumb.jpg")
             val hasThumb = ImageOptimizer.writeThumbnail(context, pageUris.first(), thumbFile)
 
+            // Keep the untouched full-resolution captures so pages can be
+            // re-enhanced or re-edited later without quality loss.
+            val originalsDir = File(scansDir, "originals/$baseName").apply { mkdirs() }
+            pageUris.forEachIndexed { index, uri ->
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        File(originalsDir, pageFileName(index)).outputStream()
+                            .use { input.copyTo(it) }
+                    }
+                }
+            }
+
             val scan = ScanDocument(
                 title = name,
                 createdAt = timestamp,
@@ -196,6 +389,7 @@ class ScanRepository(
                 thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
                 sizeBytes = pdfFile.length(),
                 ocrText = recognizeText(pageUris),
+                originalsDir = originalsDir.absolutePath,
             )
             scan.copy(id = dao.insert(scan))
         }
@@ -228,6 +422,7 @@ class ScanRepository(
     suspend fun delete(scan: ScanDocument) = withContext(Dispatchers.IO) {
         File(scan.pdfPath).delete()
         scan.thumbnailPath?.let { File(it).delete() }
+        scan.originalsDir?.let { File(it).deleteRecursively() }
         dao.delete(scan)
     }
 

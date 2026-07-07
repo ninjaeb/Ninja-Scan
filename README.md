@@ -1,4 +1,4 @@
-# Doc Scanner
+# Ninja Scan
 
 A CamScanner-style Android document scanner. Capture documents with the
 camera, get automatic edge detection and cropping, and store the result as a
@@ -37,6 +37,16 @@ Dropbox, or any other cloud provider.
   OCR text, and re-queue the scan for Drive backup.
 - **Share as PDF or images** — the share menu offers the PDF or the
   pages as JPEG files (both watermarked when a watermark is set).
+- **Name and organize on save** — right after a scan is saved, a dialog
+  offers to rename it and file it into a folder (or skip).
+- **Originals kept** — the untouched full-resolution captures are stored
+  alongside the optimized PDF and used as the quality source for page
+  edits, so future enhance/filter passes never work from compressed data.
+- **Business card scanner** — the contacts icon opens a card library:
+  scan a card and the name, company, title, phone, email, website, and
+  address are extracted with on-device OCR into an editable contact.
+  Save any card straight into the phone's contacts app, and export the
+  whole list as CSV or a real Excel (.xlsx) workbook.
 - **Automatic Google Drive backup** — toggle the cloud icon in the top bar
   to turn it on. Every scan (including older, not-yet-uploaded ones) is
   uploaded by a background WorkManager job into a "Doc Scanner" folder in

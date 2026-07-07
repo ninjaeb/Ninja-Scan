@@ -28,4 +28,10 @@ data class ScanDocument(
      * uploaded — so it can be edited or removed at any time.
      */
     val watermark: String? = null,
+    /**
+     * Directory holding the original full-resolution page JPEGs as captured
+     * by the camera, kept so pages can be re-enhanced or re-filtered later
+     * without quality loss. Null for scans saved before this existed.
+     */
+    val originalsDir: String? = null,
 )
