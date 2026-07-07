@@ -25,6 +25,11 @@ class ScanRepository(
 
     fun search(query: String): Flow<List<ScanDocument>> = dao.search(query)
 
+    suspend fun getPendingBackup(): List<ScanDocument> = dao.getPendingBackup()
+
+    suspend fun markBackedUp(scanId: Long, driveFileId: String) =
+        dao.setDriveFileId(scanId, driveFileId)
+
     private val scansDir: File
         get() = File(context.filesDir, "scans").apply { mkdirs() }
 

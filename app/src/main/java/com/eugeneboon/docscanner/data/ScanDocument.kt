@@ -18,4 +18,6 @@ data class ScanDocument(
     val thumbnailPath: String?,
     val sizeBytes: Long,
     val ocrText: String = "",
+    /** Google Drive file id once the PDF has been backed up, null otherwise. */
+    val driveFileId: String? = null,
 )

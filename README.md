@@ -23,6 +23,16 @@ Dropbox, or any other cloud provider.
 - **Full-text search (OCR)** — each page is run through ML Kit's on-device
   text recognition when a scan is saved, and the search bar matches both
   titles and the recognized document text.
+- **In-app PDF viewer** — tap a scan to read it inside the app (platform
+  `PdfRenderer`, no external PDF app needed). "Open with…" still hands the
+  file to any installed PDF reader.
+- **Automatic Google Drive backup** — toggle the cloud icon in the top bar
+  to turn it on. Every scan (including older, not-yet-uploaded ones) is
+  uploaded by a background WorkManager job into a "Doc Scanner" folder in
+  your Drive, and backed-up scans show a small cloud check in the list.
+  Uses the narrow `drive.file` OAuth scope, so the app can only ever see
+  files it created itself. Requires a one-time OAuth client registration —
+  see below.
 - **Cloud storage**
   - *Save to cloud*: exports the PDF through the Android document picker
     (Storage Access Framework), so you can drop it straight into Google
@@ -58,6 +68,29 @@ configuration, or build from the command line:
 Requirements: JDK 17, Android SDK 34. A device/emulator with Google Play
 services is needed for the scanner itself (API 26+).
 
+## Enabling Google Drive backup (one-time setup)
+
+The Drive backup code is complete, but Google requires every app that
+requests OAuth scopes to be registered. Do this once (free):
+
+1. Go to <https://console.cloud.google.com> and create a project
+   (e.g. "Doc Scanner").
+2. **APIs & Services → Library** → search for **Google Drive API** →
+   **Enable**.
+3. **APIs & Services → OAuth consent screen** → External → fill in the app
+   name and your email → add your Google account under **Test users**.
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID**
+   → Application type **Android**:
+   - Package name: `com.eugeneboon.docscanner`
+   - SHA-1: print your debug signing certificate with
+     `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`
+     and copy the SHA1 line.
+5. Done — nothing to download or paste into the code. Reinstall the app,
+   tap the cloud icon, pick your Google account, and grant access.
+
+If you later sign a release build, add a second Android OAuth client with
+the release keystore's SHA-1.
+
 ## Project structure
 
 ```
@@ -69,6 +102,11 @@ app/src/main/java/com/eugeneboon/docscanner/
 │   ├── ScanDao.kt           # Queries
 │   ├── ScanDatabase.kt      # Database singleton
 │   └── ScanRepository.kt    # Save/optimize/export/delete logic
+├── drive/
+│   ├── DriveBackup.kt       # Backup settings, OAuth request, scheduling
+│   └── DriveBackupWorker.kt # Background uploads via Drive REST API
+├── viewer/
+│   └── PdfViewerActivity.kt # In-app PDF viewer (PdfRenderer + Compose)
 ├── ui/
 │   ├── ScanListScreen.kt    # Compose library UI
 │   ├── ScanViewModel.kt     # State + one-shot events

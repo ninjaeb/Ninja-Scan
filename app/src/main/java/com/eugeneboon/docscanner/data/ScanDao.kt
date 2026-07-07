@@ -22,6 +22,12 @@ interface ScanDao {
     @Query("SELECT * FROM scans WHERE id = :id")
     suspend fun getById(id: Long): ScanDocument?
 
+    @Query("SELECT * FROM scans WHERE driveFileId IS NULL ORDER BY createdAt ASC")
+    suspend fun getPendingBackup(): List<ScanDocument>
+
+    @Query("UPDATE scans SET driveFileId = :fileId WHERE id = :id")
+    suspend fun setDriveFileId(id: Long, fileId: String)
+
     @Insert
     suspend fun insert(scan: ScanDocument): Long
 

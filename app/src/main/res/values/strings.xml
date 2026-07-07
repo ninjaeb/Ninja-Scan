@@ -21,4 +21,10 @@
     <string name="search_hint">Search titles and document text</string>
     <string name="no_results">No scans match your search</string>
     <string name="clear_search">Clear search</string>
+    <string name="open_with">Open with…</string>
+    <string name="drive_backup">Google Drive backup</string>
+    <string name="drive_backup_enabled">Drive backup on — scans upload automatically</string>
+    <string name="drive_backup_disabled">Drive backup off</string>
+    <string name="drive_backup_failed">Could not set up Drive backup: %1$s</string>
+    <string name="backed_up_to_drive">Backed up to Google Drive</string>
 </resources>

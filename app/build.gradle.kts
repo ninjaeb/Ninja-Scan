@@ -61,6 +61,10 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     implementation(libs.kotlinx.coroutines.play.services)
 
+    // Google Drive backup: OAuth authorization + background uploads
+    implementation(libs.play.services.auth)
+    implementation(libs.androidx.work.runtime.ktx)
+
     // Local library of scans
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
