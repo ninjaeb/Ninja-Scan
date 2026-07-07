@@ -76,9 +76,12 @@ object ImageOptimizer {
     private fun decodeBounded(context: Context, uri: Uri, maxDimension: Int): Bitmap? {
         val resolver = context.contentResolver
 
+        // decodeStream always returns null in inJustDecodeBounds mode — only
+        // the stream being unopenable is a failure here; success is judged by
+        // the dimensions written into `bounds`.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: return null
+        val headerStream = resolver.openInputStream(uri) ?: return null
+        headerStream.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
         var sampleSize = 1
