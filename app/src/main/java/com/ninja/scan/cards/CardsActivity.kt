@@ -48,6 +48,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,15 +79,21 @@ class CardsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val autoStartScan =
+            savedInstanceState == null && intent.getBooleanExtra(EXTRA_START_SCAN, false)
         setContent {
             DocScannerTheme {
-                CardsScreen(onBack = { finish() })
+                CardsScreen(autoStartScan = autoStartScan, onBack = { finish() })
             }
         }
     }
 
     companion object {
-        fun intent(context: Context): Intent = Intent(context, CardsActivity::class.java)
+        private const val EXTRA_START_SCAN = "start_scan"
+
+        fun intent(context: Context, startScan: Boolean = false): Intent =
+            Intent(context, CardsActivity::class.java)
+                .putExtra(EXTRA_START_SCAN, startScan)
     }
 }
 
@@ -99,7 +106,7 @@ private val cardScannerOptions = GmsDocumentScannerOptions.Builder()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CardsScreen(onBack: () -> Unit) {
+private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as DocScannerApp
     val scope = rememberCoroutineScope()
@@ -156,6 +163,20 @@ private fun CardsScreen(onBack: () -> Unit) {
         }
     }
 
+    val launchCardScanner: () -> Unit = {
+        GmsDocumentScanning.getClient(cardScannerOptions)
+            .getStartScanIntent(context as ComponentActivity)
+            .addOnSuccessListener { sender ->
+                scannerLauncher.launch(IntentSenderRequest.Builder(sender).build())
+            }
+    }
+
+    // Launched from the main screen's "Scan business card" button: go
+    // straight into capture instead of landing on the list first.
+    LaunchedEffect(Unit) {
+        if (autoStartScan) launchCardScanner()
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -199,13 +220,7 @@ private fun CardsScreen(onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = {
-                    GmsDocumentScanning.getClient(cardScannerOptions)
-                        .getStartScanIntent(context as ComponentActivity)
-                        .addOnSuccessListener { sender ->
-                            scannerLauncher.launch(IntentSenderRequest.Builder(sender).build())
-                        }
-                },
+                onClick = launchCardScanner,
                 icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
                 text = { Text(stringResource(R.string.scan_card)) },
             )

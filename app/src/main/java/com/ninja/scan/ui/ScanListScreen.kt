@@ -78,6 +78,7 @@ fun ScanListScreen(
     onFolderFilterChange: (String?) -> Unit,
     onToggleDriveBackup: () -> Unit,
     onOpenCards: () -> Unit,
+    onScanCardClick: () -> Unit,
     onScanClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
     onOpenWith: (ScanDocument) -> Unit,
@@ -123,11 +124,25 @@ fun ScanListScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onScanClick,
-                icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
-                text = { Text(stringResource(R.string.scan_document)) },
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                // Secondary action: document scanning
+                ExtendedFloatingActionButton(
+                    onClick = onScanClick,
+                    icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
+                    text = { Text(stringResource(R.string.scan_document)) },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Spacer(Modifier.height(12.dp))
+                // Primary, most prominent action: business card scanning
+                ExtendedFloatingActionButton(
+                    onClick = onScanCardClick,
+                    icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
+                    text = { Text(stringResource(R.string.scan_business_card)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         },
     ) { padding ->
         val searching = searchQuery.isNotBlank()

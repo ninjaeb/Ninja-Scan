@@ -124,6 +124,9 @@ class MainActivity : ComponentActivity() {
                     onSearchQueryChange = viewModel::onSearchQueryChange,
                     onFolderFilterChange = viewModel::onFolderFilterChange,
                     onOpenCards = { startActivity(CardsActivity.intent(this)) },
+                    onScanCardClick = {
+                        startActivity(CardsActivity.intent(this, startScan = true))
+                    },
                     onToggleDriveBackup = {
                         if (driveBackupEnabled) {
                             DriveBackup.setEnabled(this, false)
