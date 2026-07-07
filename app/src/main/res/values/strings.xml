@@ -37,7 +37,8 @@
     <string name="rotate_page">Rotate</string>
     <string name="delete_page">Remove page</string>
     <string name="watermark">Watermark</string>
-    <string name="watermark_hint">Text stamped diagonally across every page when you save. Leave empty for no watermark.</string>
+    <string name="watermark_hint">Text stamped diagonally across every page when the document is viewed, shared, or uploaded. Clear the text to remove the watermark.</string>
+    <string name="share_as_images">Share as images</string>
     <string name="edit_failed">Could not save changes: %1$s</string>
     <string name="move_to_folder">Move to folder…</string>
     <string name="new_folder_hint">New folder name</string>

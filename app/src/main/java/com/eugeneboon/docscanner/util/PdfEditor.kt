@@ -36,6 +36,7 @@ object PdfEditor {
     private const val MAX_PAGE_DIMENSION_PX = 2480
     private const val THUMBNAIL_DIMENSION_PX = 512
     private const val THUMBNAIL_JPEG_QUALITY = 80
+    private const val SHARE_JPEG_QUALITY = 85
 
     fun pageCount(pdf: File): Int =
         runCatching {
@@ -118,6 +119,55 @@ object PdfEditor {
             document.close()
         }
         return pageNumber
+    }
+
+    /** Stamps the diagonal watermark directly onto a mutable [bitmap]. */
+    fun applyWatermark(bitmap: Bitmap, text: String) {
+        drawWatermark(Canvas(bitmap), bitmap.width, bitmap.height, text.trim())
+    }
+
+    /**
+     * Writes a copy of [source] with [watermark] stamped on every page.
+     * Returns the number of pages written.
+     */
+    fun writeWatermarkedCopy(
+        context: Context,
+        source: File,
+        watermark: String,
+        target: File,
+    ): Int = rebuildPdf(
+        context,
+        source,
+        List(pageCount(source)) { EditPage.FromPdf(it) },
+        watermark,
+        target,
+    )
+
+    /**
+     * Renders every page of [pdf] as a JPEG in [targetDir] (optionally
+     * watermarked) and returns the files in page order.
+     */
+    fun renderPagesAsJpegs(
+        pdf: File,
+        watermark: String?,
+        targetDir: File,
+        baseName: String,
+    ): List<File> {
+        targetDir.mkdirs()
+        val files = mutableListOf<File>()
+        openRenderer(pdf).use { renderer ->
+            for (index in 0 until renderer.pageCount) {
+                val bitmap = renderPage(renderer, index, MAX_PAGE_DIMENSION_PX) ?: continue
+                if (!watermark.isNullOrBlank()) applyWatermark(bitmap, watermark)
+                val file = File(targetDir, "$baseName-${index + 1}.jpg")
+                FileOutputStream(file).use {
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, SHARE_JPEG_QUALITY, it)
+                }
+                bitmap.recycle()
+                files.add(file)
+            }
+        }
+        return files
     }
 
     /** Renders the first page of [pdf] as a small JPEG thumbnail. */

@@ -4,4 +4,8 @@
     <files-path
         name="scans"
         path="scans/" />
+    <!-- Watermarked copies and JPEG exports prepared for sharing -->
+    <cache-path
+        name="share"
+        path="share/" />
 </paths>

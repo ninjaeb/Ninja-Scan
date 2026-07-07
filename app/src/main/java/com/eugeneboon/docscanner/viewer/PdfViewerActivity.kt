@@ -52,6 +52,7 @@ class PdfViewerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val path = intent.getStringExtra(EXTRA_PATH)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
+        val watermark = intent.getStringExtra(EXTRA_WATERMARK)
         val file = path?.let(::File)
         if (file == null || !file.exists()) {
             finish()
@@ -59,7 +60,12 @@ class PdfViewerActivity : ComponentActivity() {
         }
         setContent {
             DocScannerTheme {
-                PdfViewerScreen(file = file, title = title, onBack = { finish() })
+                PdfViewerScreen(
+                    file = file,
+                    title = title,
+                    watermark = watermark,
+                    onBack = { finish() },
+                )
             }
         }
     }
@@ -67,18 +73,30 @@ class PdfViewerActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_PATH = "pdf_path"
         private const val EXTRA_TITLE = "pdf_title"
+        private const val EXTRA_WATERMARK = "pdf_watermark"
 
-        fun intent(context: Context, pdfPath: String, title: String): Intent =
+        fun intent(
+            context: Context,
+            pdfPath: String,
+            title: String,
+            watermark: String? = null,
+        ): Intent =
             Intent(context, PdfViewerActivity::class.java)
                 .putExtra(EXTRA_PATH, pdfPath)
                 .putExtra(EXTRA_TITLE, title)
+                .putExtra(EXTRA_WATERMARK, watermark)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PdfViewerScreen(file: File, title: String, onBack: () -> Unit) {
-    val session = remember(file) { PdfSession(file) }
+private fun PdfViewerScreen(
+    file: File,
+    title: String,
+    watermark: String?,
+    onBack: () -> Unit,
+) {
+    val session = remember(file, watermark) { PdfSession(file, watermark) }
     DisposableEffect(session) {
         onDispose { session.close() }
     }
@@ -144,7 +162,7 @@ private fun PdfPage(session: PdfSession, index: Int, targetWidthPx: Int) {
  * Wraps PdfRenderer, which allows only one open page at a time — all
  * rendering is serialized behind a mutex and moved off the main thread.
  */
-private class PdfSession(file: File) {
+private class PdfSession(file: File, private val watermark: String?) {
 
     private val descriptor =
         ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
@@ -171,6 +189,10 @@ private class PdfSession(file: File) {
                         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                         bitmap.eraseColor(android.graphics.Color.WHITE)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        if (!watermark.isNullOrBlank()) {
+                            com.eugeneboon.docscanner.util.PdfEditor
+                                .applyWatermark(bitmap, watermark)
+                        }
                         bitmap
                     }
                 }.getOrNull()

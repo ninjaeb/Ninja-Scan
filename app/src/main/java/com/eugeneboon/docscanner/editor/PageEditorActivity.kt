@@ -124,6 +124,7 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
         } else {
             title = scan.title
             pdfFile = File(scan.pdfPath)
+            watermark = scan.watermark.orEmpty()
             pages.clear()
             pages.addAll(List(count) { EditPage.FromPdf(it) })
         }

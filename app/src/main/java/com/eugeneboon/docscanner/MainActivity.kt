@@ -11,6 +11,8 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.material3.SnackbarHostState
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -143,13 +145,18 @@ class MainActivity : ComponentActivity() {
                             }
                     },
                     onOpen = { scan ->
-                        startActivity(PdfViewerActivity.intent(this, scan.pdfPath, scan.title))
+                        startActivity(
+                            PdfViewerActivity.intent(
+                                this, scan.pdfPath, scan.title, scan.watermark
+                            )
+                        )
                     },
                     onOpenWith = ::openPdf,
                     onEdit = { scan ->
                         startActivity(PageEditorActivity.intent(this, scan.id))
                     },
                     onShare = ::sharePdf,
+                    onShareAsImages = ::shareAsImages,
                     onSaveToCloud = { scan ->
                         viewModel.requestExport(scan)
                         exportLauncher.launch("${scan.title}.pdf")
@@ -193,28 +200,64 @@ class MainActivity : ComponentActivity() {
         viewModel.emitEvent(ScanEvent.DriveBackupEnabled)
     }
 
-    private fun contentUri(scan: ScanDocument): Uri =
-        FileProvider.getUriForFile(this, "$packageName.fileprovider", File(scan.pdfPath))
+    private fun contentUri(file: File): Uri =
+        FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
 
+    private val repository
+        get() = (application as DocScannerApp).repository
+
+    /** Opens the scan (watermarked if set) in an external PDF app. */
     private fun openPdf(scan: ScanDocument) {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(contentUri(scan), "application/pdf")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        try {
-            startActivity(intent)
-        } catch (e: ActivityNotFoundException) {
-            viewModel.onScanError(getString(R.string.no_pdf_viewer))
+        lifecycleScope.launch {
+            val file = runCatching { repository.preparePdfForSharing(scan) }.getOrNull()
+                ?: return@launch
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri(file), "application/pdf")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            try {
+                startActivity(intent)
+            } catch (e: ActivityNotFoundException) {
+                viewModel.onScanError(getString(R.string.no_pdf_viewer))
+            }
         }
     }
 
     private fun sharePdf(scan: ScanDocument) {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_STREAM, contentUri(scan))
-            putExtra(Intent.EXTRA_SUBJECT, scan.title)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        lifecycleScope.launch {
+            val file = runCatching { repository.preparePdfForSharing(scan) }.getOrNull()
+                ?: return@launch
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, contentUri(file))
+                putExtra(Intent.EXTRA_SUBJECT, scan.title)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, getString(R.string.share)))
         }
-        startActivity(Intent.createChooser(intent, getString(R.string.share)))
+    }
+
+    /** Shares the scan's pages as JPEG images (watermarked if set). */
+    private fun shareAsImages(scan: ScanDocument) {
+        lifecycleScope.launch {
+            val files = runCatching { repository.preparePageImages(scan) }.getOrNull()
+            if (files.isNullOrEmpty()) return@launch
+            val uris = ArrayList(files.map { contentUri(it) })
+            val intent = if (uris.size == 1) {
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "image/jpeg"
+                    putExtra(Intent.EXTRA_STREAM, uris.first())
+                }
+            } else {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "image/jpeg"
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                }
+            }.apply {
+                putExtra(Intent.EXTRA_SUBJECT, scan.title)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, getString(R.string.share_as_images)))
+        }
     }
 }

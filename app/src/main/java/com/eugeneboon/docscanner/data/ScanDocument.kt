@@ -22,4 +22,10 @@ data class ScanDocument(
     val driveFileId: String? = null,
     /** Optional folder name used to organize the library; null = unfiled. */
     val folder: String? = null,
+    /**
+     * Optional watermark text. The stored PDF stays clean; the watermark is
+     * stamped on the fly when the scan is viewed, shared, exported, or
+     * uploaded — so it can be edited or removed at any time.
+     */
+    val watermark: String? = null,
 )

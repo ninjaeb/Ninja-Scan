@@ -45,9 +45,11 @@ class ScanRepository(
 
     /**
      * Replaces a scan's PDF with a rebuilt version from the editor: pages
-     * reordered/rotated/removed/added and an optional watermark baked in.
-     * Refreshes the thumbnail and OCR text, and clears the Drive file id so
-     * the next backup pass uploads the new version.
+     * reordered/rotated/removed/added. The watermark is NOT baked into the
+     * stored PDF — it is saved on the scan and stamped on the fly when the
+     * document is viewed, shared, exported, or uploaded, so it stays
+     * editable and removable. Refreshes the thumbnail and OCR text, and
+     * clears the Drive file id so the next backup uploads the new version.
      */
     suspend fun applyPageEdits(
         scanId: Long,
@@ -56,30 +58,76 @@ class ScanRepository(
     ): ScanDocument = withContext(Dispatchers.IO) {
         val scan = requireNotNull(dao.getById(scanId)) { "Scan not found" }
         require(pages.isNotEmpty()) { "Document must keep at least one page" }
+        val cleanedWatermark = watermark?.trim()?.takeIf { it.isNotEmpty() }
 
         val source = File(scan.pdfPath)
-        val rebuilt = File(scansDir, "${source.nameWithoutExtension}.rebuild.pdf")
-        val pageCount = PdfEditor.rebuildPdf(context, source, pages, watermark, rebuilt)
-        check(pageCount > 0) { "Could not rebuild the document" }
-        if (!rebuilt.renameTo(source)) {
-            rebuilt.copyTo(source, overwrite = true)
-            rebuilt.delete()
-        }
+        val pagesChanged =
+            pages != List(PdfEditor.pageCount(source)) { EditPage.FromPdf(it) }
 
-        val thumbPath = scan.thumbnailPath
-            ?: File(scansDir, "${source.nameWithoutExtension}.thumb.jpg").absolutePath
-        val hasThumb = PdfEditor.writeThumbnail(source, File(thumbPath))
+        var pageCount = scan.pageCount
+        var ocrText = scan.ocrText
+        var thumbnailPath = scan.thumbnailPath
+        if (pagesChanged) {
+            val rebuilt = File(scansDir, "${source.nameWithoutExtension}.rebuild.pdf")
+            pageCount = PdfEditor.rebuildPdf(context, source, pages, null, rebuilt)
+            check(pageCount > 0) { "Could not rebuild the document" }
+            if (!rebuilt.renameTo(source)) {
+                rebuilt.copyTo(source, overwrite = true)
+                rebuilt.delete()
+            }
+            val thumbPath = scan.thumbnailPath
+                ?: File(scansDir, "${source.nameWithoutExtension}.thumb.jpg").absolutePath
+            if (PdfEditor.writeThumbnail(source, File(thumbPath))) thumbnailPath = thumbPath
+            ocrText = recognizeTextFromPdf(source)
+        }
 
         val updated = scan.copy(
             pageCount = pageCount,
             sizeBytes = source.length(),
-            thumbnailPath = if (hasThumb) thumbPath else scan.thumbnailPath,
-            ocrText = recognizeTextFromPdf(source),
-            driveFileId = null,
+            thumbnailPath = thumbnailPath,
+            ocrText = ocrText,
+            watermark = cleanedWatermark,
+            driveFileId = if (pagesChanged || cleanedWatermark != scan.watermark) {
+                null
+            } else {
+                scan.driveFileId
+            },
         )
         dao.update(updated)
         updated
     }
+
+    private val shareDir: File
+        get() = File(context.cacheDir, "share").apply { mkdirs() }
+
+    private fun shareBaseName(scan: ScanDocument): String =
+        scan.title.replace(Regex("[^A-Za-z0-9 ._-]"), "_").ifBlank { "scan-${scan.id}" }
+
+    /**
+     * Returns the PDF to hand to other apps: the stored file as-is when the
+     * scan has no watermark, otherwise a watermarked copy in the cache.
+     */
+    suspend fun preparePdfForSharing(scan: ScanDocument): File = withContext(Dispatchers.IO) {
+        val source = File(scan.pdfPath)
+        val watermark = scan.watermark?.takeIf { it.isNotBlank() }
+            ?: return@withContext source
+        val target = File(shareDir, "${shareBaseName(scan)}.pdf")
+        check(PdfEditor.writeWatermarkedCopy(context, source, watermark, target) > 0) {
+            "Could not prepare the document"
+        }
+        target
+    }
+
+    /** Renders the scan's pages (watermarked if set) as shareable JPEGs. */
+    suspend fun preparePageImages(scan: ScanDocument): List<File> =
+        withContext(Dispatchers.IO) {
+            PdfEditor.renderPagesAsJpegs(
+                File(scan.pdfPath),
+                scan.watermark,
+                shareDir,
+                shareBaseName(scan),
+            )
+        }
 
     /** Re-runs on-device OCR over a rebuilt PDF, page by page. Best-effort. */
     private suspend fun recognizeTextFromPdf(pdf: File): String {
@@ -183,12 +231,13 @@ class ScanRepository(
         dao.delete(scan)
     }
 
-    /** Copies a scan's PDF to a user-chosen destination (SAF), e.g. Google Drive. */
+    /** Copies a scan's PDF (watermarked if set) to a SAF destination. */
     suspend fun exportTo(scan: ScanDocument, destination: Uri): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
+                val source = preparePdfForSharing(scan)
                 context.contentResolver.openOutputStream(destination)?.use { output ->
-                    File(scan.pdfPath).inputStream().use { it.copyTo(output) }
+                    source.inputStream().use { it.copyTo(output) }
                 } ?: return@runCatching false
                 true
             }.getOrDefault(false)

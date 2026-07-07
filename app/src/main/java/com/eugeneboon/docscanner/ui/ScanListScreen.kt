@@ -78,6 +78,7 @@ fun ScanListScreen(
     onOpenWith: (ScanDocument) -> Unit,
     onEdit: (ScanDocument) -> Unit,
     onShare: (ScanDocument) -> Unit,
+    onShareAsImages: (ScanDocument) -> Unit,
     onSaveToCloud: (ScanDocument) -> Unit,
     onRename: (ScanDocument, String) -> Unit,
     onMoveToFolder: (ScanDocument, String?) -> Unit,
@@ -177,6 +178,7 @@ fun ScanListScreen(
                             onOpenWith = { onOpenWith(scan) },
                             onEdit = { onEdit(scan) },
                             onShare = { onShare(scan) },
+                            onShareAsImages = { onShareAsImages(scan) },
                             onSaveToCloud = { onSaveToCloud(scan) },
                             onRename = { onRename(scan, it) },
                             onMoveToFolder = { onMoveToFolder(scan, it) },
@@ -253,6 +255,7 @@ private fun ScanRow(
     onOpenWith: () -> Unit,
     onEdit: () -> Unit,
     onShare: () -> Unit,
+    onShareAsImages: () -> Unit,
     onSaveToCloud: () -> Unit,
     onRename: (String) -> Unit,
     onMoveToFolder: (String?) -> Unit,
@@ -342,6 +345,10 @@ private fun ScanRow(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.share)) },
                         onClick = { menuOpen = false; onShare() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.share_as_images)) },
+                        onClick = { menuOpen = false; onShareAsImages() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.save_to_cloud)) },

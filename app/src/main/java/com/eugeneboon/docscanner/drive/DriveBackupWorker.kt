@@ -55,9 +55,10 @@ class DriveBackupWorker(
 
         var failures = 0
         for (scan in pending) {
-            val pdf = File(scan.pdfPath)
-            if (!pdf.exists()) continue
+            if (!File(scan.pdfPath).exists()) continue
             try {
+                // Watermarked copy when the scan has a watermark set.
+                val pdf = app.repository.preparePdfForSharing(scan)
                 val fileId = drive.uploadPdf(pdf, "${scan.title}.pdf", folderId)
                 app.repository.markBackedUp(scan.id, fileId)
             } catch (e: Exception) {

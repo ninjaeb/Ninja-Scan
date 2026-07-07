@@ -30,9 +30,13 @@ Dropbox, or any other cloud provider.
   filter the library with chips under the search bar.
 - **Page editor with watermark** — "Edit pages" opens an editor to
   reorder, rotate, and remove pages, scan additional pages into the
-  document, and stamp an optional diagonal text watermark across every
-  page. Saving rebuilds the PDF, refreshes the thumbnail and OCR text,
-  and re-queues the scan for Drive backup.
+  document, and set an optional diagonal text watermark. The stored PDF
+  stays clean: the watermark is stamped on the fly when the document is
+  viewed, shared, exported, or uploaded, so it can be edited or removed
+  at any time. Page changes rebuild the PDF, refresh the thumbnail and
+  OCR text, and re-queue the scan for Drive backup.
+- **Share as PDF or images** — the share menu offers the PDF or the
+  pages as JPEG files (both watermarked when a watermark is set).
 - **Automatic Google Drive backup** — toggle the cloud icon in the top bar
   to turn it on. Every scan (including older, not-yet-uploaded ones) is
   uploaded by a background WorkManager job into a "Doc Scanner" folder in
