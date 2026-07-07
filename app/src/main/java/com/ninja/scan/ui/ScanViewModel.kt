@@ -1,13 +1,13 @@
-package com.eugeneboon.docscanner.ui
+package com.ninja.scan.ui
 
 import android.text.format.Formatter
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.eugeneboon.docscanner.DocScannerApp
-import com.eugeneboon.docscanner.data.ScanDocument
-import com.eugeneboon.docscanner.data.ScanRepository
+import com.ninja.scan.DocScannerApp
+import com.ninja.scan.data.ScanDocument
+import com.ninja.scan.data.ScanRepository
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -96,8 +96,8 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
                         ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
                     )
                     _justSaved.value = scan
-                    if (com.eugeneboon.docscanner.drive.DriveBackup.isEnabled(app)) {
-                        com.eugeneboon.docscanner.drive.DriveBackup.enqueue(app)
+                    if (com.ninja.scan.drive.DriveBackup.isEnabled(app)) {
+                        com.ninja.scan.drive.DriveBackup.enqueue(app)
                     }
                 }
                 .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }

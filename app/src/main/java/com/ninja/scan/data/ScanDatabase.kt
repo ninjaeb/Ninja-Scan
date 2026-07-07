@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.data
+package com.ninja.scan.data
 
 import android.content.Context
 import androidx.room.Database

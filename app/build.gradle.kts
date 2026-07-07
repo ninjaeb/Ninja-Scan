@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.eugeneboon.docscanner"
+    namespace = "com.ninja.scan"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.eugeneboon.docscanner"
+        applicationId = "com.ninja.scan"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

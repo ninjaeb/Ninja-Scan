@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.data
+package com.ninja.scan.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

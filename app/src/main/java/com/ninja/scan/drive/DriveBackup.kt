@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.drive
+package com.ninja.scan.drive
 
 import android.content.Context
 import androidx.core.content.edit
@@ -14,7 +14,7 @@ import com.google.android.gms.common.api.Scope
  * Settings and scheduling for automatic Google Drive backup.
  *
  * Uses the narrow `drive.file` scope: the app can only see and manage files
- * it created itself (the "Doc Scanner" folder and the PDFs it uploads),
+ * it created itself (the "Ninja Scan" folder and the PDFs it uploads),
  * never the rest of the user's Drive.
  */
 object DriveBackup {

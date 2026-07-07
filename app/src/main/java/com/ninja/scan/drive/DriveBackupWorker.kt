@@ -1,9 +1,9 @@
-package com.eugeneboon.docscanner.drive
+package com.ninja.scan.drive
 
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.eugeneboon.docscanner.DocScannerApp
+import com.ninja.scan.DocScannerApp
 import com.google.android.gms.auth.api.identity.Identity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -15,7 +15,7 @@ import java.net.URL
 import java.net.URLEncoder
 
 /**
- * Uploads every scan without a Drive file id into the app's "Doc Scanner"
+ * Uploads every scan without a Drive file id into the app's "Ninja Scan"
  * folder on Google Drive, then records the returned file id. Runs only when
  * backup is enabled and authorization was previously granted in the UI;
  * anything transient (network, 5xx) retries with backoff.

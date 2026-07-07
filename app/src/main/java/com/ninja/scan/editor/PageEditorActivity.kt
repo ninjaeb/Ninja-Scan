@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.editor
+package com.ninja.scan.editor
 
 import android.content.Context
 import android.content.Intent
@@ -60,14 +60,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.eugeneboon.docscanner.DocScannerApp
-import com.eugeneboon.docscanner.R
-import com.eugeneboon.docscanner.drive.DriveBackup
-import com.eugeneboon.docscanner.ui.theme.DocScannerTheme
-import com.eugeneboon.docscanner.util.EditPage
-import com.eugeneboon.docscanner.util.ImageOptimizer
-import com.eugeneboon.docscanner.util.PdfEditor
-import com.eugeneboon.docscanner.util.rotatedClockwise
+import com.ninja.scan.DocScannerApp
+import com.ninja.scan.R
+import com.ninja.scan.drive.DriveBackup
+import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.util.EditPage
+import com.ninja.scan.util.ImageOptimizer
+import com.ninja.scan.util.PdfEditor
+import com.ninja.scan.util.rotatedClockwise
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -298,7 +298,7 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
 private fun LaunchedEffectLoad(
     scanId: Long,
     app: DocScannerApp,
-    onLoaded: (com.eugeneboon.docscanner.data.ScanDocument?, Int) -> Unit,
+    onLoaded: (com.ninja.scan.data.ScanDocument?, Int) -> Unit,
 ) {
     androidx.compose.runtime.LaunchedEffect(scanId) {
         val scan = app.repository.getScan(scanId)

@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.viewer
+package com.ninja.scan.viewer
 
 import android.content.Context
 import android.content.Intent
@@ -38,7 +38,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.eugeneboon.docscanner.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.DocScannerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -190,7 +190,7 @@ private class PdfSession(file: File, private val watermark: String?) {
                         bitmap.eraseColor(android.graphics.Color.WHITE)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         if (!watermark.isNullOrBlank()) {
-                            com.eugeneboon.docscanner.util.PdfEditor
+                            com.ninja.scan.util.PdfEditor
                                 .applyWatermark(bitmap, watermark)
                         }
                         bitmap

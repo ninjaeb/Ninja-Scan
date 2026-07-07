@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.util
+package com.ninja.scan.util
 
 import java.io.OutputStream
 import java.util.zip.ZipEntry

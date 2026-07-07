@@ -1,6 +1,6 @@
-package com.eugeneboon.docscanner.util
+package com.ninja.scan.util
 
-import com.eugeneboon.docscanner.data.BusinessCard
+import com.ninja.scan.data.BusinessCard
 
 /**
  * Heuristic extraction of contact fields from the OCR text of a business

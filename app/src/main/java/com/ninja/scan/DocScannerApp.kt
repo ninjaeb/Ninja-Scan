@@ -1,8 +1,8 @@
-package com.eugeneboon.docscanner
+package com.ninja.scan
 
 import android.app.Application
-import com.eugeneboon.docscanner.data.ScanDatabase
-import com.eugeneboon.docscanner.data.ScanRepository
+import com.ninja.scan.data.ScanDatabase
+import com.ninja.scan.data.ScanRepository
 
 class DocScannerApp : Application() {
 

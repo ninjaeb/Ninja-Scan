@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.ui
+package com.ninja.scan.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,8 +54,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.eugeneboon.docscanner.R
-import com.eugeneboon.docscanner.data.ScanDocument
+import com.ninja.scan.R
+import com.ninja.scan.data.ScanDocument
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.foundation.clickable

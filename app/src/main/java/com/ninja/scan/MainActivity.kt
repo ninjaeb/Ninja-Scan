@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner
+package com.ninja.scan
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -18,15 +18,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.core.content.FileProvider
-import com.eugeneboon.docscanner.cards.CardsActivity
-import com.eugeneboon.docscanner.data.ScanDocument
-import com.eugeneboon.docscanner.drive.DriveBackup
-import com.eugeneboon.docscanner.editor.PageEditorActivity
-import com.eugeneboon.docscanner.ui.ScanEvent
-import com.eugeneboon.docscanner.ui.ScanListScreen
-import com.eugeneboon.docscanner.ui.ScanViewModel
-import com.eugeneboon.docscanner.ui.theme.DocScannerTheme
-import com.eugeneboon.docscanner.viewer.PdfViewerActivity
+import com.ninja.scan.cards.CardsActivity
+import com.ninja.scan.data.ScanDocument
+import com.ninja.scan.drive.DriveBackup
+import com.ninja.scan.editor.PageEditorActivity
+import com.ninja.scan.ui.ScanEvent
+import com.ninja.scan.ui.ScanListScreen
+import com.ninja.scan.ui.ScanViewModel
+import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.viewer.PdfViewerActivity
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning

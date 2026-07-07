@@ -49,7 +49,7 @@ Dropbox, or any other cloud provider.
   whole list as CSV or a real Excel (.xlsx) workbook.
 - **Automatic Google Drive backup** — toggle the cloud icon in the top bar
   to turn it on. Every scan (including older, not-yet-uploaded ones) is
-  uploaded by a background WorkManager job into a "Doc Scanner" folder in
+  uploaded by a background WorkManager job into a "Ninja Scan" folder in
   your Drive, and backed-up scans show a small cloud check in the list.
   Uses the narrow `drive.file` OAuth scope, so the app can only ever see
   files it created itself. Requires a one-time OAuth client registration —
@@ -95,14 +95,14 @@ The Drive backup code is complete, but Google requires every app that
 requests OAuth scopes to be registered. Do this once (free):
 
 1. Go to <https://console.cloud.google.com> and create a project
-   (e.g. "Doc Scanner").
+   (e.g. "Ninja Scan").
 2. **APIs & Services → Library** → search for **Google Drive API** →
    **Enable**.
 3. **APIs & Services → OAuth consent screen** → External → fill in the app
    name and your email → add your Google account under **Test users**.
 4. **APIs & Services → Credentials → Create credentials → OAuth client ID**
    → Application type **Android**:
-   - Package name: `com.eugeneboon.docscanner`
+   - Package name: `com.ninja.scan`
    - SHA-1: print your debug signing certificate with
      `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`
      and copy the SHA1 line.
@@ -115,7 +115,7 @@ the release keystore's SHA-1.
 ## Project structure
 
 ```
-app/src/main/java/com/eugeneboon/docscanner/
+app/src/main/java/com/ninja/scan/
 ├── MainActivity.kt          # Scanner launch, share/export/open intents
 ├── DocScannerApp.kt         # Application, dependency wiring
 ├── data/

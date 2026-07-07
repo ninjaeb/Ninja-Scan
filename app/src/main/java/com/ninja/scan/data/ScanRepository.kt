@@ -1,13 +1,13 @@
-package com.eugeneboon.docscanner.data
+package com.ninja.scan.data
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
-import com.eugeneboon.docscanner.util.CardParser
-import com.eugeneboon.docscanner.util.EditPage
-import com.eugeneboon.docscanner.util.ImageOptimizer
-import com.eugeneboon.docscanner.util.PdfEditor
-import com.eugeneboon.docscanner.util.XlsxWriter
+import com.ninja.scan.util.CardParser
+import com.ninja.scan.util.EditPage
+import com.ninja.scan.util.ImageOptimizer
+import com.ninja.scan.util.PdfEditor
+import com.ninja.scan.util.XlsxWriter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import com.google.mlkit.vision.text.TextRecognition

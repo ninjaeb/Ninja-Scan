@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.data
+package com.ninja.scan.data
 
 import androidx.room.Dao
 import androidx.room.Delete

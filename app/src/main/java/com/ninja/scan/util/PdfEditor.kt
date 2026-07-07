@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.util
+package com.ninja.scan.util
 
 import android.content.Context
 import android.graphics.Bitmap

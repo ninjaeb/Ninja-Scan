@@ -1,4 +1,4 @@
-package com.eugeneboon.docscanner.cards
+package com.ninja.scan.cards
 
 import android.content.Context
 import android.content.Intent
@@ -63,10 +63,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.eugeneboon.docscanner.DocScannerApp
-import com.eugeneboon.docscanner.R
-import com.eugeneboon.docscanner.data.BusinessCard
-import com.eugeneboon.docscanner.ui.theme.DocScannerTheme
+import com.ninja.scan.DocScannerApp
+import com.ninja.scan.R
+import com.ninja.scan.data.BusinessCard
+import com.ninja.scan.ui.theme.DocScannerTheme
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
