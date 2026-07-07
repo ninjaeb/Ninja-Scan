@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.MoreVert
@@ -62,17 +64,35 @@ import java.io.File
 fun ScanListScreen(
     scans: List<ScanDocument>,
     searchQuery: String,
+    driveBackupEnabled: Boolean,
     snackbarHostState: SnackbarHostState,
     onSearchQueryChange: (String) -> Unit,
+    onToggleDriveBackup: () -> Unit,
     onScanClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
+    onOpenWith: (ScanDocument) -> Unit,
     onShare: (ScanDocument) -> Unit,
     onSaveToCloud: (ScanDocument) -> Unit,
     onRename: (ScanDocument, String) -> Unit,
     onDelete: (ScanDocument) -> Unit,
 ) {
     Scaffold(
-        topBar = { CenterAlignedTopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    IconButton(onClick = onToggleDriveBackup) {
+                        Icon(
+                            if (driveBackupEnabled) Icons.Filled.CloudDone
+                            else Icons.Filled.CloudOff,
+                            contentDescription = stringResource(R.string.drive_backup),
+                            tint = if (driveBackupEnabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -119,6 +139,7 @@ fun ScanListScreen(
                         ScanRow(
                             scan = scan,
                             onOpen = { onOpen(scan) },
+                            onOpenWith = { onOpenWith(scan) },
                             onShare = { onShare(scan) },
                             onSaveToCloud = { onSaveToCloud(scan) },
                             onRename = { onRename(scan, it) },
@@ -191,6 +212,7 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 private fun ScanRow(
     scan: ScanDocument,
     onOpen: () -> Unit,
+    onOpenWith: () -> Unit,
     onShare: () -> Unit,
     onSaveToCloud: () -> Unit,
     onRename: (String) -> Unit,
@@ -237,12 +259,23 @@ private fun ScanRow(
                 val pages =
                     if (scan.pageCount == 1) stringResource(R.string.page)
                     else stringResource(R.string.pages, scan.pageCount)
-                Text(
-                    "$pages · ${Formatter.formatShortFileSize(context, scan.sizeBytes)} · " +
-                        DateUtils.getRelativeTimeSpanString(scan.createdAt),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "$pages · ${Formatter.formatShortFileSize(context, scan.sizeBytes)} · " +
+                            DateUtils.getRelativeTimeSpanString(scan.createdAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (scan.driveFileId != null) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            Icons.Filled.CloudDone,
+                            contentDescription = stringResource(R.string.backed_up_to_drive),
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
             Box {
                 IconButton(onClick = { menuOpen = true }) {
@@ -252,6 +285,10 @@ private fun ScanRow(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.open)) },
                         onClick = { menuOpen = false; onOpen() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.open_with)) },
+                        onClick = { menuOpen = false; onOpenWith() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.share)) },

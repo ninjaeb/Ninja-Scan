@@ -24,6 +24,9 @@ sealed interface ScanEvent {
     data class Error(val message: String) : ScanEvent
     data object Exported : ScanEvent
     data object ExportFailed : ScanEvent
+    data object DriveBackupEnabled : ScanEvent
+    data object DriveBackupDisabled : ScanEvent
+    data class DriveBackupFailed(val message: String) : ScanEvent
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -43,6 +46,17 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
         _searchQuery.value = query
     }
 
+    private val _driveBackupEnabled = MutableStateFlow(false)
+    val driveBackupEnabled: StateFlow<Boolean> = _driveBackupEnabled
+
+    fun setDriveBackupState(enabled: Boolean) {
+        _driveBackupEnabled.value = enabled
+    }
+
+    fun emitEvent(event: ScanEvent) {
+        viewModelScope.launch { _events.emit(event) }
+    }
+
     private val _events = MutableSharedFlow<ScanEvent>()
     val events: SharedFlow<ScanEvent> = _events
 
@@ -58,6 +72,9 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
                     _events.emit(
                         ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
                     )
+                    if (com.eugeneboon.docscanner.drive.DriveBackup.isEnabled(app)) {
+                        com.eugeneboon.docscanner.drive.DriveBackup.enqueue(app)
+                    }
                 }
                 .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }
         }

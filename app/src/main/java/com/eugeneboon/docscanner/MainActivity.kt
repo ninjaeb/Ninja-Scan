@@ -17,10 +17,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.core.content.FileProvider
 import com.eugeneboon.docscanner.data.ScanDocument
+import com.eugeneboon.docscanner.drive.DriveBackup
 import com.eugeneboon.docscanner.ui.ScanEvent
 import com.eugeneboon.docscanner.ui.ScanListScreen
 import com.eugeneboon.docscanner.ui.ScanViewModel
 import com.eugeneboon.docscanner.ui.theme.DocScannerTheme
+import com.eugeneboon.docscanner.viewer.PdfViewerActivity
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -47,11 +50,27 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel.setDriveBackupState(DriveBackup.isEnabled(this))
         setContent {
             DocScannerTheme {
                 val scans by viewModel.scans.collectAsState()
                 val searchQuery by viewModel.searchQuery.collectAsState()
+                val driveBackupEnabled by viewModel.driveBackupEnabled.collectAsState()
                 val snackbarHostState = remember { SnackbarHostState() }
+
+                val driveConsentLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartIntentSenderForResult()
+                ) { activityResult ->
+                    val granted = runCatching {
+                        Identity.getAuthorizationClient(this)
+                            .getAuthorizationResultFromIntent(activityResult.data)
+                    }.isSuccess
+                    if (granted) {
+                        enableDriveBackup()
+                    } else {
+                        viewModel.emitEvent(ScanEvent.DriveBackupFailed("consent not granted"))
+                    }
+                }
 
                 val scannerLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.StartIntentSenderForResult()
@@ -74,6 +93,12 @@ class MainActivity : ComponentActivity() {
                                 getString(R.string.scan_failed, event.message)
                             ScanEvent.Exported -> getString(R.string.exported)
                             ScanEvent.ExportFailed -> getString(R.string.export_failed)
+                            ScanEvent.DriveBackupEnabled ->
+                                getString(R.string.drive_backup_enabled)
+                            ScanEvent.DriveBackupDisabled ->
+                                getString(R.string.drive_backup_disabled)
+                            is ScanEvent.DriveBackupFailed ->
+                                getString(R.string.drive_backup_failed, event.message)
                         }
                         snackbarHostState.showSnackbar(message)
                     }
@@ -82,8 +107,23 @@ class MainActivity : ComponentActivity() {
                 ScanListScreen(
                     scans = scans,
                     searchQuery = searchQuery,
+                    driveBackupEnabled = driveBackupEnabled,
                     snackbarHostState = snackbarHostState,
                     onSearchQueryChange = viewModel::onSearchQueryChange,
+                    onToggleDriveBackup = {
+                        if (driveBackupEnabled) {
+                            DriveBackup.setEnabled(this, false)
+                            viewModel.setDriveBackupState(false)
+                            viewModel.emitEvent(ScanEvent.DriveBackupDisabled)
+                        } else {
+                            requestDriveAuthorization { pendingIntent ->
+                                driveConsentLauncher.launch(
+                                    IntentSenderRequest.Builder(pendingIntent.intentSender)
+                                        .build()
+                                )
+                            }
+                        }
+                    },
                     onScanClick = {
                         GmsDocumentScanning.getClient(scannerOptions)
                             .getStartScanIntent(this)
@@ -96,7 +136,10 @@ class MainActivity : ComponentActivity() {
                                 viewModel.onScanError(e.message ?: "scanner unavailable")
                             }
                     },
-                    onOpen = ::openPdf,
+                    onOpen = { scan ->
+                        startActivity(PdfViewerActivity.intent(this, scan.pdfPath, scan.title))
+                    },
+                    onOpenWith = ::openPdf,
                     onShare = ::sharePdf,
                     onSaveToCloud = { scan ->
                         viewModel.requestExport(scan)
@@ -107,6 +150,37 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    /**
+     * Requests the drive.file scope. If Google needs user consent (first
+     * time), [onNeedsConsent] launches the returned system dialog; otherwise
+     * backup is enabled immediately with the silently granted authorization.
+     */
+    private fun requestDriveAuthorization(
+        onNeedsConsent: (android.app.PendingIntent) -> Unit,
+    ) {
+        Identity.getAuthorizationClient(this)
+            .authorize(DriveBackup.authorizationRequest())
+            .addOnSuccessListener { result ->
+                val pendingIntent = result.pendingIntent
+                if (result.hasResolution() && pendingIntent != null) {
+                    onNeedsConsent(pendingIntent)
+                } else {
+                    enableDriveBackup()
+                }
+            }
+            .addOnFailureListener { e ->
+                viewModel.emitEvent(
+                    ScanEvent.DriveBackupFailed(e.message ?: "authorization unavailable")
+                )
+            }
+    }
+
+    private fun enableDriveBackup() {
+        DriveBackup.setEnabled(this, true)
+        viewModel.setDriveBackupState(true)
+        viewModel.emitEvent(ScanEvent.DriveBackupEnabled)
     }
 
     private fun contentUri(scan: ScanDocument): Uri =

@@ -7,6 +7,9 @@
         android:name="android.hardware.camera"
         android:required="true" />
 
+    <!-- Uploading backups to Google Drive -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".DocScannerApp"
         android:allowBackup="true"
@@ -27,6 +30,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".viewer.PdfViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DocScanner" />
 
         <!-- Ask Play services to download the scanner and OCR modules at install time -->
         <meta-data
