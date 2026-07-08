@@ -80,7 +80,9 @@ class DriveRestoreWorker(
             }
         }
 
-        val cardsRestored = manifest?.cards?.let { app.repository.restoreCards(drive, it) } ?: 0
+        val cardsRestored = manifest?.cards?.let {
+            app.repository.restoreCards(drive, it, manifest.tags)
+        } ?: 0
 
         if (failures > 0) {
             Result.retry()

@@ -163,6 +163,10 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
         viewModelScope.launch { repository.delete(scan) }
     }
 
+    fun deleteScans(scans: List<ScanDocument>) {
+        viewModelScope.launch { repository.deleteScans(scans) }
+    }
+
     companion object {
         val Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

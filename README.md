@@ -46,15 +46,19 @@ Dropbox, or any other cloud provider.
   (all watermarked when a watermark is set). Shared/exported files are
   named after the document with a "-scan-with-Ninja-Scan-App" suffix,
   and the share sheet includes a promotional caption. Long-press a
-  document in the library to select several at once and share them
-  together in one chooser.
+  document in the library to select several at once and share or
+  delete them together in one action.
 - **Viewer action bar** — an open document has Add watermark / Add Scan /
   Share / Edit / Save at the bottom; tap the title in the top bar to
   rename the document; each list row's menu offers Share, Rename, Delete,
   Save to cloud, and Move to folder.
 - **Business card search, notes, and tags** — search across every card
-  field; tap a card to open a full-page editor (scanned card image, a
-  taller address box, notes, and comma-separated tags). Field extraction
+  field, including tag names; tap a card to open a full-page editor
+  (scanned card image, a taller address box, notes, and colored tags).
+  Tags are reusable labels with a title, optional description, and one
+  of 11 colors — apply existing tags from a "+ Tag" menu or create new
+  ones on the fly, and rename/recolor a tag (via its pencil icon) or
+  delete it everywhere it's used. Field extraction
   is layout-aware: ML Kit's per-line bounding boxes are used to split
   side-by-side columns (e.g. a name and job title printed next to each
   other) before the name/company/title heuristics run, and a name line
@@ -75,14 +79,15 @@ Dropbox, or any other cloud provider.
   scan and business card — including each card's photo — is uploaded by a
   background WorkManager job into a "Ninja Scan" folder in your Drive
   (clean, un-watermarked PDFs, a "cards" subfolder of card photos, and a
-  JSON manifest carrying titles, folders, watermark text, OCR text, and
-  every contact's details), and backed-up scans show a small cloud check
-  in the list. A backup pass runs immediately after every change and also
-  on a 12-hour recurring schedule, so nothing is missed even if a change
-  happened while offline. After an uninstall or clearing app data, turning
-  backup back on with an empty library offers to restore — documents and
-  business cards (with their photos) come back with titles, folders,
-  editable watermarks, and searchable OCR text intact; restoring is
+  JSON manifest carrying titles, folders, watermark text, OCR text, every
+  contact's details, and the tag catalog), and backed-up scans show a
+  small cloud check in the list. A backup pass runs immediately after
+  every change and also on a 12-hour recurring schedule, so nothing is
+  missed even if a change happened while offline. After an uninstall or
+  clearing app data, turning backup back on with an empty library offers
+  to restore — documents and business cards (with their photos and tags)
+  come back with titles, folders, editable watermarks, and searchable OCR
+  text intact; restoring is
   duplicate-safe, so running it again — or letting the periodic job run
   repeatedly — never creates copies. Uses the narrow `drive.file` OAuth
   scope, so the app can only ever see files it created itself. Requires a

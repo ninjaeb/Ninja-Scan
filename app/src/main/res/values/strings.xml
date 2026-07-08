@@ -68,7 +68,6 @@
     <string name="search_cards_hint">Search contacts</string>
     <string name="no_card_results">No contacts match your search</string>
     <string name="field_notes">Notes</string>
-    <string name="field_tags">Tags (comma separated)</string>
     <string name="nav_documents">Documents</string>
     <string name="nav_cards">Cards</string>
     <string name="save_details_folder">Folder</string>
@@ -101,4 +100,15 @@
     <string name="drive_restore_started">Restoring from Google Drive…</string>
     <string name="drive_restore_done">Restored %1$d documents and %2$d cards</string>
     <string name="drive_restore_failed">Restore failed — check your connection and try again</string>
+    <string name="delete_scans_dialog_title">Delete scans?</string>
+    <string name="delete_scans_dialog_body">%1$d documents and their PDFs will be removed from this device.</string>
+    <string name="add_tag">+ Tag</string>
+    <string name="create_tag">Create Tag</string>
+    <string name="edit_tag">Edit tag</string>
+    <string name="tag_title">Title</string>
+    <string name="tag_description">Description (optional)</string>
+    <string name="delete_tag">Delete tag</string>
+    <string name="delete_tag_title">Delete tag?</string>
+    <string name="delete_tag_body">“%1$s” will be removed from all cards it\'s applied to.</string>
+    <string name="create">Create</string>
 </resources>

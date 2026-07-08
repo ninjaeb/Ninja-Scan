@@ -27,12 +27,15 @@ internal object DriveManifest {
         val ocrText: String,
     )
 
-    data class CardEntry(val key: String, val card: BusinessCard)
+    data class CardEntry(val key: String, val card: BusinessCard, val tagTitles: List<String> = emptyList())
+
+    data class TagEntry(val title: String, val description: String, val color: String)
 
     data class Content(
         val scans: List<ScanEntry>,
         val cards: List<CardEntry>,
         val folders: List<String>,
+        val tags: List<TagEntry> = emptyList(),
     )
 
     /** Stable dedupe key for a card across backup/restore cycles. */
@@ -71,13 +74,23 @@ internal object DriveManifest {
                     .put("website", card.website)
                     .put("address", card.address)
                     .put("notes", card.notes)
-                    .put("tags", card.tags)
+                    .put("tagTitles", JSONArray(entry.tagTitles))
                     .put("createdAt", card.createdAt)
                     .put("photoDriveFileId", card.photoDriveFileId ?: JSONObject.NULL)
             )
         }
         root.put("cards", cards)
         root.put("folders", JSONArray(content.folders))
+        val tags = JSONArray()
+        for (tag in content.tags) {
+            tags.put(
+                JSONObject()
+                    .put("title", tag.title)
+                    .put("description", tag.description)
+                    .put("color", tag.color)
+            )
+        }
+        root.put("tags", tags)
         return root.toString().toByteArray(Charsets.UTF_8)
     }
 
@@ -105,6 +118,11 @@ internal object DriveManifest {
         val cardsJson = root.optJSONArray("cards") ?: JSONArray()
         for (i in 0 until cardsJson.length()) {
             val card = cardsJson.getJSONObject(i)
+            val tagTitles = mutableListOf<String>()
+            val tagTitlesJson = card.optJSONArray("tagTitles") ?: JSONArray()
+            for (t in 0 until tagTitlesJson.length()) {
+                tagTitlesJson.optString(t).takeIf { it.isNotEmpty() }?.let(tagTitles::add)
+            }
             cards.add(
                 CardEntry(
                     key = card.optString("key"),
@@ -117,10 +135,10 @@ internal object DriveManifest {
                         website = card.optString("website"),
                         address = card.optString("address"),
                         notes = card.optString("notes"),
-                        tags = card.optString("tags"),
                         createdAt = card.optLong("createdAt"),
                         photoDriveFileId = card.optStringOrNull("photoDriveFileId"),
                     ),
+                    tagTitles = tagTitles,
                 )
             )
         }
@@ -129,7 +147,16 @@ internal object DriveManifest {
         for (i in 0 until foldersJson.length()) {
             foldersJson.optString(i).takeIf { it.isNotEmpty() }?.let(folders::add)
         }
-        Content(scans, cards, folders)
+        val tags = mutableListOf<TagEntry>()
+        val tagsJson = root.optJSONArray("tags") ?: JSONArray()
+        for (i in 0 until tagsJson.length()) {
+            val tag = tagsJson.getJSONObject(i)
+            val title = tag.optString("title")
+            if (title.isNotEmpty()) {
+                tags.add(TagEntry(title = title, description = tag.optString("description"), color = tag.optString("color")))
+            }
+        }
+        Content(scans, cards, folders, tags)
     }.getOrNull()
 
     private fun JSONObject.optStringOrNull(key: String): String? =

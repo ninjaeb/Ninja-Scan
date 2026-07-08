@@ -9,7 +9,9 @@ class DocScannerApp : Application() {
 
     val repository: ScanRepository by lazy {
         val database = ScanDatabase.get(this)
-        ScanRepository(this, database.scanDao(), database.cardDao(), database.folderDao())
+        ScanRepository(
+            this, database.scanDao(), database.cardDao(), database.folderDao(), database.tagDao(),
+        )
     }
 
     override fun onCreate() {

@@ -45,4 +45,7 @@ interface ScanDao {
 
     @Delete
     suspend fun delete(scan: ScanDocument)
+
+    @Delete
+    suspend fun delete(scans: List<ScanDocument>)
 }

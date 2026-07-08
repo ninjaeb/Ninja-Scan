@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#1A1A2E</color>
+
+    <!-- Tag swatch palette. Order/values must match ScanDatabase's
+         MIGRATION_10_11 round-robin default-color list — a Room migration
+         has no access to Android resources, so the two lists are kept in
+         sync by hand. -->
+    <color name="tag_red">#EF5350</color>
+    <color name="tag_orange">#FFA726</color>
+    <color name="tag_amber">#FFCA28</color>
+    <color name="tag_green">#66BB6A</color>
+    <color name="tag_mint">#26A69A</color>
+    <color name="tag_blue">#42A5F5</color>
+    <color name="tag_light_blue">#29B6F6</color>
+    <color name="tag_purple">#AB47BC</color>
+    <color name="tag_lavender">#7E57C2</color>
+    <color name="tag_pink">#EC407A</color>
 </resources>

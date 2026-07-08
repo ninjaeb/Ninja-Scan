@@ -8,8 +8,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ScanDocument::class, BusinessCard::class, Folder::class],
-    version = 10,
+    entities = [
+        ScanDocument::class, BusinessCard::class, Folder::class,
+        Tag::class, CardTagCrossRef::class,
+    ],
+    version = 11,
     exportSchema = false,
 )
 abstract class ScanDatabase : RoomDatabase() {
@@ -19,6 +22,8 @@ abstract class ScanDatabase : RoomDatabase() {
     abstract fun cardDao(): BusinessCardDao
 
     abstract fun folderDao(): FolderDao
+
+    abstract fun tagDao(): TagDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -95,6 +100,74 @@ abstract class ScanDatabase : RoomDatabase() {
             }
         }
 
+        // Same hex values as res/values/colors.xml's tag_* palette — a
+        // migration has no access to Android resources, so the two lists
+        // are kept in sync by hand.
+        private val DEFAULT_TAG_PALETTE = listOf(
+            "#EF5350", "#FFA726", "#FFCA28", "#66BB6A", "#26A69A",
+            "#42A5F5", "#29B6F6", "#AB47BC", "#7E57C2", "#EC407A",
+        )
+
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `tags` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `description` TEXT NOT NULL DEFAULT '', " +
+                        "`color` TEXT NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `card_tag_cross_ref` (" +
+                        "`cardId` INTEGER NOT NULL, `tagId` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`cardId`, `tagId`))"
+                )
+
+                // Split each card's old comma-separated tags string into real
+                // Tag rows (deduped by lower-cased title, first-seen casing
+                // wins) plus cross-ref links, so existing tag data survives
+                // the move to a relational model.
+                val titleToTagId = HashMap<String, Long>()
+                var paletteIndex = 0
+                val pendingLinks = mutableListOf<Pair<Long, String>>()
+
+                val cardCursor = db.query("SELECT id, tags FROM business_cards")
+                cardCursor.use { cursor ->
+                    val idIndex = cursor.getColumnIndex("id")
+                    val tagsIndex = cursor.getColumnIndex("tags")
+                    while (cursor.moveToNext()) {
+                        val cardId = cursor.getLong(idIndex)
+                        val rawTags = cursor.getString(tagsIndex) ?: ""
+                        for (piece in rawTags.split(",")) {
+                            val title = piece.trim()
+                            if (title.isEmpty()) continue
+                            val key = title.lowercase(java.util.Locale.US)
+                            if (key !in titleToTagId) {
+                                val color = DEFAULT_TAG_PALETTE[paletteIndex % DEFAULT_TAG_PALETTE.size]
+                                paletteIndex++
+                                db.execSQL(
+                                    "INSERT INTO tags (title, description, color) VALUES (?, '', ?)",
+                                    arrayOf(title, color)
+                                )
+                                db.query("SELECT last_insert_rowid()").use { idCursor ->
+                                    idCursor.moveToFirst()
+                                    titleToTagId[key] = idCursor.getLong(0)
+                                }
+                            }
+                            pendingLinks.add(cardId to key)
+                        }
+                    }
+                }
+
+                for ((cardId, key) in pendingLinks) {
+                    val tagId = titleToTagId.getValue(key)
+                    db.execSQL(
+                        "INSERT OR IGNORE INTO card_tag_cross_ref (cardId, tagId) VALUES (?, ?)",
+                        arrayOf(cardId, tagId)
+                    )
+                }
+            }
+        }
+
         @Volatile
         private var instance: ScanDatabase? = null
 
@@ -108,7 +181,7 @@ abstract class ScanDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                         MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                        MIGRATION_8_9, MIGRATION_9_10,
+                        MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     )
                     .build()
                     .also { instance = it }

@@ -118,9 +118,13 @@ class DriveBackupWorker(
             )
         }
         val cards = app.repository.getAllCards().map { card ->
-            DriveManifest.CardEntry(DriveManifest.cardKey(card), card)
+            val tagTitles = app.repository.getCardTags(card.id).map { it.title }
+            DriveManifest.CardEntry(DriveManifest.cardKey(card), card, tagTitles)
         }
-        val content = DriveManifest.Content(scans, cards, app.repository.getFolderNames())
+        val tags = app.repository.getTags().map { tag ->
+            DriveManifest.TagEntry(title = tag.title, description = tag.description, color = tag.color)
+        }
+        val content = DriveManifest.Content(scans, cards, app.repository.getFolderNames(), tags)
         val bytes = DriveManifest.encode(content, System.currentTimeMillis())
 
         val existing = DriveBackup.cachedManifestId(applicationContext)

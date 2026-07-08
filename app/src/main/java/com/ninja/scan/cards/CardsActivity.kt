@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,17 +28,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContactPage
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,8 +74,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,6 +86,8 @@ import coil.compose.AsyncImage
 import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.data.BusinessCard
+import com.ninja.scan.data.Tag
+import com.ninja.scan.ui.LongPressableChip
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
@@ -130,11 +142,18 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
     var exportMenuOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
+    // Refreshed whenever the card list changes, and when returning from the
+    // detail screen (tag edits there don't touch the `cards` Flow itself).
+    var tagsByCard by remember { mutableStateOf<Map<Long, List<Tag>>>(emptyMap()) }
+    LaunchedEffect(cards, draft) { tagsByCard = app.repository.getCardTagsByCard() }
+
     val filteredCards = if (searchQuery.isBlank()) cards else cards.filter { card ->
+        val query = searchQuery.trim()
         listOf(
             card.name, card.company, card.jobTitle, card.phone,
-            card.email, card.website, card.address, card.notes, card.tags,
-        ).any { it.contains(searchQuery.trim(), ignoreCase = true) }
+            card.email, card.website, card.address, card.notes,
+        ).any { it.contains(query, ignoreCase = true) } ||
+            tagsByCard[card.id].orEmpty().any { it.title.contains(query, ignoreCase = true) }
     }
 
     val scannerLauncher = rememberLauncherForActivityResult(
@@ -202,9 +221,17 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
         CardDetailScreen(
             card = draft!!,
             onBack = { draft = null },
-            onSave = { updated ->
+            onSave = { updated, pendingTagIds ->
                 draft = null
-                scope.launch { app.repository.saveCard(updated) }
+                scope.launch {
+                    val saved = app.repository.saveCard(updated)
+                    // Tags picked before a brand-new card had a real id are
+                    // applied now that saveCard has assigned one.
+                    for (tagId in pendingTagIds) {
+                        app.repository.toggleCardTag(saved.id, tagId, currentlyApplied = false)
+                    }
+                    tagsByCard = app.repository.getCardTagsByCard()
+                }
             },
         )
         return
@@ -360,10 +387,12 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(filteredCards, key = { it.id }) { card ->
+                        val cardTags = tagsByCard[card.id].orEmpty()
                         CardRow(
                             card = card,
+                            tags = cardTags,
                             onOpen = { draft = card },
-                            onSaveToContacts = { saveToContacts(context, card) },
+                            onSaveToContacts = { saveToContacts(context, card, cardTags) },
                             onDelete = { deleting = card },
                         )
                     }
@@ -402,6 +431,7 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
 @Composable
 private fun CardRow(
     card: BusinessCard,
+    tags: List<Tag>,
     onOpen: () -> Unit,
     onSaveToContacts: () -> Unit,
     onDelete: () -> Unit,
@@ -452,6 +482,7 @@ private fun CardRow(
                         maxLines = 2,
                     )
                 }
+                CardTagsRow(tags)
             }
             Box {
                 IconButton(onClick = { menuOpen = true }) {
@@ -472,6 +503,31 @@ private fun CardRow(
     }
 }
 
+/** Small colored-dot + title row shown under a card's other details. */
+@Composable
+private fun CardTagsRow(tags: List<Tag>) {
+    if (tags.isEmpty()) return
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+        tags.take(3).forEachIndexed { index, tag ->
+            if (index > 0) Spacer(Modifier.width(8.dp))
+            Box(Modifier.size(8.dp).clip(CircleShape).background(hexToColor(tag.color)))
+            Spacer(Modifier.width(4.dp))
+            Text(
+                tag.title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+private fun hexToColor(hex: String): Color =
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)
+
+private fun colorToHex(color: Color): String =
+    "#%06X".format(0xFFFFFF and color.toArgb())
+
 /**
  * Full-page contact details editor, with the scanned card image at the
  * top and every field filling the width. Replaces the earlier dialog,
@@ -482,8 +538,12 @@ private fun CardRow(
 private fun CardDetailScreen(
     card: BusinessCard,
     onBack: () -> Unit,
-    onSave: (BusinessCard) -> Unit,
+    onSave: (BusinessCard, List<Long>) -> Unit,
 ) {
+    val context = LocalContext.current
+    val app = context.applicationContext as DocScannerApp
+    val scope = rememberCoroutineScope()
+
     var name by remember(card) { mutableStateOf(card.name) }
     var company by remember(card) { mutableStateOf(card.company) }
     var jobTitle by remember(card) { mutableStateOf(card.jobTitle) }
@@ -492,7 +552,28 @@ private fun CardDetailScreen(
     var website by remember(card) { mutableStateOf(card.website) }
     var address by remember(card) { mutableStateOf(card.address) }
     var notes by remember(card) { mutableStateOf(card.notes) }
-    var tags by remember(card) { mutableStateOf(card.tags) }
+
+    // A brand-new (unsaved) card has id == 0L: tag choices are held locally
+    // until `onSave` gives the caller a real id to link them to. For an
+    // existing card, toggling writes straight through to the DB.
+    val allTags by app.repository.tags.collectAsState(initial = emptyList())
+    var appliedTagIds by remember(card.id) { mutableStateOf<List<Long>>(emptyList()) }
+    LaunchedEffect(card.id) {
+        appliedTagIds = if (card.id == 0L) emptyList() else app.repository.getCardTags(card.id).map { it.id }
+    }
+    val cardTags = allTags.filter { it.id in appliedTagIds }
+    var tagMenuOpen by remember { mutableStateOf(false) }
+    var creatingTag by remember { mutableStateOf(false) }
+    var editingTag by remember { mutableStateOf<Tag?>(null) }
+    var deletingTag by remember { mutableStateOf<Tag?>(null) }
+
+    fun toggleTag(tag: Tag) {
+        val applied = tag.id in appliedTagIds
+        if (card.id != 0L) {
+            scope.launch { app.repository.toggleCardTag(card.id, tag.id, applied) }
+        }
+        appliedTagIds = if (applied) appliedTagIds - tag.id else appliedTagIds + tag.id
+    }
 
     Scaffold(
         topBar = {
@@ -515,8 +596,8 @@ private fun CardDetailScreen(
                                 website = website.trim(),
                                 address = address.trim(),
                                 notes = notes.trim(),
-                                tags = tags.trim(),
-                            )
+                            ),
+                            if (card.id == 0L) appliedTagIds else emptyList(),
                         )
                     }) { Text(stringResource(R.string.save)) }
                 },
@@ -544,6 +625,76 @@ private fun CardDetailScreen(
                 )
             }
 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                cardTags.forEach { tag ->
+                    LongPressableChip(
+                        label = tag.title,
+                        selected = true,
+                        leadingDot = hexToColor(tag.color),
+                        onClick = { toggleTag(tag) },
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                }
+                Box {
+                    AssistChip(
+                        onClick = { tagMenuOpen = true },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        label = { Text(stringResource(R.string.add_tag)) },
+                    )
+                    DropdownMenu(expanded = tagMenuOpen, onDismissRequest = { tagMenuOpen = false }) {
+                        allTags.forEach { tag ->
+                            DropdownMenuItem(
+                                text = { Text(tag.title) },
+                                leadingIcon = {
+                                    Box(
+                                        Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(hexToColor(tag.color))
+                                    )
+                                },
+                                trailingIcon = {
+                                    Row {
+                                        IconButton(
+                                            onClick = { tagMenuOpen = false; editingTag = tag },
+                                            modifier = Modifier.size(24.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Edit,
+                                                contentDescription = stringResource(R.string.edit_tag),
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { tagMenuOpen = false; deletingTag = tag },
+                                            modifier = Modifier.size(24.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Delete,
+                                                contentDescription = stringResource(R.string.delete_tag),
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = { tagMenuOpen = false; toggleTag(tag) },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.add_tag)) },
+                            leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                            onClick = { tagMenuOpen = false; creatingTag = true },
+                        )
+                    }
+                }
+            }
+
             @Composable
             fun field(
                 value: String,
@@ -568,13 +719,56 @@ private fun CardDetailScreen(
             field(website, R.string.field_website, { website = it })
             field(address, R.string.field_address, { address = it }, minLines = 3)
             field(notes, R.string.field_notes, { notes = it }, minLines = 3)
-            field(tags, R.string.field_tags, { tags = it })
         }
+    }
+
+    if (creatingTag) {
+        TagEditorDialog(
+            existing = null,
+            onDismiss = { creatingTag = false },
+            onSave = { title, description, color ->
+                creatingTag = false
+                scope.launch {
+                    val tag = app.repository.createTag(title, description, color)
+                    toggleTag(tag)
+                }
+            },
+        )
+    }
+
+    editingTag?.let { tag ->
+        TagEditorDialog(
+            existing = tag,
+            onDismiss = { editingTag = null },
+            onSave = { title, description, color ->
+                editingTag = null
+                scope.launch {
+                    app.repository.updateTag(tag.copy(title = title, description = description, color = color))
+                }
+            },
+        )
+    }
+
+    deletingTag?.let { tag ->
+        AlertDialog(
+            onDismissRequest = { deletingTag = null },
+            title = { Text(stringResource(R.string.delete_tag_title)) },
+            text = { Text(stringResource(R.string.delete_tag_body, tag.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingTag = null
+                    scope.launch { app.repository.deleteTag(tag.id) }
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingTag = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
 }
 
 /** Opens the system "create contact" screen pre-filled from the card. */
-private fun saveToContacts(context: Context, card: BusinessCard) {
+private fun saveToContacts(context: Context, card: BusinessCard, tags: List<Tag>) {
     val intent = Intent(ContactsContract.Intents.Insert.ACTION).apply {
         type = ContactsContract.RawContacts.CONTENT_TYPE
         putExtra(ContactsContract.Intents.Insert.NAME, card.name)
@@ -583,7 +777,7 @@ private fun saveToContacts(context: Context, card: BusinessCard) {
         putExtra(ContactsContract.Intents.Insert.PHONE, card.phone)
         putExtra(ContactsContract.Intents.Insert.EMAIL, card.email)
         putExtra(ContactsContract.Intents.Insert.POSTAL, card.address)
-        val notes = listOf(card.website, card.notes, card.tags)
+        val notes = listOf(card.website, card.notes, tags.joinToString(", ") { it.title })
             .filter { it.isNotBlank() }
             .joinToString("\n")
         if (notes.isNotBlank()) {
@@ -591,4 +785,91 @@ private fun saveToContacts(context: Context, card: BusinessCard) {
         }
     }
     runCatching { context.startActivity(intent) }
+}
+
+/** Create-or-edit dialog: title/confirm label switch on whether [existing] is null. */
+@Composable
+private fun TagEditorDialog(
+    existing: Tag?,
+    onDismiss: () -> Unit,
+    onSave: (title: String, description: String, color: String) -> Unit,
+) {
+    var title by remember { mutableStateOf(existing?.title.orEmpty()) }
+    var description by remember { mutableStateOf(existing?.description.orEmpty()) }
+    val palette = listOf(
+        colorResource(R.color.tag_red), colorResource(R.color.tag_orange),
+        colorResource(R.color.tag_amber), colorResource(R.color.tag_green),
+        colorResource(R.color.tag_mint), colorResource(R.color.tag_blue),
+        colorResource(R.color.tag_light_blue), colorResource(R.color.tag_purple),
+        colorResource(R.color.tag_lavender), colorResource(R.color.tag_pink),
+        Color.Black,
+    )
+    var selectedIndex by remember {
+        mutableStateOf(
+            existing?.color
+                ?.let { hex -> palette.indexOfFirst { colorToHex(it).equals(hex, ignoreCase = true) } }
+                ?.takeIf { it >= 0 }
+                ?: (palette.size - 1)
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(if (existing == null) R.string.create_tag else R.string.edit_tag)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.tag_title)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.tag_description)) },
+                    minLines = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+                Column(Modifier.padding(top = 12.dp)) {
+                    palette.chunked(6).forEach { rowColors ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) {
+                            rowColors.forEach { swatch ->
+                                val index = palette.indexOf(swatch)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(swatch)
+                                        .clickable { selectedIndex = index },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (index == selectedIndex) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(title.trim(), description.trim(), colorToHex(palette[selectedIndex])) },
+                enabled = title.isNotBlank(),
+            ) {
+                Text(stringResource(if (existing == null) R.string.create else R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
 }

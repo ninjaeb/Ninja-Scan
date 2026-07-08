@@ -32,6 +32,7 @@ class ScanRepository(
     private val dao: ScanDao,
     private val cardDao: BusinessCardDao,
     private val folderDao: FolderDao,
+    private val tagDao: TagDao,
 ) {
 
     private companion object {
@@ -66,6 +67,37 @@ class ScanRepository(
 
     suspend fun markCardPhotoBackedUp(cardId: Long, driveFileId: String) =
         cardDao.setPhotoDriveFileId(cardId, driveFileId)
+
+    val tags: Flow<List<Tag>> = tagDao.observeAll()
+
+    suspend fun getTags(): List<Tag> = tagDao.getAll()
+
+    suspend fun createTag(title: String, description: String, color: String): Tag {
+        val id = tagDao.insert(Tag(title = title.trim(), description = description.trim(), color = color))
+        enqueueBackupIfEnabled()
+        return Tag(id, title.trim(), description.trim(), color)
+    }
+
+    suspend fun updateTag(tag: Tag) {
+        tagDao.update(tag)
+        enqueueBackupIfEnabled()
+    }
+
+    suspend fun deleteTag(tagId: Long) {
+        tagDao.delete(tagId)
+        enqueueBackupIfEnabled()
+    }
+
+    suspend fun getCardTags(cardId: Long): List<Tag> = tagDao.getTagsForCard(cardId)
+
+    /** Matches the "+ Tag" popup's tap-to-toggle UX directly. */
+    suspend fun toggleCardTag(cardId: Long, tagId: Long, currentlyApplied: Boolean) {
+        if (currentlyApplied) tagDao.removeCardTag(cardId, tagId) else tagDao.addCardTag(CardTagCrossRef(cardId, tagId))
+        enqueueBackupIfEnabled()
+    }
+
+    suspend fun getCardTagsByCard(): Map<Long, List<Tag>> =
+        tagDao.getAllCardTagRows().groupBy({ it.cardId }, { Tag(it.tagId, it.title, "", it.color) })
 
     /**
      * Downloads one backed-up PDF into the library. Metadata comes from the
@@ -115,11 +147,30 @@ class ScanRepository(
     internal suspend fun restoreCards(
         drive: DriveRestClient,
         entries: List<DriveManifest.CardEntry>,
+        catalogTags: List<DriveManifest.TagEntry> = emptyList(),
     ): Int = withContext(Dispatchers.IO) {
         val existing = cardDao.getAll()
             .map { listOf(it.name, it.phone, it.email, it.createdAt.toString()) }
             .toSet()
         val cardsDir = File(context.filesDir, "cards").apply { mkdirs() }
+        // Local color wins: the catalog only seeds a tag when no local tag with
+        // that title (case-insensitively) exists yet.
+        val tagsByTitle = tagDao.getAll()
+            .associateByTo(mutableMapOf()) { it.title.lowercase() }
+        suspend fun resolveTag(title: String): Tag {
+            tagsByTitle[title.lowercase()]?.let { return it }
+            val catalogEntry = catalogTags.find { it.title.equals(title, ignoreCase = true) }
+            val id = tagDao.insert(
+                Tag(
+                    title = title,
+                    description = catalogEntry?.description.orEmpty(),
+                    color = catalogEntry?.color ?: "#9E9E9E",
+                )
+            )
+            val tag = Tag(id, title, catalogEntry?.description.orEmpty(), catalogEntry?.color ?: "#9E9E9E")
+            tagsByTitle[title.lowercase()] = tag
+            return tag
+        }
         var restored = 0
         for (entry in entries) {
             val card = entry.card
@@ -132,7 +183,11 @@ class ScanRepository(
                     target.absolutePath
                 }.getOrNull() // download failure: skip the photo, keep the card record
             }
-            cardDao.insert(card.copy(id = 0, thumbnailPath = thumbnailPath))
+            val newId = cardDao.insert(card.copy(id = 0, thumbnailPath = thumbnailPath))
+            for (tagTitle in entry.tagTitles) {
+                val tag = resolveTag(tagTitle)
+                tagDao.addCardTag(CardTagCrossRef(newId, tag.id))
+            }
             restored++
         }
         restored
@@ -457,8 +512,9 @@ class ScanRepository(
     suspend fun exportCardsCsv(cards: List<BusinessCard>, destination: Uri): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
+                val tagsByCard = getCardTagsByCard()
                 context.contentResolver.openOutputStream(destination)?.use { output ->
-                    output.write(buildCsv(cards).toByteArray(Charsets.UTF_8))
+                    output.write(buildCsv(cards, tagsByCard).toByteArray(Charsets.UTF_8))
                 } != null
             }.getOrDefault(false)
         }
@@ -467,23 +523,25 @@ class ScanRepository(
     suspend fun exportCardsXlsx(cards: List<BusinessCard>, destination: Uri): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
+                val tagsByCard = getCardTagsByCard()
                 context.contentResolver.openOutputStream(destination)?.use { output ->
-                    XlsxWriter.write(output, "Contacts", CARD_COLUMNS, cards.map(::cardRow))
+                    XlsxWriter.write(output, "Contacts", CARD_COLUMNS, cards.map { cardRow(it, tagsByCard) })
                 } != null
             }.getOrDefault(false)
         }
 
-    private fun buildCsv(cards: List<BusinessCard>): String = buildString {
+    private fun buildCsv(cards: List<BusinessCard>, tagsByCard: Map<Long, List<Tag>>): String = buildString {
         fun quote(value: String) = "\"" + value.replace("\"", "\"\"") + "\""
         append(CARD_COLUMNS.joinToString(",") { quote(it) }).append("\r\n")
         for (card in cards) {
-            append(cardRow(card).joinToString(",") { quote(it) }).append("\r\n")
+            append(cardRow(card, tagsByCard).joinToString(",") { quote(it) }).append("\r\n")
         }
     }
 
-    private fun cardRow(card: BusinessCard): List<String> = listOf(
+    private fun cardRow(card: BusinessCard, tagsByCard: Map<Long, List<Tag>>): List<String> = listOf(
         card.name, card.company, card.jobTitle, card.phone,
-        card.email, card.website, card.address, card.notes, card.tags,
+        card.email, card.website, card.address, card.notes,
+        tagsByCard[card.id].orEmpty().joinToString(", ") { it.title },
     )
 
     /** Re-runs on-device OCR over a rebuilt PDF, page by page. Best-effort. */
@@ -598,15 +656,26 @@ class ScanRepository(
         }
     }
 
-    suspend fun delete(scan: ScanDocument) = withContext(Dispatchers.IO) {
+    private fun deleteScanFiles(scan: ScanDocument) {
         File(scan.pdfPath).delete()
         scan.thumbnailPath?.let { File(it).delete() }
         scan.originalsDir?.let { File(it).deleteRecursively() }
         // Deleted locally means deleted from the backup too; otherwise the
         // next restore would resurrect it.
         scan.driveFileId?.let { DriveBackup.addStaleFileId(context, it) }
+    }
+
+    suspend fun delete(scan: ScanDocument) = withContext(Dispatchers.IO) {
+        deleteScanFiles(scan)
         dao.delete(scan)
         enqueueBackupIfEnabled()
+    }
+
+    suspend fun deleteScans(scans: List<ScanDocument>) = withContext(Dispatchers.IO) {
+        if (scans.isEmpty()) return@withContext
+        scans.forEach(::deleteScanFiles)
+        dao.delete(scans)
+        enqueueBackupIfEnabled() // one enqueue for the whole batch, not N
     }
 
     /** Copies a scan's PDF (watermarked if set) to a SAF destination. */

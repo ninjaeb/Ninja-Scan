@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
@@ -66,7 +66,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
@@ -112,6 +111,7 @@ fun ScanListScreen(
     onRename: (ScanDocument, String) -> Unit,
     onMoveToFolder: (ScanDocument, String?) -> Unit,
     onDelete: (ScanDocument) -> Unit,
+    onDeleteScans: (List<ScanDocument>) -> Unit,
     onAddFolder: (String) -> Unit,
     onRenameFolder: (String, String) -> Unit,
     onDeleteFolder: (String) -> Unit,
@@ -143,6 +143,7 @@ fun ScanListScreen(
     val selectedIds = remember { mutableStateListOf<Long>() }
     val selectionActive = selectedIds.isNotEmpty()
     var multiSharingScans by remember { mutableStateOf<List<ScanDocument>?>(null) }
+    var deletingScans by remember { mutableStateOf<List<ScanDocument>?>(null) }
     BackHandler(enabled = selectionActive) { selectedIds.clear() }
 
     Scaffold(
@@ -162,6 +163,13 @@ fun ScanListScreen(
                             },
                         ) {
                             Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
+                        }
+                        IconButton(
+                            onClick = {
+                                deletingScans = scans.filter { it.id in selectedIds }
+                            },
+                        ) {
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
                         }
                     },
                 )
@@ -296,19 +304,15 @@ fun ScanListScreen(
                     items(folders) { folder ->
                         // Long-press a folder chip for rename/delete.
                         Box {
-                            FilterChip(
+                            LongPressableChip(
+                                label = folder,
                                 selected = folderFilter == folder,
                                 onClick = {
                                     onFolderFilterChange(
                                         if (folderFilter == folder) null else folder
                                     )
                                 },
-                                label = { Text(folder) },
-                                // Taps go to the chip's own onClick; this outer
-                                // detector only fires the long-press timer.
-                                modifier = Modifier.pointerInput(folder) {
-                                    detectTapGestures(onLongPress = { folderMenuFor = folder })
-                                },
+                                onLongClick = { folderMenuFor = folder },
                             )
                             DropdownMenu(
                                 expanded = folderMenuFor == folder,
@@ -498,6 +502,28 @@ fun ScanListScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deletingScan = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    deletingScans?.let { list ->
+        AlertDialog(
+            onDismissRequest = { deletingScans = null },
+            title = { Text(stringResource(R.string.delete_scans_dialog_title)) },
+            text = { Text(stringResource(R.string.delete_scans_dialog_body, list.size)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingScans = null
+                    selectedIds.clear()
+                    onDeleteScans(list)
+                }) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingScans = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             },

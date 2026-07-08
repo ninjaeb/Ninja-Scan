@@ -220,6 +220,7 @@ class MainActivity : ComponentActivity() {
                     onRename = viewModel::rename,
                     onMoveToFolder = viewModel::moveToFolder,
                     onDelete = viewModel::delete,
+                    onDeleteScans = viewModel::deleteScans,
                     onAddFolder = viewModel::addFolder,
                     onRenameFolder = viewModel::renameFolder,
                     onDeleteFolder = viewModel::deleteFolder,
