@@ -28,6 +28,10 @@ object DriveBackup {
     const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
     const val FOLDER_NAME = "Ninja Scan"
 
+    /** WorkInfo.progress keys shared by DriveBackupWorker and DriveRestoreWorker. */
+    const val KEY_PROGRESS_CURRENT = "progress_current"
+    const val KEY_PROGRESS_TOTAL = "progress_total"
+
     private const val PREFS = "drive_backup"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_FOLDER_ID = "folder_id"
@@ -178,6 +182,10 @@ object DriveBackup {
     /** Observes the restore work's state for progress/result UI. */
     fun restoreWorkInfo(context: Context): Flow<List<WorkInfo>> =
         WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(RESTORE_WORK_NAME)
+
+    /** Observes the backup work's state for progress UI. */
+    fun backupWorkInfo(context: Context): Flow<List<WorkInfo>> =
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(WORK_NAME)
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

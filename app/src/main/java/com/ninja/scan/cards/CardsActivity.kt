@@ -2,6 +2,7 @@ package com.ninja.scan.cards
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
 import androidx.activity.ComponentActivity
@@ -10,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.work.WorkInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,13 +36,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -80,8 +87,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
 import coil.compose.AsyncImage
 import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
@@ -90,7 +99,9 @@ import com.ninja.scan.data.Tag
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.ui.AppTitleWithIcon
 import com.ninja.scan.ui.DriveMenuButton
+import com.ninja.scan.ui.DriveSyncProgressBar
 import com.ninja.scan.ui.LongPressableChip
+import com.ninja.scan.ui.SyncProgress
 import com.ninja.scan.ui.brandedNavigationItemColors
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.google.android.gms.auth.api.identity.Identity
@@ -144,6 +155,35 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
     var driveBackupEnabled by remember { mutableStateOf(DriveBackup.isEnabled(context)) }
     // What to do once Drive consent is granted: enable backup, or restore.
     var pendingDriveRestore by remember { mutableStateOf(false) }
+    var restoreProgress by remember { mutableStateOf<SyncProgress?>(null) }
+    var backupProgress by remember { mutableStateOf<SyncProgress?>(null) }
+
+    LaunchedEffect(Unit) {
+        DriveBackup.restoreWorkInfo(context).collect { infos ->
+            val info = infos.firstOrNull() ?: return@collect
+            restoreProgress = if (info.state == WorkInfo.State.RUNNING) {
+                SyncProgress(
+                    current = info.progress.getInt(DriveBackup.KEY_PROGRESS_CURRENT, 0),
+                    total = info.progress.getInt(DriveBackup.KEY_PROGRESS_TOTAL, 0),
+                )
+            } else {
+                null
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        DriveBackup.backupWorkInfo(context).collect { infos ->
+            val info = infos.firstOrNull() ?: return@collect
+            backupProgress = if (info.state == WorkInfo.State.RUNNING) {
+                SyncProgress(
+                    current = info.progress.getInt(DriveBackup.KEY_PROGRESS_CURRENT, 0),
+                    total = info.progress.getInt(DriveBackup.KEY_PROGRESS_TOTAL, 0),
+                )
+            } else {
+                null
+            }
+        }
+    }
 
     fun performPendingDriveAction() {
         if (pendingDriveRestore) {
@@ -407,6 +447,14 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            when {
+                restoreProgress != null -> DriveSyncProgressBar(
+                    stringResource(R.string.drive_restore_started), restoreProgress!!
+                )
+                backupProgress != null -> DriveSyncProgressBar(
+                    stringResource(R.string.drive_backup_started), backupProgress!!
+                )
+            }
             if (cards.isNotEmpty() || searchQuery.isNotBlank()) {
                 OutlinedTextField(
                     value = searchQuery,
@@ -571,13 +619,26 @@ private fun CardRow(
                 val subtitle = listOf(card.company, card.phone, card.email)
                     .filter { it.isNotBlank() }
                     .joinToString(" · ")
-                if (subtitle.isNotBlank()) {
-                    Text(
-                        subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                    )
+                if (subtitle.isNotBlank() || card.photoDriveFileId != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (subtitle.isNotBlank()) {
+                            Text(
+                                subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                            )
+                        }
+                        if (card.photoDriveFileId != null) {
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Filled.CloudDone,
+                                contentDescription = stringResource(R.string.backed_up_to_drive),
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                 }
                 CardTagsRow(tags)
             }
@@ -798,6 +859,8 @@ private fun CardDetailScreen(
                 label: Int,
                 onChange: (String) -> Unit,
                 minLines: Int = 1,
+                keyboardType: KeyboardType = KeyboardType.Text,
+                trailingIcon: (@Composable () -> Unit)? = null,
             ) {
                 OutlinedTextField(
                     value = value,
@@ -805,16 +868,64 @@ private fun CardDetailScreen(
                     label = { Text(stringResource(label)) },
                     singleLine = minLines == 1,
                     minLines = minLines,
+                    keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                    trailingIcon = trailingIcon,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             field(name, R.string.field_name, { name = it })
             field(company, R.string.field_company, { company = it })
             field(jobTitle, R.string.field_job_title, { jobTitle = it })
-            field(phone, R.string.field_phone, { phone = it })
-            field(email, R.string.field_email, { email = it })
-            field(website, R.string.field_website, { website = it })
-            field(address, R.string.field_address, { address = it }, minLines = 3)
+            field(
+                phone, R.string.field_phone, { phone = it },
+                keyboardType = KeyboardType.Phone,
+                trailingIcon = if (phone.isNotBlank()) {
+                    {
+                        Row {
+                            IconButton(onClick = { openDialer(context, phone) }) {
+                                Icon(
+                                    Icons.Filled.Call,
+                                    contentDescription = stringResource(R.string.call),
+                                )
+                            }
+                            IconButton(onClick = { openWhatsApp(context, phone) }) {
+                                Icon(
+                                    Icons.Filled.Chat,
+                                    contentDescription = stringResource(R.string.whatsapp),
+                                )
+                            }
+                        }
+                    }
+                } else null,
+            )
+            field(email, R.string.field_email, { email = it }, keyboardType = KeyboardType.Email)
+            field(
+                website, R.string.field_website, { website = it },
+                keyboardType = KeyboardType.Uri,
+                trailingIcon = if (website.isNotBlank()) {
+                    {
+                        IconButton(onClick = { openWebsite(context, website) }) {
+                            Icon(
+                                Icons.Filled.Language,
+                                contentDescription = stringResource(R.string.open_website),
+                            )
+                        }
+                    }
+                } else null,
+            )
+            field(
+                address, R.string.field_address, { address = it }, minLines = 3,
+                trailingIcon = if (address.isNotBlank()) {
+                    {
+                        IconButton(onClick = { openMap(context, address) }) {
+                            Icon(
+                                Icons.Filled.Map,
+                                contentDescription = stringResource(R.string.open_map),
+                            )
+                        }
+                    }
+                } else null,
+            )
             field(notes, R.string.field_notes, { notes = it }, minLines = 3)
         }
     }
@@ -882,6 +993,42 @@ private fun saveToContacts(context: Context, card: BusinessCard, tags: List<Tag>
         }
     }
     runCatching { context.startActivity(intent) }
+}
+
+/** Opens the system dialer pre-filled with the number (no CALL_PHONE permission needed). */
+private fun openDialer(context: Context, phone: String) {
+    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}"))
+    runCatching { context.startActivity(intent) }
+}
+
+/** wa.me expects digits only (country code, no "+", spaces, or dashes). */
+private fun openWhatsApp(context: Context, phone: String) {
+    val digits = phone.filter { it.isDigit() }
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits"))
+    runCatching { context.startActivity(intent) }
+}
+
+private fun openWebsite(context: Context, url: String) {
+    val normalized = if (url.startsWith("http://") || url.startsWith("https://")) {
+        url
+    } else {
+        "https://$url"
+    }
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(normalized))
+    runCatching { context.startActivity(intent) }
+}
+
+/** Tries a maps app first (geo: URI), falling back to a Maps web search. */
+private fun openMap(context: Context, address: String) {
+    val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(address)}"))
+    val opened = runCatching { context.startActivity(geoIntent) }.isSuccess
+    if (!opened) {
+        val webIntent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(address)}"),
+        )
+        runCatching { context.startActivity(webIntent) }
+    }
 }
 
 /** Create-or-edit dialog: title/confirm label switch on whether [existing] is null. */

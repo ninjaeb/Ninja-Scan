@@ -67,17 +67,23 @@ class DriveRestoreWorker(
         } catch (e: Exception) {
             return@withContext Result.retry()
         }
+        val total = children.size
+        var current = 0
+        setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
         for (file in children) {
-            if (file.mimeType != "application/pdf" || file.id in known) continue
-            try {
-                if (app.repository.restoreScanFromDrive(drive, file, entries[file.id])) {
-                    restored++
+            if (file.mimeType == "application/pdf" && file.id !in known) {
+                try {
+                    if (app.repository.restoreScanFromDrive(drive, file, entries[file.id])) {
+                        restored++
+                    }
+                } catch (e: DriveAuthException) {
+                    return@withContext Result.retry()
+                } catch (e: Exception) {
+                    failures++
                 }
-            } catch (e: DriveAuthException) {
-                return@withContext Result.retry()
-            } catch (e: Exception) {
-                failures++
             }
+            current++
+            setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
         }
 
         val cardsRestored = manifest?.cards?.let {

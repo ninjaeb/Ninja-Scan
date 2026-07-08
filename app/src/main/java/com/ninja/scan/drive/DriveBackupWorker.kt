@@ -3,6 +3,7 @@ package com.ninja.scan.drive
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.ninja.scan.DocScannerApp
 import com.google.android.gms.auth.api.identity.Identity
 import kotlinx.coroutines.Dispatchers
@@ -62,31 +63,44 @@ class DriveBackupWorker(
         }
         DriveBackup.requeueStaleFileIds(applicationContext, staleFailures)
 
+        val pendingScans = app.repository.getPendingBackup()
+        val pendingCards = app.repository.getPendingPhotoBackup()
+        val total = pendingScans.size + pendingCards.size
+        var current = 0
+        setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
+
         var failures = 0
-        for (scan in app.repository.getPendingBackup()) {
+        for (scan in pendingScans) {
             val pdf = File(scan.pdfPath)
-            if (!pdf.exists()) continue
-            try {
-                val fileId = drive.uploadPdf(pdf, "${scan.title}.pdf", folderId)
-                app.repository.markBackedUp(scan.id, fileId)
-            } catch (e: DriveAuthException) {
-                return@withContext Result.retry()
-            } catch (e: Exception) {
-                failures++
+            if (pdf.exists()) {
+                try {
+                    val fileId = drive.uploadPdf(pdf, "${scan.title}.pdf", folderId)
+                    app.repository.markBackedUp(scan.id, fileId)
+                } catch (e: DriveAuthException) {
+                    return@withContext Result.retry()
+                } catch (e: Exception) {
+                    failures++
+                }
             }
+            current++
+            setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
         }
 
-        for (card in app.repository.getPendingPhotoBackup()) {
-            val photo = card.thumbnailPath?.let(::File) ?: continue
-            if (!photo.exists()) continue
-            try {
-                val fileId = drive.uploadFile(photo, "card-${card.id}.jpg", cardsFolderId, "image/jpeg")
-                app.repository.markCardPhotoBackedUp(card.id, fileId)
-            } catch (e: DriveAuthException) {
-                return@withContext Result.retry()
-            } catch (e: Exception) {
-                failures++
+        for (card in pendingCards) {
+            val photo = card.thumbnailPath?.let(::File)
+            if (photo != null && photo.exists()) {
+                try {
+                    val fileId =
+                        drive.uploadFile(photo, "card-${card.id}.jpg", cardsFolderId, "image/jpeg")
+                    app.repository.markCardPhotoBackedUp(card.id, fileId)
+                } catch (e: DriveAuthException) {
+                    return@withContext Result.retry()
+                } catch (e: Exception) {
+                    failures++
+                }
             }
+            current++
+            setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
         }
 
         // The manifest always mirrors the current library, even when there

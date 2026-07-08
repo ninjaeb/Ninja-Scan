@@ -92,6 +92,8 @@ fun ScanListScreen(
     driveBackupEnabled: Boolean,
     justSaved: ScanDocument?,
     snackbarHostState: SnackbarHostState,
+    restoreProgress: SyncProgress?,
+    backupProgress: SyncProgress?,
     onConfirmScanDetails: (ScanDocument, String, String?) -> Unit,
     onDismissScanDetails: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -240,6 +242,14 @@ fun ScanListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            when {
+                restoreProgress != null -> DriveSyncProgressBar(
+                    stringResource(R.string.drive_restore_started), restoreProgress
+                )
+                backupProgress != null -> DriveSyncProgressBar(
+                    stringResource(R.string.drive_backup_started), backupProgress
+                )
+            }
             if (scans.isNotEmpty() || searching || folderFilter != null) {
                 SearchField(
                     query = searchQuery,

@@ -25,6 +25,7 @@ import com.ninja.scan.drive.DriveRestoreWorker
 import com.ninja.scan.ui.ScanEvent
 import com.ninja.scan.ui.ScanListScreen
 import com.ninja.scan.ui.ScanViewModel
+import com.ninja.scan.ui.SyncProgress
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.util.ShareActions
 import com.ninja.scan.viewer.PdfViewerActivity
@@ -72,6 +73,8 @@ class MainActivity : ComponentActivity() {
                 val snackbarHostState = remember { SnackbarHostState() }
                 var showRestoreOffer by remember { mutableStateOf(false) }
                 var lastRestoreState by remember { mutableStateOf<WorkInfo.State?>(null) }
+                var restoreProgress by remember { mutableStateOf<SyncProgress?>(null) }
+                var backupProgress by remember { mutableStateOf<SyncProgress?>(null) }
 
                 val driveConsentLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.StartIntentSenderForResult()
@@ -136,6 +139,14 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     DriveBackup.restoreWorkInfo(this@MainActivity).collect { infos ->
                         val info = infos.firstOrNull() ?: return@collect
+                        restoreProgress = if (info.state == WorkInfo.State.RUNNING) {
+                            SyncProgress(
+                                current = info.progress.getInt(DriveBackup.KEY_PROGRESS_CURRENT, 0),
+                                total = info.progress.getInt(DriveBackup.KEY_PROGRESS_TOTAL, 0),
+                            )
+                        } else {
+                            null
+                        }
                         if (info.state == lastRestoreState) return@collect
                         lastRestoreState = info.state
                         when (info.state) {
@@ -154,6 +165,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Backup has no terminal-state snackbar (it's a routine
+                // background op), just a live progress readout while running.
+                LaunchedEffect(Unit) {
+                    DriveBackup.backupWorkInfo(this@MainActivity).collect { infos ->
+                        val info = infos.firstOrNull() ?: return@collect
+                        backupProgress = if (info.state == WorkInfo.State.RUNNING) {
+                            SyncProgress(
+                                current = info.progress.getInt(DriveBackup.KEY_PROGRESS_CURRENT, 0),
+                                total = info.progress.getInt(DriveBackup.KEY_PROGRESS_TOTAL, 0),
+                            )
+                        } else {
+                            null
+                        }
+                    }
+                }
+
                 ScanListScreen(
                     scans = scans,
                     searchQuery = searchQuery,
@@ -163,6 +190,8 @@ class MainActivity : ComponentActivity() {
                     driveBackupEnabled = driveBackupEnabled,
                     justSaved = justSaved,
                     snackbarHostState = snackbarHostState,
+                    restoreProgress = restoreProgress,
+                    backupProgress = backupProgress,
                     onConfirmScanDetails = viewModel::confirmScanDetails,
                     onDismissScanDetails = viewModel::dismissScanDetails,
                     onSearchQueryChange = viewModel::onSearchQueryChange,

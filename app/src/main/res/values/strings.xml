@@ -66,6 +66,10 @@
     <string name="field_phone">Phone</string>
     <string name="field_email">Email</string>
     <string name="field_website">Website</string>
+    <string name="call">Call</string>
+    <string name="whatsapp">WhatsApp</string>
+    <string name="open_website">Open website</string>
+    <string name="open_map">Open in Maps</string>
     <string name="field_address">Address</string>
     <string name="save_details_title">Scan saved — name it?</string>
     <string name="search_cards_hint">Search contacts</string>

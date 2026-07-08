@@ -3,8 +3,12 @@ package com.ninja.scan.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,6 +20,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItemColors
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -118,3 +123,35 @@ fun brandedNavigationItemColors(): NavigationBarItemColors = NavigationBarItemDe
     selectedTextColor = MaterialTheme.colorScheme.primary,
     indicatorColor = MaterialTheme.colorScheme.primary,
 )
+
+/** Item counts read from a running backup/restore WorkInfo's progress Data. */
+data class SyncProgress(val current: Int, val total: Int)
+
+/**
+ * A slim label + progress bar shown under the top bar while a Drive backup
+ * or restore pass is running, so "Backing up..."/"Restoring..." isn't just
+ * a one-shot snackbar with no sense of how long it'll take.
+ */
+@Composable
+fun DriveSyncProgressBar(label: String, progress: SyncProgress) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Text(
+            if (progress.total > 0) "$label (${progress.current}/${progress.total})" else label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        if (progress.total > 0) {
+            LinearProgressIndicator(
+                progress = { progress.current.toFloat() / progress.total.toFloat() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
