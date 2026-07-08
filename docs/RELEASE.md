@@ -43,12 +43,15 @@ or a session; only the base64 text goes into `RELEASE_KEYSTORE_BASE64` below.
 
 ## 4. Run the release workflow
 
-Actions tab → **Android Release** → **Run workflow**. When it finishes, download the
-`app-release-aab` artifact — that's your signed `app-release.aab`. Each run also
-produces a `native-debug-symbols` artifact; uploading it in Play Console's (optional)
-native debug symbols field enables symbolicated native crash stack traces. Always grab
-both artifacts from the *latest* run rather than reusing an old download — every run's
-artifacts share the same names, so it's easy to accidentally re-upload a stale one.
+Actions tab → **Android Release** → **Run workflow**. When it finishes, the run's
+summary page shows the exact `versionCode`/`versionName` that build was made from (a
+"Read app version" step writes it there), and the app bundle artifact is named
+`app-release-aab-v<versionCode>` (e.g. `app-release-aab-v5`) so you can tell builds
+apart at a glance instead of cross-referencing commits. Download that artifact — it's
+your signed `app-release.aab`. Each run also produces a `native-debug-symbols`
+artifact; uploading it in Play Console's (optional) native debug symbols field enables
+symbolicated native crash stack traces. Always grab both from the *latest* run rather
+than reusing an old download.
 
 The workflow only builds on manual trigger (`workflow_dispatch`), never on a push or
 PR, so nothing signs automatically on every commit. It decodes the keystore into a
