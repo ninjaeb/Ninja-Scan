@@ -17,6 +17,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemColors
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -104,3 +106,15 @@ fun DriveMenuButton(
         }
     }
 }
+
+/**
+ * The Documents/Cards bottom nav's selected-item colors, shared so the
+ * selected tab reads as the app's brand color rather than the generic
+ * Material secondary-container tint.
+ */
+@Composable
+fun brandedNavigationItemColors(): NavigationBarItemColors = NavigationBarItemDefaults.colors(
+    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+    selectedTextColor = MaterialTheme.colorScheme.primary,
+    indicatorColor = MaterialTheme.colorScheme.primary,
+)

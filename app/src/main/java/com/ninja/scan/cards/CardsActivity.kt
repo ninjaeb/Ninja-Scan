@@ -91,6 +91,7 @@ import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.ui.AppTitleWithIcon
 import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.LongPressableChip
+import com.ninja.scan.ui.brandedNavigationItemColors
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
@@ -380,12 +381,14 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
                     onClick = onBack,
                     icon = { Icon(Icons.Filled.Description, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_documents)) },
+                    colors = brandedNavigationItemColors(),
                 )
                 NavigationBarItem(
                     selected = true,
                     onClick = {},
                     icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_cards)) },
+                    colors = brandedNavigationItemColors(),
                 )
             }
         },
@@ -394,6 +397,8 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
                 onClick = launchCardScanner,
                 icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
                 text = { Text(stringResource(R.string.scan_business_card)) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             )
         },
     ) { padding ->

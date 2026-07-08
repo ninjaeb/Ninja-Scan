@@ -49,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -200,27 +201,29 @@ fun ScanListScreen(
                     onClick = {},
                     icon = { Icon(Icons.Filled.Description, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_documents)) },
+                    colors = brandedNavigationItemColors(),
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = onOpenCards,
                     icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_cards)) },
+                    colors = brandedNavigationItemColors(),
                 )
             }
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                // Secondary action: document scanning
+                // Both scan actions share the same brand color; only their
+                // stacking order signals which is primary.
                 ExtendedFloatingActionButton(
                     onClick = onScanClick,
                     icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
                     text = { Text(stringResource(R.string.scan_document)) },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 )
                 Spacer(Modifier.height(12.dp))
-                // Primary, most prominent action: business card scanning
                 ExtendedFloatingActionButton(
                     onClick = onScanCardClick,
                     icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
