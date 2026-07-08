@@ -15,6 +15,15 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!--
+      Google Play services (ML Kit, Drive auth) auto-merges this permission
+      even though the app never reads the advertising ID or shows ads.
+      Removing it avoids Play Console's advertising ID declaration step.
+    -->
+    <uses-permission
+        android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+
     <application
         android:name=".DocScannerApp"
         android:allowBackup="true"
