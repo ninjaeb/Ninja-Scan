@@ -21,4 +21,6 @@ data class BusinessCard(
     val createdAt: Long = 0,
     /** Small JPEG of the scanned card shown in the list. */
     val thumbnailPath: String? = null,
+    /** Drive file id of the backed-up photo, once uploaded. */
+    val photoDriveFileId: String? = null,
 )

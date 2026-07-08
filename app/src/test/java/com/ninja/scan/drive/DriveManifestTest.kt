@@ -24,7 +24,10 @@ class DriveManifestTest {
         cards = listOf(
             DriveManifest.CardEntry(
                 key = "222-1",
-                card = BusinessCard(name = "Jane Smith", phone = "+1 555", createdAt = 222L),
+                card = BusinessCard(
+                    name = "Jane Smith", phone = "+1 555", createdAt = 222L,
+                    photoDriveFileId = "photo-1",
+                ),
             ),
         ),
         folders = listOf("Receipts", "Invoices"),
@@ -37,7 +40,10 @@ class DriveManifestTest {
 
         assertTrue(decoded != null)
         assertEquals(content.scans, decoded!!.scans)
-        assertEquals(content.cards.map { it.key to it.card.name }, decoded.cards.map { it.key to it.card.name })
+        assertEquals(
+            content.cards.map { it.key to it.card.name to it.card.photoDriveFileId },
+            decoded.cards.map { it.key to it.card.name to it.card.photoDriveFileId },
+        )
         assertEquals(content.folders, decoded.folders)
     }
 
@@ -61,6 +67,19 @@ class DriveManifestTest {
         assertNull(decoded.scans.first().watermark)
         assertTrue(decoded.cards.isEmpty())
         assertTrue(decoded.folders.isEmpty())
+    }
+
+    @Test
+    fun `decode tolerates a card entry with no photoDriveFileId`() {
+        val bytes = """
+            {"schemaVersion":1,"updatedAt":1,"scans":[],
+             "cards":[{"key":"1-1","name":"X","createdAt":1}]}
+        """.trimIndent().toByteArray()
+        val decoded = DriveManifest.decode(bytes)
+
+        assertTrue(decoded != null)
+        assertEquals(1, decoded!!.cards.size)
+        assertNull(decoded.cards.first().card.photoDriveFileId)
     }
 
     @Test

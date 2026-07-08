@@ -33,21 +33,25 @@ internal class DriveRestClient(private val token: String) {
                 .let { !it.optBoolean("trashed", false) }
         }.getOrDefault(false)
 
-    fun findFolder(name: String): String? {
-        val query = URLEncoder.encode(
-            "mimeType='application/vnd.google-apps.folder' and name='$name' and trashed=false",
-            "UTF-8"
-        )
+    /** Finds a folder by name, optionally scoped to a [parentId]. */
+    fun findFolder(name: String, parentId: String? = null): String? {
+        val queryString = buildString {
+            append("mimeType='application/vnd.google-apps.folder' and name='$name' and trashed=false")
+            if (parentId != null) append(" and '$parentId' in parents")
+        }
+        val query = URLEncoder.encode(queryString, "UTF-8")
         val response =
             request("GET", "https://www.googleapis.com/drive/v3/files?q=$query&fields=files(id)")
         val files = response.optJSONArray("files") ?: return null
         return if (files.length() > 0) files.getJSONObject(0).getString("id") else null
     }
 
-    fun createFolder(name: String): String {
+    /** Creates a folder, optionally nested inside a [parentId]. */
+    fun createFolder(name: String, parentId: String? = null): String {
         val body = JSONObject()
             .put("name", name)
             .put("mimeType", "application/vnd.google-apps.folder")
+        if (parentId != null) body.put("parents", JSONArray().put(parentId))
         return request(
             "POST",
             "https://www.googleapis.com/drive/v3/files?fields=id",
@@ -65,7 +69,18 @@ internal class DriveRestClient(private val token: String) {
         return id
     }
 
-    fun uploadPdf(file: File, name: String, folderId: String): String {
+    /** Finds or creates a subfolder of [parentId], reusing a cached id when valid. */
+    fun resolveSubfolder(context: Context, parentId: String, name: String): String {
+        DriveBackup.cachedCardsFolderId(context)?.let { cached ->
+            if (folderExists(cached)) return cached
+        }
+        val id = findFolder(name, parentId) ?: createFolder(name, parentId)
+        DriveBackup.setCachedCardsFolderId(context, id)
+        return id
+    }
+
+    /** Uploads [file] under [name] into [folderId] with the given [mimeType]. */
+    fun uploadFile(file: File, name: String, folderId: String, mimeType: String): String {
         val boundary = "docscanner-${file.name.hashCode()}-${file.length()}"
         val metadata = JSONObject()
             .put("name", name)
@@ -79,11 +94,14 @@ internal class DriveRestClient(private val token: String) {
             output.write("Content-Type: application/json; charset=UTF-8\r\n\r\n".toByteArray())
             output.write(metadata.toString().toByteArray())
             output.write("\r\n--$boundary\r\n".toByteArray())
-            output.write("Content-Type: application/pdf\r\n\r\n".toByteArray())
+            output.write("Content-Type: $mimeType\r\n\r\n".toByteArray())
             file.inputStream().use { it.copyTo(output) }
             output.write("\r\n--$boundary--\r\n".toByteArray())
         }.getString("id")
     }
+
+    fun uploadPdf(file: File, name: String, folderId: String): String =
+        uploadFile(file, name, folderId, "application/pdf")
 
     /** Finds a file by exact name inside [folderId], or null. */
     fun findFile(name: String, folderId: String): String? {

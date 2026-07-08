@@ -48,6 +48,11 @@ class DriveBackupWorker(
         } catch (e: Exception) {
             return@withContext Result.retry()
         }
+        val cardsFolderId = try {
+            drive.resolveSubfolder(applicationContext, folderId, "cards")
+        } catch (e: Exception) {
+            return@withContext Result.retry()
+        }
 
         // Replaced copies (page edits, watermark changes) are deleted so the
         // backup folder never accumulates stale duplicates.
@@ -64,6 +69,19 @@ class DriveBackupWorker(
             try {
                 val fileId = drive.uploadPdf(pdf, "${scan.title}.pdf", folderId)
                 app.repository.markBackedUp(scan.id, fileId)
+            } catch (e: DriveAuthException) {
+                return@withContext Result.retry()
+            } catch (e: Exception) {
+                failures++
+            }
+        }
+
+        for (card in app.repository.getPendingPhotoBackup()) {
+            val photo = card.thumbnailPath?.let(::File) ?: continue
+            if (!photo.exists()) continue
+            try {
+                val fileId = drive.uploadFile(photo, "card-${card.id}.jpg", cardsFolderId, "image/jpeg")
+                app.repository.markCardPhotoBackedUp(card.id, fileId)
             } catch (e: DriveAuthException) {
                 return@withContext Result.retry()
             } catch (e: Exception) {

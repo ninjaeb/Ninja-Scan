@@ -16,6 +16,15 @@ interface BusinessCardDao {
     @Query("SELECT * FROM business_cards ORDER BY createdAt ASC")
     suspend fun getAll(): List<BusinessCard>
 
+    @Query(
+        "SELECT * FROM business_cards WHERE thumbnailPath IS NOT NULL " +
+            "AND photoDriveFileId IS NULL ORDER BY createdAt ASC"
+    )
+    suspend fun getPendingPhotoBackup(): List<BusinessCard>
+
+    @Query("UPDATE business_cards SET photoDriveFileId = :fileId WHERE id = :id")
+    suspend fun setPhotoDriveFileId(id: Long, fileId: String)
+
     @Insert
     suspend fun insert(card: BusinessCard): Long
 

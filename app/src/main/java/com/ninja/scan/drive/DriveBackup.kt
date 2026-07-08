@@ -3,14 +3,17 @@ package com.ninja.scan.drive
 import android.content.Context
 import androidx.core.content.edit
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.common.api.Scope
 import kotlinx.coroutines.flow.Flow
+import java.util.concurrent.TimeUnit
 
 /**
  * Settings and scheduling for automatic Google Drive backup.
@@ -27,10 +30,13 @@ object DriveBackup {
     private const val PREFS = "drive_backup"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_FOLDER_ID = "folder_id"
+    private const val KEY_CARDS_FOLDER_ID = "cards_folder_id"
     private const val KEY_MANIFEST_ID = "manifest_id"
     private const val KEY_STALE_FILE_IDS = "stale_file_ids"
     private const val WORK_NAME = "drive_backup_upload"
+    private const val PERIODIC_WORK_NAME = "drive_backup_periodic"
     private const val RESTORE_WORK_NAME = "drive_restore"
+    private const val PERIODIC_BACKUP_INTERVAL_HOURS = 12L
 
     fun authorizationRequest(): AuthorizationRequest =
         AuthorizationRequest.builder()
@@ -42,7 +48,12 @@ object DriveBackup {
 
     fun setEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_ENABLED, enabled) }
-        if (enabled) enqueue(context)
+        if (enabled) {
+            enqueue(context)
+            enqueuePeriodic(context)
+        } else {
+            cancelPeriodic(context)
+        }
     }
 
     fun cachedFolderId(context: Context): String? =
@@ -50,6 +61,13 @@ object DriveBackup {
 
     fun setCachedFolderId(context: Context, folderId: String?) {
         prefs(context).edit { putString(KEY_FOLDER_ID, folderId) }
+    }
+
+    fun cachedCardsFolderId(context: Context): String? =
+        prefs(context).getString(KEY_CARDS_FOLDER_ID, null)
+
+    fun setCachedCardsFolderId(context: Context, folderId: String?) {
+        prefs(context).edit { putString(KEY_CARDS_FOLDER_ID, folderId) }
     }
 
     fun cachedManifestId(context: Context): String? =
@@ -90,6 +108,30 @@ object DriveBackup {
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+    }
+
+    /**
+     * Schedules a recurring upload pass as a safety net on top of the
+     * event-driven [enqueue] — e.g. covers changes made while offline that
+     * never got a chance to trigger an immediate backup. `KEEP` makes this
+     * safe to call unconditionally (it no-ops if already scheduled).
+     */
+    fun enqueuePeriodic(context: Context) {
+        val request = PeriodicWorkRequestBuilder<DriveBackupWorker>(
+            PERIODIC_BACKUP_INTERVAL_HOURS, TimeUnit.HOURS,
+        )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(PERIODIC_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+    }
+
+    fun cancelPeriodic(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK_NAME)
     }
 
     /** Schedules a restore pass that downloads the Drive backup into the library. */

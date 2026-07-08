@@ -72,17 +72,21 @@ Dropbox, or any other cloud provider.
   whole list as CSV or a real Excel (.xlsx) workbook.
 - **Automatic Google Drive backup and restore** — the cloud icon in the
   top bar opens a menu to turn backup on/off or restore from Drive. Every
-  scan and business card is uploaded by a background WorkManager job into
-  a "Ninja Scan" folder in your Drive (clean, un-watermarked PDFs plus a
+  scan and business card — including each card's photo — is uploaded by a
+  background WorkManager job into a "Ninja Scan" folder in your Drive
+  (clean, un-watermarked PDFs, a "cards" subfolder of card photos, and a
   JSON manifest carrying titles, folders, watermark text, OCR text, and
-  every contact), and backed-up scans show a small cloud check in the
-  list. After an uninstall or clearing app data, turning backup back on
-  with an empty library offers to restore — documents and business cards
-  come back with their titles, folders, editable watermarks, and searchable
-  OCR text intact; running it again is a no-op (nothing is duplicated).
-  Uses the narrow `drive.file` OAuth scope, so the app can only ever see
-  files it created itself. Requires a one-time OAuth client registration —
-  see below.
+  every contact's details), and backed-up scans show a small cloud check
+  in the list. A backup pass runs immediately after every change and also
+  on a 12-hour recurring schedule, so nothing is missed even if a change
+  happened while offline. After an uninstall or clearing app data, turning
+  backup back on with an empty library offers to restore — documents and
+  business cards (with their photos) come back with titles, folders,
+  editable watermarks, and searchable OCR text intact; restoring is
+  duplicate-safe, so running it again — or letting the periodic job run
+  repeatedly — never creates copies. Uses the narrow `drive.file` OAuth
+  scope, so the app can only ever see files it created itself. Requires a
+  one-time OAuth client registration — see below.
 - **Cloud storage**
   - *Save to cloud*: exports the PDF through the Android document picker
     (Storage Access Framework), so you can drop it straight into Google

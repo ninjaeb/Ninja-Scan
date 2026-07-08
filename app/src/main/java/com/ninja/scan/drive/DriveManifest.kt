@@ -73,6 +73,7 @@ internal object DriveManifest {
                     .put("notes", card.notes)
                     .put("tags", card.tags)
                     .put("createdAt", card.createdAt)
+                    .put("photoDriveFileId", card.photoDriveFileId ?: JSONObject.NULL)
             )
         }
         root.put("cards", cards)
@@ -118,6 +119,7 @@ internal object DriveManifest {
                         notes = card.optString("notes"),
                         tags = card.optString("tags"),
                         createdAt = card.optLong("createdAt"),
+                        photoDriveFileId = card.optStringOrNull("photoDriveFileId"),
                     ),
                 )
             )

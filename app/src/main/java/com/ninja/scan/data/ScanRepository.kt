@@ -62,6 +62,11 @@ class ScanRepository(
 
     suspend fun getAllCards(): List<BusinessCard> = cardDao.getAll()
 
+    suspend fun getPendingPhotoBackup(): List<BusinessCard> = cardDao.getPendingPhotoBackup()
+
+    suspend fun markCardPhotoBackedUp(cardId: Long, driveFileId: String) =
+        cardDao.setPhotoDriveFileId(cardId, driveFileId)
+
     /**
      * Downloads one backed-up PDF into the library. Metadata comes from the
      * manifest [entry] when available; otherwise the filename and Drive
@@ -102,22 +107,36 @@ class ScanRepository(
         true
     }
 
-    /** Inserts manifest cards not already in the library. Returns the count. */
-    internal suspend fun restoreCards(entries: List<DriveManifest.CardEntry>): Int =
-        withContext(Dispatchers.IO) {
-            val existing = cardDao.getAll()
-                .map { listOf(it.name, it.phone, it.email, it.createdAt.toString()) }
-                .toSet()
-            var restored = 0
-            for (entry in entries) {
-                val card = entry.card
-                val key = listOf(card.name, card.phone, card.email, card.createdAt.toString())
-                if (key in existing) continue
-                cardDao.insert(card.copy(id = 0, thumbnailPath = null))
-                restored++
+    /**
+     * Inserts manifest cards not already in the library, downloading each
+     * card's backed-up photo (if any) alongside its text fields. Returns the
+     * count of cards restored.
+     */
+    internal suspend fun restoreCards(
+        drive: DriveRestClient,
+        entries: List<DriveManifest.CardEntry>,
+    ): Int = withContext(Dispatchers.IO) {
+        val existing = cardDao.getAll()
+            .map { listOf(it.name, it.phone, it.email, it.createdAt.toString()) }
+            .toSet()
+        val cardsDir = File(context.filesDir, "cards").apply { mkdirs() }
+        var restored = 0
+        for (entry in entries) {
+            val card = entry.card
+            val key = listOf(card.name, card.phone, card.email, card.createdAt.toString())
+            if (key in existing) continue
+            val thumbnailPath = card.photoDriveFileId?.let { fileId ->
+                runCatching {
+                    val target = File(cardsDir, "restored_$fileId.jpg")
+                    drive.downloadTo(fileId, target)
+                    target.absolutePath
+                }.getOrNull() // download failure: skip the photo, keep the card record
             }
-            restored
+            cardDao.insert(card.copy(id = 0, thumbnailPath = thumbnailPath))
+            restored++
         }
+        restored
+    }
 
     suspend fun getScan(id: Long): ScanDocument? = dao.getById(id)
 
@@ -429,6 +448,7 @@ class ScanRepository(
 
     suspend fun deleteCard(card: BusinessCard) {
         card.thumbnailPath?.let { File(it).delete() }
+        card.photoDriveFileId?.let { DriveBackup.addStaleFileId(context, it) }
         cardDao.delete(card)
         enqueueBackupIfEnabled()
     }
