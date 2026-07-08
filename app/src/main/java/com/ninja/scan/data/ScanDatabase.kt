@@ -110,10 +110,14 @@ abstract class ScanDatabase : RoomDatabase() {
 
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // No DEFAULT clause on `description`: the Tag entity declares
+                // no @ColumnInfo default, so Room's post-migration schema
+                // check expects none — a SQL-level default here would fail
+                // validation and crash the app on every subsequent launch.
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `tags` (" +
                         "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                        "`title` TEXT NOT NULL, `description` TEXT NOT NULL DEFAULT '', " +
+                        "`title` TEXT NOT NULL, `description` TEXT NOT NULL, " +
                         "`color` TEXT NOT NULL)"
                 )
                 db.execSQL(
@@ -165,6 +169,35 @@ abstract class ScanDatabase : RoomDatabase() {
                         arrayOf(cardId, tagId)
                     )
                 }
+
+                // Rebuild business_cards without the now-migrated `tags`
+                // column: the BusinessCard entity no longer declares it, and
+                // leaving the physical column behind makes Room's startup
+                // schema check see an unexpected extra column on every
+                // upgrading install — which crashes the app before any UI
+                // ever renders. A fresh install never hits this (no
+                // migration runs), which is why it slipped through the
+                // first time.
+                db.execSQL(
+                    "CREATE TABLE `business_cards_new` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `company` TEXT NOT NULL, " +
+                        "`jobTitle` TEXT NOT NULL, `phone` TEXT NOT NULL, " +
+                        "`email` TEXT NOT NULL, `website` TEXT NOT NULL, " +
+                        "`address` TEXT NOT NULL, `notes` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, `thumbnailPath` TEXT, " +
+                        "`photoDriveFileId` TEXT)"
+                )
+                db.execSQL(
+                    "INSERT INTO business_cards_new (" +
+                        "id, name, company, jobTitle, phone, email, website, " +
+                        "address, notes, createdAt, thumbnailPath, photoDriveFileId) " +
+                        "SELECT id, name, company, jobTitle, phone, email, website, " +
+                        "address, notes, createdAt, thumbnailPath, photoDriveFileId " +
+                        "FROM business_cards"
+                )
+                db.execSQL("DROP TABLE business_cards")
+                db.execSQL("ALTER TABLE business_cards_new RENAME TO business_cards")
             }
         }
 
