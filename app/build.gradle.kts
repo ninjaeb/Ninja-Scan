@@ -67,6 +67,12 @@ android {
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            ndk {
+                // Produces app/build/outputs/native-debug-symbols/release/
+                // native-debug-symbols.zip during bundleRelease, for Play
+                // Console's (optional) native crash symbolication.
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
     compileOptions {
