@@ -127,6 +127,14 @@ configuration, or build from the command line:
 Requirements: JDK 17, Android SDK 34. A device/emulator with Google Play
 services is needed for the scanner itself (API 26+).
 
+## Release builds
+
+The debug build above is signed with a fixed, committed debug key and needs no
+setup. A signed release `.aab` for the Play Store needs your own upload
+keystore and a GitHub Actions secret — see [docs/RELEASE.md](docs/RELEASE.md)
+for the full walkthrough, including registering the resulting Play App
+Signing key with the Drive OAuth client below.
+
 ## Enabling Google Drive backup (one-time setup)
 
 The Drive backup code is complete, but Google requires every app that
@@ -148,7 +156,8 @@ requests OAuth scopes to be registered. Do this once (free):
    tap the cloud icon, pick your Google account, and grant access.
 
 If you later sign a release build, add a second Android OAuth client with
-the release keystore's SHA-1.
+the release keystore's SHA-1 — see [docs/RELEASE.md](docs/RELEASE.md#6-register-the-play-app-signing-sha-1-for-google-drive-backup)
+for the exact steps once Play App Signing is involved.
 
 ## Project structure
 

@@ -1,9 +1,26 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Release signing is optional: absent locally, it's supplied by CI via
+// app/keystore.properties (git-ignored, written from GitHub secrets — see
+// docs/RELEASE.md). Without it, `bundleRelease` still builds, just unsigned,
+// exactly as it does today.
+val keystorePropsFile = rootProject.file("app/keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) load(FileInputStream(keystorePropsFile))
+}
+fun releaseProp(name: String) = keystoreProps.getProperty(name) ?: System.getenv(name)
+val hasReleaseSigning = releaseProp("RELEASE_STORE_FILE") != null &&
+    releaseProp("RELEASE_STORE_PASSWORD") != null &&
+    releaseProp("RELEASE_KEY_ALIAS") != null &&
+    releaseProp("RELEASE_KEY_PASSWORD") != null
 
 android {
     namespace = "com.ninja.scan"
@@ -29,6 +46,14 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseProp("RELEASE_STORE_FILE")!!)
+                storePassword = releaseProp("RELEASE_STORE_PASSWORD")
+                keyAlias = releaseProp("RELEASE_KEY_ALIAS")
+                keyPassword = releaseProp("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -39,6 +64,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
