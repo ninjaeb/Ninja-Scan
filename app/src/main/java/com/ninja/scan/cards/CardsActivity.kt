@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.ContactsContract
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -193,6 +195,20 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
         if (autoStartScan) launchCardScanner()
     }
 
+    BackHandler(enabled = draft != null) { draft = null }
+
+    if (draft != null) {
+        CardDetailScreen(
+            card = draft!!,
+            onBack = { draft = null },
+            onSave = { updated ->
+                draft = null
+                scope.launch { app.repository.saveCard(updated) }
+            },
+        )
+        return
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -352,17 +368,6 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
         }
     }
 
-    draft?.let { editing ->
-        CardEditDialog(
-            card = editing,
-            onDismiss = { draft = null },
-            onSave = { updated ->
-                draft = null
-                scope.launch { app.repository.saveCard(updated) }
-            },
-        )
-    }
-
     deleting?.let { card ->
         AlertDialog(
             onDismissRequest = { deleting = null },
@@ -463,11 +468,16 @@ private fun CardRow(
     }
 }
 
-/** Full contact details, all editable, with the scanned card shown on top. */
+/**
+ * Full-page contact details editor, with the scanned card image at the
+ * top and every field filling the width. Replaces the earlier dialog,
+ * which cramped the fields into a small centered box.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CardEditDialog(
+private fun CardDetailScreen(
     card: BusinessCard,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: (BusinessCard) -> Unit,
 ) {
     var name by remember(card) { mutableStateOf(card.name) }
@@ -480,74 +490,83 @@ private fun CardEditDialog(
     var notes by remember(card) { mutableStateOf(card.notes) }
     var tags by remember(card) { mutableStateOf(card.tags) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(name.ifBlank { stringResource(R.string.business_cards) }) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                val thumbnail = card.thumbnailPath?.let(::File)?.takeIf { it.exists() }
-                if (thumbnail != null) {
-                    AsyncImage(
-                        model = thumbnail,
-                        contentDescription = null,
-                        contentScale = ContentScale.FillWidth,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp)),
-                    )
-                }
-
-                @Composable
-                fun field(
-                    value: String,
-                    label: Int,
-                    onChange: (String) -> Unit,
-                    minLines: Int = 1,
-                ) {
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = onChange,
-                        label = { Text(stringResource(label)) },
-                        singleLine = minLines == 1,
-                        minLines = minLines,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                field(name, R.string.field_name, { name = it })
-                field(company, R.string.field_company, { company = it })
-                field(jobTitle, R.string.field_job_title, { jobTitle = it })
-                field(phone, R.string.field_phone, { phone = it })
-                field(email, R.string.field_email, { email = it })
-                field(website, R.string.field_website, { website = it })
-                field(address, R.string.field_address, { address = it }, minLines = 3)
-                field(notes, R.string.field_notes, { notes = it }, minLines = 3)
-                field(tags, R.string.field_tags, { tags = it })
-            }
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(name.ifBlank { stringResource(R.string.business_cards) }) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+                actions = {
+                    TextButton(onClick = {
+                        onSave(
+                            card.copy(
+                                name = name.trim(),
+                                company = company.trim(),
+                                jobTitle = jobTitle.trim(),
+                                phone = phone.trim(),
+                                email = email.trim(),
+                                website = website.trim(),
+                                address = address.trim(),
+                                notes = notes.trim(),
+                                tags = tags.trim(),
+                            )
+                        )
+                    }) { Text(stringResource(R.string.save)) }
+                },
+            )
         },
-        confirmButton = {
-            TextButton(onClick = {
-                onSave(
-                    card.copy(
-                        name = name.trim(),
-                        company = company.trim(),
-                        jobTitle = jobTitle.trim(),
-                        phone = phone.trim(),
-                        email = email.trim(),
-                        website = website.trim(),
-                        address = address.trim(),
-                        notes = notes.trim(),
-                        tags = tags.trim(),
-                    )
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val thumbnail = card.thumbnailPath?.let(::File)?.takeIf { it.exists() }
+            if (thumbnail != null) {
+                AsyncImage(
+                    model = thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .clip(RoundedCornerShape(12.dp)),
                 )
-            }) { Text(stringResource(R.string.save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        },
-    )
+            }
+
+            @Composable
+            fun field(
+                value: String,
+                label: Int,
+                onChange: (String) -> Unit,
+                minLines: Int = 1,
+            ) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = onChange,
+                    label = { Text(stringResource(label)) },
+                    singleLine = minLines == 1,
+                    minLines = minLines,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            field(name, R.string.field_name, { name = it })
+            field(company, R.string.field_company, { company = it })
+            field(jobTitle, R.string.field_job_title, { jobTitle = it })
+            field(phone, R.string.field_phone, { phone = it })
+            field(email, R.string.field_email, { email = it })
+            field(website, R.string.field_website, { website = it })
+            field(address, R.string.field_address, { address = it }, minLines = 3)
+            field(notes, R.string.field_notes, { notes = it }, minLines = 3)
+            field(tags, R.string.field_tags, { tags = it })
+        }
+    }
 }
 
 /** Opens the system "create contact" screen pre-filled from the card. */

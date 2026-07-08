@@ -6,6 +6,7 @@ import android.net.Uri
 import com.ninja.scan.util.CardParser
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.ImageOptimizer
+import com.ninja.scan.util.OcrLayout
 import com.ninja.scan.util.PdfEditor
 import com.ninja.scan.util.XlsxWriter
 import com.google.mlkit.vision.common.InputImage
@@ -278,17 +279,18 @@ class ScanRepository(
     /** OCRs a scanned card image and extracts contact fields, best-effort. */
     suspend fun parseCardImage(imageUri: Uri): BusinessCard = withContext(Dispatchers.IO) {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        val text = try {
-            recognizer.process(InputImage.fromFilePath(context, imageUri)).await().text
+        val ocrLines = try {
+            val result = recognizer.process(InputImage.fromFilePath(context, imageUri)).await()
+            OcrLayout.buildOcrLines(result)
         } catch (e: Exception) {
-            ""
+            emptyList()
         } finally {
             recognizer.close()
         }
         val cardsDir = File(context.filesDir, "cards").apply { mkdirs() }
         val thumb = File(cardsDir, "card_${System.currentTimeMillis()}.jpg")
         val hasThumb = ImageOptimizer.writeThumbnail(context, imageUri, thumb)
-        CardParser.parse(text).copy(
+        CardParser.parse(ocrLines).copy(
             createdAt = System.currentTimeMillis(),
             thumbnailPath = if (hasThumb) thumb.absolutePath else null,
         )
