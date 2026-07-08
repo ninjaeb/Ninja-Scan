@@ -33,7 +33,8 @@ class ScanRepository(
         const val ORIGINAL_MAX_DIMENSION_PX = 4096
         const val ORIGINAL_JPEG_QUALITY = 92
         val CARD_COLUMNS = listOf(
-            "Name", "Company", "Job Title", "Phone", "Email", "Website", "Address",
+            "Name", "Company", "Job Title", "Phone", "Email", "Website",
+            "Address", "Notes", "Tags",
         )
 
         fun pageFileName(index: Int): String =
@@ -244,6 +245,30 @@ class ScanRepository(
             )
         }
 
+    /** Stitches all pages into one tall shareable JPEG ("long image"). */
+    suspend fun prepareLongImage(scan: ScanDocument): File = withContext(Dispatchers.IO) {
+        val target = File(shareDir, "${shareBaseName(scan)}-long.jpg")
+        check(PdfEditor.writeLongImage(File(scan.pdfPath), scan.watermark, target) > 0) {
+            "Could not prepare the document"
+        }
+        target
+    }
+
+    /** Exports every page as its own single-page PDF (watermarked if set). */
+    suspend fun prepareSeparatePdfs(scan: ScanDocument): List<File> =
+        withContext(Dispatchers.IO) {
+            val source = File(scan.pdfPath)
+            (0 until PdfEditor.pageCount(source)).mapNotNull { index ->
+                val target = File(shareDir, "${shareBaseName(scan)}-p${index + 1}.pdf")
+                val pages = listOf<EditPage>(EditPage.FromPdf(index))
+                if (PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
+                    target
+                } else {
+                    null
+                }
+            }
+        }
+
     // ---------------------------------------------------------------------
     // Business cards
     // ---------------------------------------------------------------------
@@ -307,7 +332,7 @@ class ScanRepository(
 
     private fun cardRow(card: BusinessCard): List<String> = listOf(
         card.name, card.company, card.jobTitle, card.phone,
-        card.email, card.website, card.address,
+        card.email, card.website, card.address, card.notes, card.tags,
     )
 
     /** Re-runs on-device OCR over a rebuilt PDF, page by page. Best-effort. */

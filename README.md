@@ -35,8 +35,15 @@ Dropbox, or any other cloud provider.
   viewed, shared, exported, or uploaded, so it can be edited or removed
   at any time. Page changes rebuild the PDF, refresh the thumbnail and
   OCR text, and re-queue the scan for Drive backup.
-- **Share as PDF or images** — the share menu offers the PDF or the
-  pages as JPEG files (both watermarked when a watermark is set).
+- **Share in any format** — Share opens a format sheet: PDF, per-page
+  JPEG images, one tall "long image", or every page as its own PDF
+  (all watermarked when a watermark is set).
+- **Viewer action bar** — an open document has Edit / Share / To cloud
+  at the bottom; each list row's menu offers Share, Rename, Delete,
+  Save to cloud, and Move to folder.
+- **Business card search, notes, and tags** — search across every card
+  field; tap a card to view and edit full details (with the scanned
+  card image, a taller address box, notes, and comma-separated tags).
 - **Name and organize on save** — right after a scan is saved, a dialog
   offers to rename it and file it into a folder (or skip).
 - **Originals kept** — the untouched full-resolution captures are stored

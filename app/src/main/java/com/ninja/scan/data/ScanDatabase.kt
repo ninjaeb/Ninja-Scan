@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ScanDocument::class, BusinessCard::class],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class ScanDatabase : RoomDatabase() {
@@ -63,6 +63,17 @@ abstract class ScanDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE business_cards ADD COLUMN notes TEXT NOT NULL DEFAULT ''"
+                )
+                db.execSQL(
+                    "ALTER TABLE business_cards ADD COLUMN tags TEXT NOT NULL DEFAULT ''"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ScanDatabase? = null
 
@@ -75,7 +86,7 @@ abstract class ScanDatabase : RoomDatabase() {
                 )
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
-                        MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                        MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                     )
                     .build()
                     .also { instance = it }

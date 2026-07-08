@@ -39,6 +39,10 @@
     <string name="watermark">Watermark</string>
     <string name="watermark_hint">Text stamped diagonally across every page when the document is viewed, shared, or uploaded. Clear the text to remove the watermark.</string>
     <string name="share_as_images">Share as images</string>
+    <string name="share_as_pdf">Share as PDF</string>
+    <string name="share_as_long_image">Share as long image</string>
+    <string name="export_separate_pdfs">Export pages as separate PDFs</string>
+    <string name="to_cloud">To cloud</string>
     <string name="business_cards">Business cards</string>
     <string name="scan_card">Scan card</string>
     <string name="scan_business_card">Scan business card</string>
@@ -60,6 +64,12 @@
     <string name="field_website">Website</string>
     <string name="field_address">Address</string>
     <string name="save_details_title">Scan saved — name it?</string>
+    <string name="search_cards_hint">Search contacts</string>
+    <string name="no_card_results">No contacts match your search</string>
+    <string name="field_notes">Notes</string>
+    <string name="field_tags">Tags (comma separated)</string>
+    <string name="nav_documents">Documents</string>
+    <string name="nav_cards">Cards</string>
     <string name="save_details_folder">Folder</string>
     <string name="skip">Skip</string>
     <string name="edit_failed">Could not save changes: %1$s</string>

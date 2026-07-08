@@ -14,6 +14,10 @@ data class BusinessCard(
     val email: String = "",
     val website: String = "",
     val address: String = "",
+    /** Free-form notes added by the user. */
+    val notes: String = "",
+    /** Comma-separated tags for grouping contacts (e.g. "supplier, kl"). */
+    val tags: String = "",
     val createdAt: Long = 0,
     /** Small JPEG of the scanned card shown in the list. */
     val thumbnailPath: String? = null,

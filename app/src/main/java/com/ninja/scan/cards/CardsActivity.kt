@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,8 +29,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContactPage
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -41,6 +45,8 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -97,11 +103,13 @@ class CardsActivity : ComponentActivity() {
     }
 }
 
+// FULL mode: better crop, shadow/stain cleanup, and auto-enhance produce a
+// sharper image and noticeably better OCR field extraction.
 private val cardScannerOptions = GmsDocumentScannerOptions.Builder()
     .setGalleryImportAllowed(true)
     .setPageLimit(1)
     .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
-    .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_BASE)
+    .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
     .build()
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,6 +125,14 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
     var deleting by remember { mutableStateOf<BusinessCard?>(null) }
     var parsing by remember { mutableStateOf(false) }
     var exportMenuOpen by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredCards = if (searchQuery.isBlank()) cards else cards.filter { card ->
+        listOf(
+            card.name, card.company, card.jobTitle, card.phone,
+            card.email, card.website, card.address, card.notes, card.tags,
+        ).any { it.contains(searchQuery.trim(), ignoreCase = true) }
+    }
 
     val scannerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -218,6 +234,22 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onBack,
+                    icon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_documents)) },
+                )
+                NavigationBarItem(
+                    selected = true,
+                    onClick = {},
+                    icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_cards)) },
+                )
+            }
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = launchCardScanner,
@@ -226,61 +258,95 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        when {
-            parsing -> Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator() }
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (cards.isNotEmpty() || searchQuery.isNotBlank()) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.search_cards_hint)) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    Icons.Filled.Clear,
+                                    contentDescription = stringResource(R.string.clear_search),
+                                )
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            when {
+                parsing -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
 
-            cards.isEmpty() -> Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(32.dp),
+                filteredCards.isEmpty() && searchQuery.isNotBlank() -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Filled.ContactPage,
-                        contentDescription = null,
-                        modifier = Modifier.size(72.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(Modifier.height(16.dp))
                     Text(
-                        stringResource(R.string.no_cards_title),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.no_cards_body),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
+                        stringResource(R.string.no_card_results),
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
 
-            else -> LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(
-                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(cards, key = { it.id }) { card ->
-                    CardRow(
-                        card = card,
-                        onSaveToContacts = { saveToContacts(context, card) },
-                        onEdit = { draft = card },
-                        onDelete = { deleting = card },
-                    )
+                cards.isEmpty() -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.ContactPage,
+                            contentDescription = null,
+                            modifier = Modifier.size(72.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            stringResource(R.string.no_cards_title),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            stringResource(R.string.no_cards_body),
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(filteredCards, key = { it.id }) { card ->
+                        CardRow(
+                            card = card,
+                            onOpen = { draft = card },
+                            onSaveToContacts = { saveToContacts(context, card) },
+                            onDelete = { deleting = card },
+                        )
+                    }
                 }
             }
         }
@@ -327,8 +393,8 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
 @Composable
 private fun CardRow(
     card: BusinessCard,
+    onOpen: () -> Unit,
     onSaveToContacts: () -> Unit,
-    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -336,6 +402,7 @@ private fun CardRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onOpen)
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -387,10 +454,6 @@ private fun CardRow(
                         onClick = { menuOpen = false; onSaveToContacts() },
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.edit)) },
-                        onClick = { menuOpen = false; onEdit() },
-                    )
-                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete)) },
                         onClick = { menuOpen = false; onDelete() },
                     )
@@ -400,6 +463,7 @@ private fun CardRow(
     }
 }
 
+/** Full contact details, all editable, with the scanned card shown on top. */
 @Composable
 private fun CardEditDialog(
     card: BusinessCard,
@@ -413,31 +477,54 @@ private fun CardEditDialog(
     var email by remember(card) { mutableStateOf(card.email) }
     var website by remember(card) { mutableStateOf(card.website) }
     var address by remember(card) { mutableStateOf(card.address) }
+    var notes by remember(card) { mutableStateOf(card.notes) }
+    var tags by remember(card) { mutableStateOf(card.tags) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.business_cards)) },
+        title = { Text(name.ifBlank { stringResource(R.string.business_cards) }) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                val thumbnail = card.thumbnailPath?.let(::File)?.takeIf { it.exists() }
+                if (thumbnail != null) {
+                    AsyncImage(
+                        model = thumbnail,
+                        contentDescription = null,
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+
                 @Composable
-                fun field(value: String, label: Int, onChange: (String) -> Unit) {
+                fun field(
+                    value: String,
+                    label: Int,
+                    onChange: (String) -> Unit,
+                    minLines: Int = 1,
+                ) {
                     OutlinedTextField(
                         value = value,
                         onValueChange = onChange,
                         label = { Text(stringResource(label)) },
-                        singleLine = true,
+                        singleLine = minLines == 1,
+                        minLines = minLines,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                field(name, R.string.field_name) { name = it }
-                field(company, R.string.field_company) { company = it }
-                field(jobTitle, R.string.field_job_title) { jobTitle = it }
-                field(phone, R.string.field_phone) { phone = it }
-                field(email, R.string.field_email) { email = it }
-                field(website, R.string.field_website) { website = it }
-                field(address, R.string.field_address) { address = it }
+                field(name, R.string.field_name, { name = it })
+                field(company, R.string.field_company, { company = it })
+                field(jobTitle, R.string.field_job_title, { jobTitle = it })
+                field(phone, R.string.field_phone, { phone = it })
+                field(email, R.string.field_email, { email = it })
+                field(website, R.string.field_website, { website = it })
+                field(address, R.string.field_address, { address = it }, minLines = 3)
+                field(notes, R.string.field_notes, { notes = it }, minLines = 3)
+                field(tags, R.string.field_tags, { tags = it })
             }
         },
         confirmButton = {
@@ -451,6 +538,8 @@ private fun CardEditDialog(
                         email = email.trim(),
                         website = website.trim(),
                         address = address.trim(),
+                        notes = notes.trim(),
+                        tags = tags.trim(),
                     )
                 )
             }) { Text(stringResource(R.string.save)) }
@@ -471,8 +560,11 @@ private fun saveToContacts(context: Context, card: BusinessCard) {
         putExtra(ContactsContract.Intents.Insert.PHONE, card.phone)
         putExtra(ContactsContract.Intents.Insert.EMAIL, card.email)
         putExtra(ContactsContract.Intents.Insert.POSTAL, card.address)
-        if (card.website.isNotBlank()) {
-            putExtra(ContactsContract.Intents.Insert.NOTES, card.website)
+        val notes = listOf(card.website, card.notes, card.tags)
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+        if (notes.isNotBlank()) {
+            putExtra(ContactsContract.Intents.Insert.NOTES, notes)
         }
     }
     runCatching { context.startActivity(intent) }

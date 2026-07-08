@@ -35,6 +35,8 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -81,10 +83,10 @@ fun ScanListScreen(
     onScanCardClick: () -> Unit,
     onScanClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
-    onOpenWith: (ScanDocument) -> Unit,
-    onEdit: (ScanDocument) -> Unit,
-    onShare: (ScanDocument) -> Unit,
-    onShareAsImages: (ScanDocument) -> Unit,
+    onSharePdf: (ScanDocument) -> Unit,
+    onShareImages: (ScanDocument) -> Unit,
+    onShareLongImage: (ScanDocument) -> Unit,
+    onShareSeparatePdfs: (ScanDocument) -> Unit,
     onSaveToCloud: (ScanDocument) -> Unit,
     onRename: (ScanDocument, String) -> Unit,
     onMoveToFolder: (ScanDocument, String?) -> Unit,
@@ -98,18 +100,18 @@ fun ScanListScreen(
             onDismiss = onDismissScanDetails,
         )
     }
+
+    // Row-menu actions drive the share-format sheet and these dialogs.
+    var sharingScan by remember { mutableStateOf<ScanDocument?>(null) }
+    var renamingScan by remember { mutableStateOf<ScanDocument?>(null) }
+    var movingScan by remember { mutableStateOf<ScanDocument?>(null) }
+    var deletingScan by remember { mutableStateOf<ScanDocument?>(null) }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
-                    IconButton(onClick = onOpenCards) {
-                        Icon(
-                            Icons.Filled.ContactPage,
-                            contentDescription = stringResource(R.string.business_cards),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                     IconButton(onClick = onToggleDriveBackup) {
                         Icon(
                             if (driveBackupEnabled) Icons.Filled.CloudDone
@@ -123,6 +125,22 @@ fun ScanListScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = true,
+                    onClick = {},
+                    icon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_documents)) },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onOpenCards,
+                    icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_cards)) },
+                )
+            }
+        },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
                 // Secondary action: document scanning
@@ -208,23 +226,129 @@ fun ScanListScreen(
                     items(scans, key = { it.id }) { scan ->
                         ScanRow(
                             scan = scan,
-                            folders = folders,
-                            onOpen = { onOpen(scan) },
-                            onOpenWith = { onOpenWith(scan) },
-                            onEdit = { onEdit(scan) },
-                            onShare = { onShare(scan) },
-                            onShareAsImages = { onShareAsImages(scan) },
+                            onClick = { onOpen(scan) },
+                            onShare = { sharingScan = scan },
+                            onRename = { renamingScan = scan },
+                            onDelete = { deletingScan = scan },
                             onSaveToCloud = { onSaveToCloud(scan) },
-                            onRename = { onRename(scan, it) },
-                            onMoveToFolder = { onMoveToFolder(scan, it) },
-                            onDelete = { onDelete(scan) },
+                            onMoveToFolder = { movingScan = scan },
                         )
                     }
                 }
             }
         }
     }
+
+    sharingScan?.let { scan ->
+        ShareFormatSheet(
+            scan = scan,
+            onDismiss = { sharingScan = null },
+            onPdf = { sharingScan = null; onSharePdf(scan) },
+            onImages = { sharingScan = null; onShareImages(scan) },
+            onLongImage = { sharingScan = null; onShareLongImage(scan) },
+            onSeparatePdfs = { sharingScan = null; onShareSeparatePdfs(scan) },
+        )
+    }
+
+    renamingScan?.let { scan ->
+        var title by remember(scan.id) { mutableStateOf(scan.title) }
+        AlertDialog(
+            onDismissRequest = { renamingScan = null },
+            title = { Text(stringResource(R.string.rename)) },
+            text = {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { renamingScan = null; onRename(scan, title) }) {
+                    Text(stringResource(R.string.rename))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingScan = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    movingScan?.let { scan ->
+        var newFolder by remember(scan.id) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { movingScan = null },
+            title = { Text(stringResource(R.string.move_to_folder)) },
+            text = {
+                Column {
+                    folders.forEach { folder ->
+                        TextButton(
+                            onClick = { movingScan = null; onMoveToFolder(scan, folder) },
+                        ) {
+                            Text(
+                                folder,
+                                color = if (folder == scan.folder) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                            )
+                        }
+                    }
+                    if (scan.folder != null) {
+                        TextButton(
+                            onClick = { movingScan = null; onMoveToFolder(scan, null) },
+                        ) {
+                            Text(stringResource(R.string.remove_from_folder))
+                        }
+                    }
+                    OutlinedTextField(
+                        value = newFolder,
+                        onValueChange = { newFolder = it },
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.new_folder_hint)) },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        movingScan = null
+                        onMoveToFolder(scan, newFolder.trim())
+                    },
+                    enabled = newFolder.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.move))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { movingScan = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    deletingScan?.let { scan ->
+        AlertDialog(
+            onDismissRequest = { deletingScan = null },
+            title = { Text(stringResource(R.string.delete_dialog_title)) },
+            text = { Text(stringResource(R.string.delete_dialog_body, scan.title)) },
+            confirmButton = {
+                TextButton(onClick = { deletingScan = null; onDelete(scan) }) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingScan = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 }
+
 
 /** Shown right after a scan is saved: set the name and pick a folder. */
 @Composable
@@ -354,28 +478,20 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 @Composable
 private fun ScanRow(
     scan: ScanDocument,
-    folders: List<String>,
-    onOpen: () -> Unit,
-    onOpenWith: () -> Unit,
-    onEdit: () -> Unit,
+    onClick: () -> Unit,
     onShare: () -> Unit,
-    onShareAsImages: () -> Unit,
-    onSaveToCloud: () -> Unit,
-    onRename: (String) -> Unit,
-    onMoveToFolder: (String?) -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
+    onSaveToCloud: () -> Unit,
+    onMoveToFolder: () -> Unit,
 ) {
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
-    var renaming by remember { mutableStateOf(false) }
-    var movingToFolder by remember { mutableStateOf(false) }
-    var confirmingDelete by remember { mutableStateOf(false) }
-
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onOpen)
+                .clickable(onClick = onClick)
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -431,141 +547,27 @@ private fun ScanRow(
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.open)) },
-                        onClick = { menuOpen = false; onOpen() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.open_with)) },
-                        onClick = { menuOpen = false; onOpenWith() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.edit_pages)) },
-                        onClick = { menuOpen = false; onEdit() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.move_to_folder)) },
-                        onClick = { menuOpen = false; movingToFolder = true },
-                    )
-                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.share)) },
                         onClick = { menuOpen = false; onShare() },
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.share_as_images)) },
-                        onClick = { menuOpen = false; onShareAsImages() },
+                        text = { Text(stringResource(R.string.rename)) },
+                        onClick = { menuOpen = false; onRename() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete)) },
+                        onClick = { menuOpen = false; onDelete() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.save_to_cloud)) },
                         onClick = { menuOpen = false; onSaveToCloud() },
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.rename)) },
-                        onClick = { menuOpen = false; renaming = true },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.delete)) },
-                        onClick = { menuOpen = false; confirmingDelete = true },
+                        text = { Text(stringResource(R.string.move_to_folder)) },
+                        onClick = { menuOpen = false; onMoveToFolder() },
                     )
                 }
             }
         }
-    }
-
-    if (renaming) {
-        var title by remember(scan.id) { mutableStateOf(scan.title) }
-        AlertDialog(
-            onDismissRequest = { renaming = false },
-            title = { Text(stringResource(R.string.rename)) },
-            text = {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { renaming = false; onRename(title) }) {
-                    Text(stringResource(R.string.rename))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { renaming = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    if (movingToFolder) {
-        var newFolder by remember(scan.id) { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { movingToFolder = false },
-            title = { Text(stringResource(R.string.move_to_folder)) },
-            text = {
-                Column {
-                    folders.forEach { folder ->
-                        androidx.compose.material3.TextButton(
-                            onClick = { movingToFolder = false; onMoveToFolder(folder) },
-                        ) {
-                            Text(
-                                folder,
-                                color = if (folder == scan.folder) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                            )
-                        }
-                    }
-                    if (scan.folder != null) {
-                        androidx.compose.material3.TextButton(
-                            onClick = { movingToFolder = false; onMoveToFolder(null) },
-                        ) {
-                            Text(stringResource(R.string.remove_from_folder))
-                        }
-                    }
-                    OutlinedTextField(
-                        value = newFolder,
-                        onValueChange = { newFolder = it },
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.new_folder_hint)) },
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        movingToFolder = false
-                        onMoveToFolder(newFolder.trim())
-                    },
-                    enabled = newFolder.isNotBlank(),
-                ) {
-                    Text(stringResource(R.string.move))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { movingToFolder = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    if (confirmingDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmingDelete = false },
-            title = { Text(stringResource(R.string.delete_dialog_title)) },
-            text = { Text(stringResource(R.string.delete_dialog_body, scan.title)) },
-            confirmButton = {
-                TextButton(onClick = { confirmingDelete = false; onDelete() }) {
-                    Text(stringResource(R.string.delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmingDelete = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
     }
 }

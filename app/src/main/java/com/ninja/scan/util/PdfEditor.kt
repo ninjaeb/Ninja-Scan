@@ -37,6 +37,9 @@ object PdfEditor {
     private const val THUMBNAIL_DIMENSION_PX = 512
     private const val THUMBNAIL_JPEG_QUALITY = 80
     private const val SHARE_JPEG_QUALITY = 85
+    private const val LONG_IMAGE_WIDTH_PX = 900
+    private const val LONG_IMAGE_MAX_HEIGHT_PX = 14000
+    private const val LONG_IMAGE_JPEG_QUALITY = 80
 
     fun pageCount(pdf: File): Int =
         runCatching {
@@ -168,6 +171,56 @@ object PdfEditor {
             }
         }
         return files
+    }
+
+    /**
+     * Stitches every page of [pdf] into one tall JPEG ("long image"),
+     * optionally watermarked. The width targets [LONG_IMAGE_WIDTH_PX] and the
+     * total height is capped by down-scaling. Returns the page count drawn.
+     */
+    fun writeLongImage(pdf: File, watermark: String?, target: File): Int {
+        openRenderer(pdf).use { renderer ->
+            if (renderer.pageCount == 0) return 0
+            val sizes = (0 until renderer.pageCount).map { index ->
+                renderer.openPage(index).use { it.width to it.height }
+            }.filter { (w, h) -> w > 0 && h > 0 }
+            if (sizes.isEmpty()) return 0
+
+            var width = LONG_IMAGE_WIDTH_PX
+            var totalHeight = sizes.sumOf { (w, h) -> h * width / w }
+            if (totalHeight > LONG_IMAGE_MAX_HEIGHT_PX) {
+                width = (width.toLong() * LONG_IMAGE_MAX_HEIGHT_PX / totalHeight)
+                    .toInt().coerceAtLeast(200)
+                totalHeight = sizes.sumOf { (w, h) -> h * width / w }
+            }
+
+            val sheet = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.RGB_565)
+            sheet.eraseColor(Color.WHITE)
+            val canvas = Canvas(sheet)
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+            var y = 0
+            var drawn = 0
+            for (index in sizes.indices) {
+                val (pageWidth, pageHeight) = sizes[index]
+                val scaledHeight = (pageHeight * width / pageWidth).coerceAtLeast(1)
+                val bitmap = renderer.openPage(index).use { page ->
+                    val b = Bitmap.createBitmap(width, scaledHeight, Bitmap.Config.ARGB_8888)
+                    b.eraseColor(Color.WHITE)
+                    page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                    b
+                }
+                if (!watermark.isNullOrBlank()) applyWatermark(bitmap, watermark)
+                canvas.drawBitmap(bitmap, 0f, y.toFloat(), paint)
+                bitmap.recycle()
+                y += scaledHeight
+                drawn++
+            }
+            FileOutputStream(target).use {
+                sheet.compress(Bitmap.CompressFormat.JPEG, LONG_IMAGE_JPEG_QUALITY, it)
+            }
+            sheet.recycle()
+            return drawn
+        }
     }
 
     /** Renders the first page of [pdf] as a small JPEG thumbnail. */

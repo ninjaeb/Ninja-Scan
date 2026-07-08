@@ -7,7 +7,9 @@ import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,93 +20,110 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ninja.scan.DocScannerApp
+import com.ninja.scan.R
+import com.ninja.scan.data.ScanDocument
+import com.ninja.scan.editor.PageEditorActivity
+import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.util.PdfEditor
+import com.ninja.scan.util.ShareActions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** Displays a scanned PDF in-app using the platform PdfRenderer. */
+/**
+ * Displays a scanned PDF in-app with a bottom action bar:
+ * Edit pages / Share (format sheet) / Save to cloud.
+ */
 class PdfViewerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val path = intent.getStringExtra(EXTRA_PATH)
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
-        val watermark = intent.getStringExtra(EXTRA_WATERMARK)
-        val file = path?.let(::File)
-        if (file == null || !file.exists()) {
+        val scanId = intent.getLongExtra(EXTRA_SCAN_ID, -1L)
+        if (scanId <= 0) {
             finish()
             return
         }
         setContent {
             DocScannerTheme {
-                PdfViewerScreen(
-                    file = file,
-                    title = title,
-                    watermark = watermark,
-                    onBack = { finish() },
-                )
+                PdfViewerScreen(scanId = scanId, onBack = { finish() })
             }
         }
     }
 
     companion object {
-        private const val EXTRA_PATH = "pdf_path"
-        private const val EXTRA_TITLE = "pdf_title"
-        private const val EXTRA_WATERMARK = "pdf_watermark"
+        private const val EXTRA_SCAN_ID = "scan_id"
 
-        fun intent(
-            context: Context,
-            pdfPath: String,
-            title: String,
-            watermark: String? = null,
-        ): Intent =
-            Intent(context, PdfViewerActivity::class.java)
-                .putExtra(EXTRA_PATH, pdfPath)
-                .putExtra(EXTRA_TITLE, title)
-                .putExtra(EXTRA_WATERMARK, watermark)
+        fun intent(context: Context, scanId: Long): Intent =
+            Intent(context, PdfViewerActivity::class.java).putExtra(EXTRA_SCAN_ID, scanId)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PdfViewerScreen(
-    file: File,
-    title: String,
-    watermark: String?,
-    onBack: () -> Unit,
-) {
-    val session = remember(file, watermark) { PdfSession(file, watermark) }
-    DisposableEffect(session) {
-        onDispose { session.close() }
+private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val activity = context as ComponentActivity
+    val app = context.applicationContext as DocScannerApp
+    val scope = rememberCoroutineScope()
+
+    var scan by remember { mutableStateOf<ScanDocument?>(null) }
+    var sharing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(scanId) {
+        val loaded = app.repository.getScan(scanId)
+        if (loaded == null || !File(loaded.pdfPath).exists()) onBack() else scan = loaded
     }
 
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { destination ->
+        val current = scan
+        if (destination != null && current != null) {
+            scope.launch { app.repository.exportTo(current, destination) }
+        }
+    }
+
+    val current = scan
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(title, maxLines = 1) },
+                title = { Text(current?.title.orEmpty(), maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -112,20 +131,79 @@ private fun PdfViewerScreen(
                 },
             )
         },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = false,
+                    enabled = current != null,
+                    onClick = {
+                        current?.let {
+                            context.startActivity(PageEditorActivity.intent(context, it.id))
+                        }
+                    },
+                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                    label = { Text(stringResource(R.string.edit)) },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = current != null,
+                    onClick = { sharing = true },
+                    icon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                    label = { Text(stringResource(R.string.share)) },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = current != null,
+                    onClick = { current?.let { exportLauncher.launch("${it.title}.pdf") } },
+                    icon = { Icon(Icons.Filled.CloudUpload, contentDescription = null) },
+                    label = { Text(stringResource(R.string.to_cloud)) },
+                )
+            }
+        },
     ) { padding ->
-        val widthPx = with(LocalDensity.current) {
-            LocalConfiguration.current.screenWidthDp.dp.roundToPx()
-        }
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            items(session.pageCount) { index ->
-                PdfPage(session = session, index = index, targetWidthPx = widthPx)
+        if (current == null) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            val session = remember(current.pdfPath, current.watermark) {
+                PdfSession(File(current.pdfPath), current.watermark)
+            }
+            DisposableEffect(session) {
+                onDispose { session.close() }
+            }
+            val widthPx = with(LocalDensity.current) {
+                LocalConfiguration.current.screenWidthDp.dp.roundToPx()
+            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                items(session.pageCount) { index ->
+                    PdfPage(session = session, index = index, targetWidthPx = widthPx)
+                }
             }
         }
+    }
+
+    if (sharing && current != null) {
+        ShareFormatSheet(
+            scan = current,
+            onDismiss = { sharing = false },
+            onPdf = { sharing = false; ShareActions.sharePdf(activity, current) },
+            onImages = { sharing = false; ShareActions.shareImages(activity, current) },
+            onLongImage = { sharing = false; ShareActions.shareLongImage(activity, current) },
+            onSeparatePdfs = {
+                sharing = false; ShareActions.shareSeparatePdfs(activity, current)
+            },
+        )
     }
 }
 
@@ -134,10 +212,10 @@ private fun PdfPage(session: PdfSession, index: Int, targetWidthPx: Int) {
     val bitmap by produceState<Bitmap?>(initialValue = null, session, index, targetWidthPx) {
         value = session.renderPage(index, targetWidthPx)
     }
-    val current = bitmap
-    if (current != null) {
+    val currentBitmap = bitmap
+    if (currentBitmap != null) {
         Image(
-            bitmap = current.asImageBitmap(),
+            bitmap = currentBitmap.asImageBitmap(),
             contentDescription = null,
             modifier = Modifier
                 .fillMaxWidth()
@@ -190,8 +268,7 @@ private class PdfSession(file: File, private val watermark: String?) {
                         bitmap.eraseColor(android.graphics.Color.WHITE)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         if (!watermark.isNullOrBlank()) {
-                            com.ninja.scan.util.PdfEditor
-                                .applyWatermark(bitmap, watermark)
+                            PdfEditor.applyWatermark(bitmap, watermark)
                         }
                         bitmap
                     }
