@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,14 +56,18 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +86,7 @@ fun ScanListScreen(
     scans: List<ScanDocument>,
     searchQuery: String,
     folders: List<String>,
+    folderColors: Map<String, String>,
     folderFilter: String?,
     driveBackupEnabled: Boolean,
     justSaved: ScanDocument?,
@@ -117,6 +123,7 @@ fun ScanListScreen(
         SaveDetailsDialog(
             scan = scan,
             folders = folders,
+            folderColors = folderColors,
             onConfirm = { title, folder -> onConfirmScanDetails(scan, title, folder) },
             onDismiss = onDismissScanDetails,
         )
@@ -259,6 +266,7 @@ fun ScanListScreen(
                             LongPressableChip(
                                 label = folder,
                                 selected = folderFilter == folder,
+                                leadingDot = folderColors[folder]?.let(::hexToColor),
                                 onClick = {
                                     onFolderFilterChange(
                                         if (folderFilter == folder) null else folder
@@ -394,17 +402,18 @@ fun ScanListScreen(
             title = { Text(stringResource(R.string.move_to_folder)) },
             text = {
                 Column {
-                    folders.forEach { folder ->
-                        TextButton(
-                            onClick = { movingScan = null; onMoveToFolder(scan, folder) },
-                        ) {
-                            Text(
-                                folder,
-                                color = if (folder == scan.folder) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        folders.forEach { folder ->
+                            LongPressableChip(
+                                label = folder,
+                                selected = folder == scan.folder,
+                                leadingDot = folderColors[folder]?.let(::hexToColor),
+                                onClick = { movingScan = null; onMoveToFolder(scan, folder) },
                             )
                         }
                     }
@@ -484,6 +493,7 @@ fun ScanListScreen(
 
     if (addingFolder) {
         var name by remember { mutableStateOf("") }
+        val focusRequester = remember { FocusRequester() }
         AlertDialog(
             onDismissRequest = { addingFolder = false },
             title = { Text(stringResource(R.string.add_folder)) },
@@ -493,7 +503,9 @@ fun ScanListScreen(
                     onValueChange = { name = it },
                     singleLine = true,
                     placeholder = { Text(stringResource(R.string.new_folder_hint)) },
+                    modifier = Modifier.focusRequester(focusRequester),
                 )
+                LaunchedEffect(Unit) { focusRequester.requestFocus() }
             },
             confirmButton = {
                 TextButton(
@@ -576,6 +588,7 @@ fun ScanListScreen(
 private fun SaveDetailsDialog(
     scan: ScanDocument,
     folders: List<String>,
+    folderColors: Map<String, String>,
     onConfirm: (title: String, folder: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -600,17 +613,20 @@ private fun SaveDetailsDialog(
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
                     )
-                    folders.forEach { folder ->
-                        TextButton(onClick = {
-                            selectedFolder = if (selectedFolder == folder) null else folder
-                            newFolder = ""
-                        }) {
-                            Text(
-                                folder,
-                                color = if (folder == selectedFolder) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        folders.forEach { folder ->
+                            LongPressableChip(
+                                label = folder,
+                                selected = folder == selectedFolder,
+                                leadingDot = folderColors[folder]?.let(::hexToColor),
+                                onClick = {
+                                    selectedFolder = if (selectedFolder == folder) null else folder
+                                    newFolder = ""
                                 },
                             )
                         }

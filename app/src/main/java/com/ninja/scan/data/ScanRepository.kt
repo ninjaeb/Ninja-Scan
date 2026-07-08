@@ -19,6 +19,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -197,17 +198,21 @@ class ScanRepository(
 
     val folders: Flow<List<String>> = folderDao.observeAll()
 
+    /** Folder name -> hex color, so folder chips can match the tag chip look. */
+    val folderColors: Flow<Map<String, String>> =
+        folderDao.observeAllDetailed().map { list -> list.associate { it.name to it.color } }
+
     suspend fun moveToFolder(scan: ScanDocument, folder: String?) {
         val cleaned = folder?.trim()?.takeIf { it.isNotEmpty() }
         // Folders typed into the move/save dialogs become real folder rows.
-        cleaned?.let { folderDao.insert(Folder(it)) }
+        cleaned?.let { folderDao.insertNamed(it) }
         dao.setFolder(scan.id, cleaned)
         enqueueBackupIfEnabled()
     }
 
     suspend fun addFolder(name: String) {
         name.trim().takeIf { it.isNotEmpty() }?.let {
-            folderDao.insert(Folder(it))
+            folderDao.insertNamed(it)
             enqueueBackupIfEnabled()
         }
     }

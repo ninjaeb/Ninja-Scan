@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ScanDocument::class, BusinessCard::class, Folder::class,
         Tag::class, CardTagCrossRef::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = false,
 )
 abstract class ScanDatabase : RoomDatabase() {
@@ -201,6 +201,24 @@ abstract class ScanDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE folders ADD COLUMN color TEXT NOT NULL DEFAULT ''")
+                var index = 0
+                db.query("SELECT name FROM folders ORDER BY name").use { cursor ->
+                    val nameIndex = cursor.getColumnIndex("name")
+                    while (cursor.moveToNext()) {
+                        val name = cursor.getString(nameIndex)
+                        db.execSQL(
+                            "UPDATE folders SET color = ? WHERE name = ?",
+                            arrayOf(FolderColors.next(index), name)
+                        )
+                        index++
+                    }
+                }
+            }
+        }
+
         @Volatile
         private var instance: ScanDatabase? = null
 
@@ -214,7 +232,7 @@ abstract class ScanDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                         MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                        MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                        MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
                     )
                     .build()
                     .also { instance = it }

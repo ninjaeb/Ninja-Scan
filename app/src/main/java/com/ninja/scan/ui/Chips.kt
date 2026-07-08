@@ -64,3 +64,7 @@ fun LongPressableChip(
         }
     }
 }
+
+/** Parses a "#RRGGBB" hex string into a [Color], falling back to gray. */
+fun hexToColor(hex: String): Color =
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)

@@ -47,6 +47,10 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
     val folders: StateFlow<List<String>> = repository.folders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Folder name -> hex color, so folder chips can show a colored dot like tags. */
+    val folderColors: StateFlow<Map<String, String>> = repository.folderColors
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /** Library contents; narrowed by search text and the selected folder. */
     val scans: StateFlow<List<ScanDocument>> = _searchQuery
         .flatMapLatest { query ->

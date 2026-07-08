@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 val scans by viewModel.scans.collectAsState()
                 val searchQuery by viewModel.searchQuery.collectAsState()
                 val folders by viewModel.folders.collectAsState()
+                val folderColors by viewModel.folderColors.collectAsState()
                 val folderFilter by viewModel.folderFilter.collectAsState()
                 val driveBackupEnabled by viewModel.driveBackupEnabled.collectAsState()
                 val justSaved by viewModel.justSaved.collectAsState()
@@ -157,6 +158,7 @@ class MainActivity : ComponentActivity() {
                     scans = scans,
                     searchQuery = searchQuery,
                     folders = folders,
+                    folderColors = folderColors,
                     folderFilter = folderFilter,
                     driveBackupEnabled = driveBackupEnabled,
                     justSaved = justSaved,

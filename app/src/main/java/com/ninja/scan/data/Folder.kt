@@ -10,4 +10,5 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "folders")
 data class Folder(
     @PrimaryKey val name: String,
+    val color: String = "",
 )
