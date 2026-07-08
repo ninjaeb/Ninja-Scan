@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
 import kotlinx.coroutines.flow.Flow
 import java.util.concurrent.TimeUnit
@@ -42,6 +43,33 @@ object DriveBackup {
         AuthorizationRequest.builder()
             .setRequestedScopes(listOf(Scope(DRIVE_SCOPE)))
             .build()
+
+    /**
+     * Requests the drive.file scope, shared by every screen that offers
+     * Drive controls. If Google needs user consent (first time),
+     * [onNeedsConsent] launches the returned system dialog; otherwise
+     * [onGranted] runs immediately with the silently granted authorization.
+     */
+    fun requestAuthorization(
+        context: Context,
+        onNeedsConsent: (android.app.PendingIntent) -> Unit,
+        onGranted: () -> Unit,
+        onFailure: (String) -> Unit,
+    ) {
+        Identity.getAuthorizationClient(context)
+            .authorize(authorizationRequest())
+            .addOnSuccessListener { result ->
+                val pendingIntent = result.pendingIntent
+                if (result.hasResolution() && pendingIntent != null) {
+                    onNeedsConsent(pendingIntent)
+                } else {
+                    onGranted()
+                }
+            }
+            .addOnFailureListener { e ->
+                onFailure(e.message ?: "authorization unavailable")
+            }
+    }
 
     fun isEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_ENABLED, false)

@@ -625,7 +625,9 @@ class ScanRepository(
                 ocrText = recognizeText(pageUris),
                 originalsDir = originalsDir.absolutePath,
             )
-            scan.copy(id = dao.insert(scan))
+            val saved = scan.copy(id = dao.insert(scan))
+            enqueueBackupIfEnabled()
+            saved
         }
 
     /**

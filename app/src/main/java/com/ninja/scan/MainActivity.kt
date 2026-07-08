@@ -114,6 +114,8 @@ class MainActivity : ComponentActivity() {
                                 getString(R.string.drive_backup_enabled)
                             ScanEvent.DriveBackupDisabled ->
                                 getString(R.string.drive_backup_disabled)
+                            ScanEvent.DriveBackupStarted ->
+                                getString(R.string.drive_backup_started)
                             is ScanEvent.DriveBackupFailed ->
                                 getString(R.string.drive_backup_failed, event.message)
                             ScanEvent.DriveRestoreStarted ->
@@ -190,6 +192,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     },
+                    onBackupNowDrive = {
+                        DriveBackup.enqueue(this)
+                        viewModel.emitEvent(ScanEvent.DriveBackupStarted)
+                    },
                     onScanClick = {
                         GmsDocumentScanning.getClient(scannerOptions)
                             .getStartScanIntent(this)
@@ -251,28 +257,20 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Requests the drive.file scope. If Google needs user consent (first
-     * time), [onNeedsConsent] launches the returned system dialog; otherwise
-     * backup is enabled immediately with the silently granted authorization.
+     * Requests the drive.file scope for whichever action was just requested
+     * ([pendingDriveAction]). If Google needs user consent (first time),
+     * [onNeedsConsent] launches the returned system dialog; otherwise the
+     * pending action runs immediately with the silently granted authorization.
      */
     private fun requestDriveAuthorization(
         onNeedsConsent: (android.app.PendingIntent) -> Unit,
     ) {
-        Identity.getAuthorizationClient(this)
-            .authorize(DriveBackup.authorizationRequest())
-            .addOnSuccessListener { result ->
-                val pendingIntent = result.pendingIntent
-                if (result.hasResolution() && pendingIntent != null) {
-                    onNeedsConsent(pendingIntent)
-                } else {
-                    performPendingDriveAction()
-                }
-            }
-            .addOnFailureListener { e ->
-                viewModel.emitEvent(
-                    ScanEvent.DriveBackupFailed(e.message ?: "authorization unavailable")
-                )
-            }
+        DriveBackup.requestAuthorization(
+            context = this,
+            onNeedsConsent = onNeedsConsent,
+            onGranted = { performPendingDriveAction() },
+            onFailure = { message -> viewModel.emitEvent(ScanEvent.DriveBackupFailed(message)) },
+        )
     }
 
     private fun performPendingDriveAction() {

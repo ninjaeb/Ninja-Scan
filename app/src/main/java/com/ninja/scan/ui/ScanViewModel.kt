@@ -27,6 +27,7 @@ sealed interface ScanEvent {
     data object ExportFailed : ScanEvent
     data object DriveBackupEnabled : ScanEvent
     data object DriveBackupDisabled : ScanEvent
+    data object DriveBackupStarted : ScanEvent
     data class DriveBackupFailed(val message: String) : ScanEvent
     data object DriveRestoreStarted : ScanEvent
     data class DriveRestoreCompleted(val scans: Int, val cards: Int) : ScanEvent
@@ -117,9 +118,6 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
                         ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
                     )
                     _justSaved.value = scan
-                    if (com.ninja.scan.drive.DriveBackup.isEnabled(app)) {
-                        com.ninja.scan.drive.DriveBackup.enqueue(app)
-                    }
                 }
                 .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }
         }

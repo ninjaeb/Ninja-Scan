@@ -2,7 +2,6 @@ package com.ninja.scan.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,7 +26,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
@@ -67,8 +64,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -116,6 +111,7 @@ fun ScanListScreen(
     onRenameFolder: (String, String) -> Unit,
     onDeleteFolder: (String) -> Unit,
     onRestoreFromDrive: () -> Unit,
+    onBackupNowDrive: () -> Unit,
 ) {
     justSaved?.let { scan ->
         SaveDetailsDialog(
@@ -175,60 +171,16 @@ fun ScanListScreen(
                 )
             } else {
                 CenterAlignedTopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // The launcher foreground vector carries adaptive-icon
-                            // safe-zone padding; overdrawing a clipped circle
-                            // reproduces the launcher look at full glyph size.
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(colorResource(R.color.ic_launcher_background)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
-                                    painter = painterResource(R.drawable.ic_launcher_foreground),
-                                    contentDescription = null,
-                                    modifier = Modifier.requiredSize(54.dp),
-                                )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.app_name))
-                        }
-                    },
+                    title = { AppTitleWithIcon(stringResource(R.string.app_name)) },
                     actions = {
-                        Box {
-                            IconButton(onClick = { driveMenuOpen = true }) {
-                                Icon(
-                                    if (driveBackupEnabled) Icons.Filled.CloudDone
-                                    else Icons.Filled.CloudOff,
-                                    contentDescription = stringResource(R.string.drive_backup),
-                                    tint = if (driveBackupEnabled) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = driveMenuOpen,
-                                onDismissRequest = { driveMenuOpen = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(
-                                                if (driveBackupEnabled) R.string.drive_menu_disable
-                                                else R.string.drive_menu_enable
-                                            )
-                                        )
-                                    },
-                                    onClick = { driveMenuOpen = false; onToggleDriveBackup() },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.restore_from_drive)) },
-                                    onClick = { driveMenuOpen = false; onRestoreFromDrive() },
-                                )
-                            }
-                        }
+                        DriveMenuButton(
+                            enabled = driveBackupEnabled,
+                            expanded = driveMenuOpen,
+                            onExpandedChange = { driveMenuOpen = it },
+                            onToggle = onToggleDriveBackup,
+                            onRestore = onRestoreFromDrive,
+                            onBackupNow = onBackupNowDrive,
+                        )
                     },
                 )
             }

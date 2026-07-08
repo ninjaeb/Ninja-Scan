@@ -87,8 +87,12 @@ import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.data.BusinessCard
 import com.ninja.scan.data.Tag
+import com.ninja.scan.drive.DriveBackup
+import com.ninja.scan.ui.AppTitleWithIcon
+import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.LongPressableChip
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -134,6 +138,63 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
     val app = context.applicationContext as DocScannerApp
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    var driveMenuOpen by remember { mutableStateOf(false) }
+    var driveBackupEnabled by remember { mutableStateOf(DriveBackup.isEnabled(context)) }
+    // What to do once Drive consent is granted: enable backup, or restore.
+    var pendingDriveRestore by remember { mutableStateOf(false) }
+
+    fun performPendingDriveAction() {
+        if (pendingDriveRestore) {
+            DriveBackup.enqueueRestore(context)
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.drive_restore_started))
+            }
+        } else {
+            DriveBackup.setEnabled(context, true)
+            driveBackupEnabled = true
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.drive_backup_enabled))
+            }
+        }
+    }
+
+    val driveConsentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { activityResult ->
+        val granted = runCatching {
+            Identity.getAuthorizationClient(context)
+                .getAuthorizationResultFromIntent(activityResult.data)
+        }.isSuccess
+        if (granted) {
+            performPendingDriveAction()
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.drive_backup_failed, "consent not granted")
+                )
+            }
+        }
+    }
+
+    fun requestDriveAuthorization() {
+        DriveBackup.requestAuthorization(
+            context = context,
+            onNeedsConsent = { pendingIntent ->
+                driveConsentLauncher.launch(
+                    IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                )
+            },
+            onGranted = { performPendingDriveAction() },
+            onFailure = { message ->
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.drive_backup_failed, message)
+                    )
+                }
+            },
+        )
+    }
 
     val cards by app.repository.cards.collectAsState(initial = emptyList())
     var draft by remember { mutableStateOf<BusinessCard?>(null) }
@@ -240,7 +301,7 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.business_cards)) },
+                title = { AppTitleWithIcon(stringResource(R.string.business_cards)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -277,6 +338,37 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
                             )
                         }
                     }
+                    DriveMenuButton(
+                        enabled = driveBackupEnabled,
+                        expanded = driveMenuOpen,
+                        onExpandedChange = { driveMenuOpen = it },
+                        onToggle = {
+                            if (driveBackupEnabled) {
+                                DriveBackup.setEnabled(context, false)
+                                driveBackupEnabled = false
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(R.string.drive_backup_disabled)
+                                    )
+                                }
+                            } else {
+                                pendingDriveRestore = false
+                                requestDriveAuthorization()
+                            }
+                        },
+                        onRestore = {
+                            pendingDriveRestore = true
+                            requestDriveAuthorization()
+                        },
+                        onBackupNow = {
+                            DriveBackup.enqueue(context)
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(R.string.drive_backup_started)
+                                )
+                            }
+                        },
+                    )
                 },
             )
         },
@@ -301,7 +393,7 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
             ExtendedFloatingActionButton(
                 onClick = launchCardScanner,
                 icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
-                text = { Text(stringResource(R.string.scan_card)) },
+                text = { Text(stringResource(R.string.scan_business_card)) },
             )
         },
     ) { padding ->
@@ -687,7 +779,7 @@ private fun CardDetailScreen(
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.add_tag)) },
+                            text = { Text(stringResource(R.string.create_tag)) },
                             leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                             onClick = { tagMenuOpen = false; creatingTag = true },
                         )

@@ -44,7 +44,6 @@
     <string name="export_separate_pdfs">Export pages as separate PDFs</string>
     <string name="to_cloud">To cloud</string>
     <string name="business_cards">Business cards</string>
-    <string name="scan_card">Scan card</string>
     <string name="scan_business_card">Scan business card</string>
     <string name="save_to_contacts">Save to phone contacts</string>
     <string name="export_contacts">Export contacts</string>
@@ -93,6 +92,8 @@
     <string name="drive_menu_enable">Turn on Drive backup</string>
     <string name="drive_menu_disable">Turn off Drive backup</string>
     <string name="restore_from_drive">Restore from Drive</string>
+    <string name="drive_backup_now">Back up now</string>
+    <string name="drive_backup_started">Backing up to Drive…</string>
     <string name="drive_restore_offer_title">Restore your library?</string>
     <string name="drive_restore_offer_body">Documents and business cards previously backed up to Google Drive can be downloaded to this device.</string>
     <string name="restore">Restore</string>
