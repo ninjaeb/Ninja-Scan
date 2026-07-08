@@ -3,6 +3,10 @@ package com.ninja.scan.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import com.ninja.scan.drive.DriveBackup
+import com.ninja.scan.drive.DriveFile
+import com.ninja.scan.drive.DriveManifest
+import com.ninja.scan.drive.DriveRestClient
 import com.ninja.scan.util.CardParser
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.ImageOptimizer
@@ -27,6 +31,7 @@ class ScanRepository(
     private val context: Context,
     private val dao: ScanDao,
     private val cardDao: BusinessCardDao,
+    private val folderDao: FolderDao,
 ) {
 
     private companion object {
@@ -51,12 +56,105 @@ class ScanRepository(
     suspend fun markBackedUp(scanId: Long, driveFileId: String) =
         dao.setDriveFileId(scanId, driveFileId)
 
+    suspend fun getBackedUpScans(): List<ScanDocument> = dao.getBackedUp()
+
+    suspend fun getDriveFileIds(): List<String> = dao.getDriveFileIds()
+
+    suspend fun getAllCards(): List<BusinessCard> = cardDao.getAll()
+
+    /**
+     * Downloads one backed-up PDF into the library. Metadata comes from the
+     * manifest [entry] when available; otherwise the filename and Drive
+     * timestamp are used and OCR is re-run on-device. Returns true when a
+     * scan row was inserted.
+     */
+    internal suspend fun restoreScanFromDrive(
+        drive: DriveRestClient,
+        file: DriveFile,
+        entry: DriveManifest.ScanEntry?,
+    ): Boolean = withContext(Dispatchers.IO) {
+        // Deterministic name: a retried restore simply overwrites a partial
+        // download instead of duplicating it.
+        val pdf = File(scansDir, "restored_${file.id}.pdf")
+        drive.downloadTo(file.id, pdf)
+        if (PdfEditor.pageCount(pdf) == 0) {
+            pdf.delete()
+            return@withContext false
+        }
+        val thumb = File(scansDir, "restored_${file.id}.thumb.jpg")
+        val hasThumb = PdfEditor.writeThumbnail(pdf, thumb)
+        val scan = ScanDocument(
+            title = entry?.title?.takeIf { it.isNotBlank() }
+                ?: file.name.removeSuffix(".pdf"),
+            createdAt = entry?.createdAt?.takeIf { it > 0 } ?: file.modifiedTime,
+            pageCount = PdfEditor.pageCount(pdf).coerceAtLeast(1),
+            pdfPath = pdf.absolutePath,
+            thumbnailPath = if (hasThumb) thumb.absolutePath else null,
+            sizeBytes = pdf.length(),
+            ocrText = entry?.ocrText?.takeIf { it.isNotBlank() }
+                ?: recognizeTextFromPdf(pdf),
+            driveFileId = file.id,
+            folder = entry?.folder,
+            watermark = if (entry?.watermarkBaked == true) null else entry?.watermark,
+            originalsDir = null,
+        )
+        dao.insert(scan)
+        true
+    }
+
+    /** Inserts manifest cards not already in the library. Returns the count. */
+    internal suspend fun restoreCards(entries: List<DriveManifest.CardEntry>): Int =
+        withContext(Dispatchers.IO) {
+            val existing = cardDao.getAll()
+                .map { listOf(it.name, it.phone, it.email, it.createdAt.toString()) }
+                .toSet()
+            var restored = 0
+            for (entry in entries) {
+                val card = entry.card
+                val key = listOf(card.name, card.phone, card.email, card.createdAt.toString())
+                if (key in existing) continue
+                cardDao.insert(card.copy(id = 0, thumbnailPath = null))
+                restored++
+            }
+            restored
+        }
+
     suspend fun getScan(id: Long): ScanDocument? = dao.getById(id)
 
-    val folders: Flow<List<String>> = dao.observeFolders()
+    val folders: Flow<List<String>> = folderDao.observeAll()
 
-    suspend fun moveToFolder(scan: ScanDocument, folder: String?) =
-        dao.setFolder(scan.id, folder?.trim()?.takeIf { it.isNotEmpty() })
+    suspend fun moveToFolder(scan: ScanDocument, folder: String?) {
+        val cleaned = folder?.trim()?.takeIf { it.isNotEmpty() }
+        // Folders typed into the move/save dialogs become real folder rows.
+        cleaned?.let { folderDao.insert(Folder(it)) }
+        dao.setFolder(scan.id, cleaned)
+        enqueueBackupIfEnabled()
+    }
+
+    suspend fun addFolder(name: String) {
+        name.trim().takeIf { it.isNotEmpty() }?.let {
+            folderDao.insert(Folder(it))
+            enqueueBackupIfEnabled()
+        }
+    }
+
+    suspend fun renameFolder(oldName: String, newName: String) {
+        val cleaned = newName.trim()
+        if (cleaned.isEmpty() || cleaned == oldName) return
+        folderDao.rename(oldName, cleaned)
+        enqueueBackupIfEnabled()
+    }
+
+    suspend fun deleteFolder(name: String) {
+        folderDao.delete(name)
+        enqueueBackupIfEnabled()
+    }
+
+    suspend fun getFolderNames(): List<String> = folderDao.getAll()
+
+    private fun enqueueBackupIfEnabled() {
+        if (DriveBackup.isEnabled(context)) DriveBackup.enqueue(context)
+    }
 
     /**
      * Updates the on-the-fly watermark text without touching the stored PDF
@@ -65,11 +163,11 @@ class ScanRepository(
     suspend fun updateWatermark(scan: ScanDocument, watermark: String?): ScanDocument =
         withContext(Dispatchers.IO) {
             val cleaned = watermark?.trim()?.takeIf { it.isNotEmpty() }
-            val updated = scan.copy(
-                watermark = cleaned,
-                driveFileId = if (cleaned != scan.watermark) null else scan.driveFileId,
-            )
+            // The Drive copy is the clean PDF, so a watermark change only
+            // needs a manifest refresh — the uploaded file stays valid.
+            val updated = scan.copy(watermark = cleaned)
             dao.update(updated)
+            if (cleaned != scan.watermark) enqueueBackupIfEnabled()
             updated
         }
 
@@ -145,6 +243,10 @@ class ScanRepository(
             ocrText = recognizeTextFromPdf(source)
         }
 
+        // Only content changes invalidate the Drive copy (the clean PDF is
+        // what's uploaded); a watermark-only change just refreshes the
+        // manifest. The replaced Drive file is deleted on the next backup.
+        if (pagesChanged) scan.driveFileId?.let { DriveBackup.addStaleFileId(context, it) }
         val updated = scan.copy(
             pageCount = pageCount,
             sizeBytes = source.length(),
@@ -152,13 +254,10 @@ class ScanRepository(
             ocrText = ocrText,
             watermark = cleanedWatermark,
             originalsDir = originalsDirPath,
-            driveFileId = if (pagesChanged || cleanedWatermark != scan.watermark) {
-                null
-            } else {
-                scan.driveFileId
-            },
+            driveFileId = if (pagesChanged) null else scan.driveFileId,
         )
         dao.update(updated)
+        if (pagesChanged || cleanedWatermark != scan.watermark) enqueueBackupIfEnabled()
         updated
     }
 
@@ -318,12 +417,20 @@ class ScanRepository(
         )
     }
 
-    suspend fun saveCard(card: BusinessCard): BusinessCard =
-        if (card.id == 0L) card.copy(id = cardDao.insert(card)) else card.also { cardDao.update(it) }
+    suspend fun saveCard(card: BusinessCard): BusinessCard {
+        val saved = if (card.id == 0L) {
+            card.copy(id = cardDao.insert(card))
+        } else {
+            card.also { cardDao.update(it) }
+        }
+        enqueueBackupIfEnabled()
+        return saved
+    }
 
     suspend fun deleteCard(card: BusinessCard) {
         card.thumbnailPath?.let { File(it).delete() }
         cardDao.delete(card)
+        enqueueBackupIfEnabled()
     }
 
     /** Writes all cards as CSV to a user-chosen SAF destination. */
@@ -465,14 +572,21 @@ class ScanRepository(
 
     suspend fun rename(scan: ScanDocument, title: String) {
         val trimmed = title.trim()
-        if (trimmed.isNotEmpty()) dao.update(scan.copy(title = trimmed))
+        if (trimmed.isNotEmpty()) {
+            dao.update(scan.copy(title = trimmed))
+            enqueueBackupIfEnabled()
+        }
     }
 
     suspend fun delete(scan: ScanDocument) = withContext(Dispatchers.IO) {
         File(scan.pdfPath).delete()
         scan.thumbnailPath?.let { File(it).delete() }
         scan.originalsDir?.let { File(it).deleteRecursively() }
+        // Deleted locally means deleted from the backup too; otherwise the
+        // next restore would resurrect it.
+        scan.driveFileId?.let { DriveBackup.addStaleFileId(context, it) }
         dao.delete(scan)
+        enqueueBackupIfEnabled()
     }
 
     /** Copies a scan's PDF (watermarked if set) to a SAF destination. */

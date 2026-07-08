@@ -84,4 +84,21 @@
     <string name="share_multiple_subject">%1$d documents</string>
     <string name="share_caption">Scan with Ninja Scan App, no ads, free, no watermark</string>
     <string name="add_scan">Add Scan</string>
+    <string name="clear">Clear</string>
+    <string name="add_folder">New folder</string>
+    <string name="rename_folder">Rename folder</string>
+    <string name="delete_folder">Delete folder</string>
+    <string name="delete_folder_title">Delete folder?</string>
+    <string name="delete_folder_body">Scans in “%1$s” stay in your library and become unfiled.</string>
+    <string name="folder_merge_warning">A folder with this name already exists — the folders will be merged.</string>
+    <string name="drive_menu_enable">Turn on Drive backup</string>
+    <string name="drive_menu_disable">Turn off Drive backup</string>
+    <string name="restore_from_drive">Restore from Drive</string>
+    <string name="drive_restore_offer_title">Restore your library?</string>
+    <string name="drive_restore_offer_body">Documents and business cards previously backed up to Google Drive can be downloaded to this device.</string>
+    <string name="restore">Restore</string>
+    <string name="not_now">Not now</string>
+    <string name="drive_restore_started">Restoring from Google Drive…</string>
+    <string name="drive_restore_done">Restored %1$d documents and %2$d cards</string>
+    <string name="drive_restore_failed">Restore failed — check your connection and try again</string>
 </resources>

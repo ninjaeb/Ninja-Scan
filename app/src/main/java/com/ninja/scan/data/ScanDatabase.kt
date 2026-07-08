@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ScanDocument::class, BusinessCard::class],
-    version = 8,
+    entities = [ScanDocument::class, BusinessCard::class, Folder::class],
+    version = 9,
     exportSchema = false,
 )
 abstract class ScanDatabase : RoomDatabase() {
@@ -17,6 +17,8 @@ abstract class ScanDatabase : RoomDatabase() {
     abstract fun scanDao(): ScanDao
 
     abstract fun cardDao(): BusinessCardDao
+
+    abstract fun folderDao(): FolderDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -74,6 +76,19 @@ abstract class ScanDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `folders` " +
+                        "(`name` TEXT NOT NULL, PRIMARY KEY(`name`))"
+                )
+                db.execSQL(
+                    "INSERT OR IGNORE INTO folders(name) " +
+                        "SELECT DISTINCT folder FROM scans WHERE folder IS NOT NULL"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ScanDatabase? = null
 
@@ -87,6 +102,7 @@ abstract class ScanDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                         MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                        MIGRATION_8_9,
                     )
                     .build()
                     .also { instance = it }

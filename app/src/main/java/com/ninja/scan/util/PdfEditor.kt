@@ -241,12 +241,24 @@ object PdfEditor {
             color = Color.argb(70, 120, 120, 120)
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
-            textSize = (width * 1.5f / text.length.coerceAtLeast(1))
-                .coerceIn(width / 20f, width / 6f)
+        }
+        // The text sits on a -35° line through the page center; the longest
+        // line that stays fully on the page is bounded by both dimensions.
+        val angle = Math.toRadians(35.0)
+        val maxLineWidth =
+            (minOf(width / Math.cos(angle), height / Math.sin(angle)) * 0.9).toFloat()
+        paint.textSize = 100f
+        val measured = paint.measureText(text).coerceAtLeast(1f)
+        paint.textSize = (100f * maxLineWidth / measured).coerceIn(width / 40f, width / 6f)
+        // If even the floor size overflows (extremely long text), shrink below
+        // the floor rather than clip — the watermark must stay fully visible.
+        if (paint.measureText(text) > maxLineWidth) {
+            paint.textSize = paint.textSize * maxLineWidth / paint.measureText(text)
         }
         canvas.save()
         canvas.rotate(-35f, width / 2f, height / 2f)
-        canvas.drawText(text, width / 2f, height / 2f, paint)
+        val baselineOffset = (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText(text, width / 2f, height / 2f - baselineOffset, paint)
         canvas.restore()
     }
 

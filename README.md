@@ -26,15 +26,21 @@ Dropbox, or any other cloud provider.
 - **In-app PDF viewer** — tap a scan to read it inside the app (platform
   `PdfRenderer`, no external PDF app needed). "Open with…" still hands the
   file to any installed PDF reader.
-- **Folders** — move scans into named folders ("Move to folder…") and
-  filter the library with chips under the search bar.
+- **Folders** — add, rename, or delete folders from the chip row under the
+  search bar (long-press a chip for rename/delete), move scans into them
+  ("Move to folder…"), and filter the library by tapping a chip. Renaming
+  onto an existing folder name merges the two; deleting a folder unfiles
+  its scans without deleting them.
 - **Page editor with watermark** — "Edit pages" opens an editor to
   reorder, rotate, and remove pages, scan additional pages into the
-  document, and set an optional diagonal text watermark. The stored PDF
-  stays clean: the watermark is stamped on the fly when the document is
-  viewed, shared, exported, or uploaded, so it can be edited or removed
-  at any time. Page changes rebuild the PDF, refresh the thumbnail and
-  OCR text, and re-queue the scan for Drive backup.
+  document, and set an optional diagonal text watermark (with a Clear
+  button to remove it in one tap). The watermark text is sized to fit
+  fully within the page at any length. The stored PDF stays clean: the
+  watermark is stamped on the fly when the document is viewed, shared,
+  exported, or uploaded — directly into the rendered pixels, so shared
+  copies can't have it stripped out — while staying editable or removable
+  in-app at any time. Page changes rebuild the PDF, refresh the thumbnail
+  and OCR text, and re-queue the scan for Drive backup.
 - **Share in any format** — Share opens a format sheet: PDF, per-page
   JPEG images, one tall "long image", or every page as its own PDF
   (all watermarked when a watermark is set). Shared/exported files are
@@ -43,8 +49,9 @@ Dropbox, or any other cloud provider.
   document in the library to select several at once and share them
   together in one chooser.
 - **Viewer action bar** — an open document has Add watermark / Add Scan /
-  Share / Edit / Save at the bottom; each list row's menu offers Share,
-  Rename, Delete, Save to cloud, and Move to folder.
+  Share / Edit / Save at the bottom; tap the title in the top bar to
+  rename the document; each list row's menu offers Share, Rename, Delete,
+  Save to cloud, and Move to folder.
 - **Business card search, notes, and tags** — search across every card
   field; tap a card to open a full-page editor (scanned card image, a
   taller address box, notes, and comma-separated tags). Field extraction
@@ -63,10 +70,16 @@ Dropbox, or any other cloud provider.
   address are extracted with on-device OCR into an editable contact.
   Save any card straight into the phone's contacts app, and export the
   whole list as CSV or a real Excel (.xlsx) workbook.
-- **Automatic Google Drive backup** — toggle the cloud icon in the top bar
-  to turn it on. Every scan (including older, not-yet-uploaded ones) is
-  uploaded by a background WorkManager job into a "Ninja Scan" folder in
-  your Drive, and backed-up scans show a small cloud check in the list.
+- **Automatic Google Drive backup and restore** — the cloud icon in the
+  top bar opens a menu to turn backup on/off or restore from Drive. Every
+  scan and business card is uploaded by a background WorkManager job into
+  a "Ninja Scan" folder in your Drive (clean, un-watermarked PDFs plus a
+  JSON manifest carrying titles, folders, watermark text, OCR text, and
+  every contact), and backed-up scans show a small cloud check in the
+  list. After an uninstall or clearing app data, turning backup back on
+  with an empty library offers to restore — documents and business cards
+  come back with their titles, folders, editable watermarks, and searchable
+  OCR text intact; running it again is a no-op (nothing is duplicated).
   Uses the narrow `drive.file` OAuth scope, so the app can only ever see
   files it created itself. Requires a one-time OAuth client registration —
   see below.
@@ -140,8 +153,11 @@ app/src/main/java/com/ninja/scan/
 │   ├── ScanDatabase.kt      # Database singleton
 │   └── ScanRepository.kt    # Save/optimize/export/delete logic
 ├── drive/
-│   ├── DriveBackup.kt       # Backup settings, OAuth request, scheduling
-│   └── DriveBackupWorker.kt # Background uploads via Drive REST API
+│   ├── DriveBackup.kt        # Backup/restore settings, OAuth request, scheduling
+│   ├── DriveRestClient.kt    # Drive v3 REST client (upload/list/download/delete)
+│   ├── DriveManifest.kt      # JSON manifest: titles, folders, watermark, OCR, cards
+│   ├── DriveBackupWorker.kt  # Background uploads + manifest refresh
+│   └── DriveRestoreWorker.kt # Downloads the Drive backup back into the library
 ├── viewer/
 │   └── PdfViewerActivity.kt # In-app PDF viewer (PdfRenderer + Compose)
 ├── ui/

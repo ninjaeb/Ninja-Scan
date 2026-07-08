@@ -13,6 +13,9 @@ interface BusinessCardDao {
     @Query("SELECT * FROM business_cards ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<BusinessCard>>
 
+    @Query("SELECT * FROM business_cards ORDER BY createdAt ASC")
+    suspend fun getAll(): List<BusinessCard>
+
     @Insert
     suspend fun insert(card: BusinessCard): Long
 

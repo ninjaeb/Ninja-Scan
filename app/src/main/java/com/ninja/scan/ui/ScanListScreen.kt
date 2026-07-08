@@ -2,6 +2,8 @@ package com.ninja.scan.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,13 +14,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
@@ -30,6 +36,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -59,7 +66,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -102,6 +112,10 @@ fun ScanListScreen(
     onRename: (ScanDocument, String) -> Unit,
     onMoveToFolder: (ScanDocument, String?) -> Unit,
     onDelete: (ScanDocument) -> Unit,
+    onAddFolder: (String) -> Unit,
+    onRenameFolder: (String, String) -> Unit,
+    onDeleteFolder: (String) -> Unit,
+    onRestoreFromDrive: () -> Unit,
 ) {
     justSaved?.let { scan ->
         SaveDetailsDialog(
@@ -117,6 +131,13 @@ fun ScanListScreen(
     var renamingScan by remember { mutableStateOf<ScanDocument?>(null) }
     var movingScan by remember { mutableStateOf<ScanDocument?>(null) }
     var deletingScan by remember { mutableStateOf<ScanDocument?>(null) }
+
+    // Folder management (add chip + long-press menu on a folder chip).
+    var addingFolder by remember { mutableStateOf(false) }
+    var folderMenuFor by remember { mutableStateOf<String?>(null) }
+    var renamingFolder by remember { mutableStateOf<String?>(null) }
+    var deletingFolder by remember { mutableStateOf<String?>(null) }
+    var driveMenuOpen by remember { mutableStateOf(false) }
 
     // Long-press a row to pick several scans and share them together.
     val selectedIds = remember { mutableStateListOf<Long>() }
@@ -146,16 +167,59 @@ fun ScanListScreen(
                 )
             } else {
                 CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.app_name)) },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // The launcher foreground vector carries adaptive-icon
+                            // safe-zone padding; overdrawing a clipped circle
+                            // reproduces the launcher look at full glyph size.
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(colorResource(R.color.ic_launcher_background)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_launcher_foreground),
+                                    contentDescription = null,
+                                    modifier = Modifier.requiredSize(54.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.app_name))
+                        }
+                    },
                     actions = {
-                        IconButton(onClick = onToggleDriveBackup) {
-                            Icon(
-                                if (driveBackupEnabled) Icons.Filled.CloudDone
-                                else Icons.Filled.CloudOff,
-                                contentDescription = stringResource(R.string.drive_backup),
-                                tint = if (driveBackupEnabled) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        Box {
+                            IconButton(onClick = { driveMenuOpen = true }) {
+                                Icon(
+                                    if (driveBackupEnabled) Icons.Filled.CloudDone
+                                    else Icons.Filled.CloudOff,
+                                    contentDescription = stringResource(R.string.drive_backup),
+                                    tint = if (driveBackupEnabled) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = driveMenuOpen,
+                                onDismissRequest = { driveMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(
+                                                if (driveBackupEnabled) R.string.drive_menu_disable
+                                                else R.string.drive_menu_enable
+                                            )
+                                        )
+                                    },
+                                    onClick = { driveMenuOpen = false; onToggleDriveBackup() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.restore_from_drive)) },
+                                    onClick = { driveMenuOpen = false; onRestoreFromDrive() },
+                                )
+                            }
                         }
                     },
                 )
@@ -215,7 +279,7 @@ fun ScanListScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
-            if (folders.isNotEmpty()) {
+            if (scans.isNotEmpty() || folders.isNotEmpty() || folderFilter != null) {
                 LazyRow(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                         horizontal = 16.dp
@@ -230,14 +294,48 @@ fun ScanListScreen(
                         )
                     }
                     items(folders) { folder ->
-                        FilterChip(
-                            selected = folderFilter == folder,
-                            onClick = {
-                                onFolderFilterChange(
-                                    if (folderFilter == folder) null else folder
+                        // Long-press a folder chip for rename/delete.
+                        Box {
+                            FilterChip(
+                                selected = folderFilter == folder,
+                                onClick = {
+                                    onFolderFilterChange(
+                                        if (folderFilter == folder) null else folder
+                                    )
+                                },
+                                label = { Text(folder) },
+                                // Taps go to the chip's own onClick; this outer
+                                // detector only fires the long-press timer.
+                                modifier = Modifier.pointerInput(folder) {
+                                    detectTapGestures(onLongPress = { folderMenuFor = folder })
+                                },
+                            )
+                            DropdownMenu(
+                                expanded = folderMenuFor == folder,
+                                onDismissRequest = { folderMenuFor = null },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.rename_folder)) },
+                                    onClick = { folderMenuFor = null; renamingFolder = folder },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.delete_folder)) },
+                                    onClick = { folderMenuFor = null; deletingFolder = folder },
+                                )
+                            }
+                        }
+                    }
+                    item {
+                        AssistChip(
+                            onClick = { addingFolder = true },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
                                 )
                             },
-                            label = { Text(folder) },
+                            label = { Text(stringResource(R.string.add_folder)) },
                         )
                     }
                 }
@@ -400,6 +498,93 @@ fun ScanListScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deletingScan = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (addingFolder) {
+        var name by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { addingFolder = false },
+            title = { Text(stringResource(R.string.add_folder)) },
+            text = {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.new_folder_hint)) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { addingFolder = false; onAddFolder(name.trim()) },
+                    enabled = name.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { addingFolder = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    renamingFolder?.let { folder ->
+        var name by remember(folder) { mutableStateOf(folder) }
+        val trimmed = name.trim()
+        val collides = trimmed != folder && folders.contains(trimmed)
+        AlertDialog(
+            onDismissRequest = { renamingFolder = null },
+            title = { Text(stringResource(R.string.rename_folder)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        singleLine = true,
+                    )
+                    if (collides) {
+                        Text(
+                            stringResource(R.string.folder_merge_warning),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { renamingFolder = null; onRenameFolder(folder, trimmed) },
+                    enabled = trimmed.isNotEmpty() && trimmed != folder,
+                ) {
+                    Text(stringResource(R.string.rename))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingFolder = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    deletingFolder?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { deletingFolder = null },
+            title = { Text(stringResource(R.string.delete_folder_title)) },
+            text = { Text(stringResource(R.string.delete_folder_body, folder)) },
+            confirmButton = {
+                TextButton(onClick = { deletingFolder = null; onDeleteFolder(folder) }) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingFolder = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             },

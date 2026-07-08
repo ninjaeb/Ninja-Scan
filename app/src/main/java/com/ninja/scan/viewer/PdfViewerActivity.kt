@@ -13,11 +13,16 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -56,6 +61,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
@@ -115,6 +121,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
     var scan by remember { mutableStateOf<ScanDocument?>(null) }
     var sharing by remember { mutableStateOf(false) }
     var editingWatermark by remember { mutableStateOf(false) }
+    var renamingTitle by remember { mutableStateOf(false) }
 
     LaunchedEffect(scanId) {
         val loaded = app.repository.getScan(scanId)
@@ -152,7 +159,30 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(current?.title.orEmpty(), maxLines = 1) },
+                title = {
+                    // Tap the title to rename the document.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable(enabled = current != null) {
+                            renamingTitle = true
+                        },
+                    ) {
+                        Text(
+                            current?.title.orEmpty(),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (current != null) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = stringResource(R.string.rename),
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -167,7 +197,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     enabled = current != null,
                     onClick = { editingWatermark = true },
                     icon = { Icon(Icons.Filled.BrandingWatermark, contentDescription = null) },
-                    label = { Text(stringResource(R.string.watermark)) },
+                    label = { BarLabel(stringResource(R.string.watermark)) },
                 )
                 NavigationBarItem(
                     selected = false,
@@ -180,14 +210,14 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                             }
                     },
                     icon = { Icon(Icons.Filled.AddAPhoto, contentDescription = null) },
-                    label = { Text(stringResource(R.string.add_scan)) },
+                    label = { BarLabel(stringResource(R.string.add_scan)) },
                 )
                 NavigationBarItem(
                     selected = false,
                     enabled = current != null,
                     onClick = { sharing = true },
                     icon = { Icon(Icons.Filled.Share, contentDescription = null) },
-                    label = { Text(stringResource(R.string.share)) },
+                    label = { BarLabel(stringResource(R.string.share)) },
                 )
                 NavigationBarItem(
                     selected = false,
@@ -198,14 +228,14 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                         }
                     },
                     icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                    label = { Text(stringResource(R.string.edit)) },
+                    label = { BarLabel(stringResource(R.string.edit)) },
                 )
                 NavigationBarItem(
                     selected = false,
                     enabled = current != null,
                     onClick = { current?.let { exportLauncher.launch("${it.title}.pdf") } },
                     icon = { Icon(Icons.Filled.CloudUpload, contentDescription = null) },
-                    label = { Text(stringResource(R.string.save)) },
+                    label = { BarLabel(stringResource(R.string.save)) },
                 )
             }
         },
@@ -269,11 +299,22 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    editingWatermark = false
-                    scope.launch { scan = app.repository.updateWatermark(current, text) }
-                }) {
-                    Text(stringResource(R.string.save))
+                Row {
+                    TextButton(
+                        enabled = current.watermark != null || text.isNotBlank(),
+                        onClick = {
+                            editingWatermark = false
+                            scope.launch { scan = app.repository.updateWatermark(current, null) }
+                        },
+                    ) {
+                        Text(stringResource(R.string.clear))
+                    }
+                    TextButton(onClick = {
+                        editingWatermark = false
+                        scope.launch { scan = app.repository.updateWatermark(current, text) }
+                    }) {
+                        Text(stringResource(R.string.save))
+                    }
                 }
             },
             dismissButton = {
@@ -283,6 +324,52 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
             },
         )
     }
+
+    if (renamingTitle && current != null) {
+        var title by remember(current.id) { mutableStateOf(current.title) }
+        AlertDialog(
+            onDismissRequest = { renamingTitle = false },
+            title = { Text(stringResource(R.string.rename)) },
+            text = {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    renamingTitle = false
+                    val trimmed = title.trim()
+                    if (trimmed.isNotEmpty()) {
+                        scope.launch {
+                            app.repository.rename(current, trimmed)
+                            scan = current.copy(title = trimmed)
+                        }
+                    }
+                }) {
+                    Text(stringResource(R.string.rename))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingTitle = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+/** Single-line bottom-bar label that never wraps ("Watermark" fits a 5-item bar). */
+@Composable
+private fun BarLabel(text: String) {
+    Text(
+        text,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        style = MaterialTheme.typography.labelSmall,
+    )
 }
 
 private val addScanOptions = GmsDocumentScannerOptions.Builder()

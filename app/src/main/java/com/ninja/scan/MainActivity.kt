@@ -7,13 +7,21 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import androidx.work.WorkInfo
 import com.ninja.scan.cards.CardsActivity
 import com.ninja.scan.drive.DriveBackup
+import com.ninja.scan.drive.DriveRestoreWorker
 import com.ninja.scan.ui.ScanEvent
 import com.ninja.scan.ui.ScanListScreen
 import com.ninja.scan.ui.ScanViewModel
@@ -28,6 +36,11 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 class MainActivity : ComponentActivity() {
 
     private val viewModel: ScanViewModel by viewModels { ScanViewModel.Factory }
+
+    /** What to do once Drive consent is granted: enable backup or restore. */
+    private var pendingDriveAction = DriveAction.ENABLE_BACKUP
+
+    private enum class DriveAction { ENABLE_BACKUP, RESTORE }
 
     /**
      * Full scanner experience: live edge detection with auto-capture,
@@ -56,6 +69,8 @@ class MainActivity : ComponentActivity() {
                 val driveBackupEnabled by viewModel.driveBackupEnabled.collectAsState()
                 val justSaved by viewModel.justSaved.collectAsState()
                 val snackbarHostState = remember { SnackbarHostState() }
+                var showRestoreOffer by remember { mutableStateOf(false) }
+                var lastRestoreState by remember { mutableStateOf<WorkInfo.State?>(null) }
 
                 val driveConsentLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.StartIntentSenderForResult()
@@ -65,7 +80,7 @@ class MainActivity : ComponentActivity() {
                             .getAuthorizationResultFromIntent(activityResult.data)
                     }.isSuccess
                     if (granted) {
-                        enableDriveBackup()
+                        performPendingDriveAction()
                     } else {
                         viewModel.emitEvent(ScanEvent.DriveBackupFailed("consent not granted"))
                     }
@@ -85,6 +100,9 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     viewModel.events.collect { event ->
+                        if (event is ScanEvent.DriveBackupEnabled && scans.isEmpty()) {
+                            showRestoreOffer = true
+                        }
                         val message = when (event) {
                             is ScanEvent.Saved ->
                                 getString(R.string.scan_saved, event.readableSize)
@@ -98,8 +116,38 @@ class MainActivity : ComponentActivity() {
                                 getString(R.string.drive_backup_disabled)
                             is ScanEvent.DriveBackupFailed ->
                                 getString(R.string.drive_backup_failed, event.message)
+                            ScanEvent.DriveRestoreStarted ->
+                                getString(R.string.drive_restore_started)
+                            is ScanEvent.DriveRestoreCompleted ->
+                                getString(R.string.drive_restore_done, event.scans, event.cards)
+                            ScanEvent.DriveRestoreFailed ->
+                                getString(R.string.drive_restore_failed)
                         }
                         snackbarHostState.showSnackbar(message)
+                    }
+                }
+
+                // Surfaces the restore worker's terminal state as a one-shot
+                // event; WorkInfo persists after completion, so only a state
+                // transition (not every recomposition) triggers a snackbar.
+                LaunchedEffect(Unit) {
+                    DriveBackup.restoreWorkInfo(this@MainActivity).collect { infos ->
+                        val info = infos.firstOrNull() ?: return@collect
+                        if (info.state == lastRestoreState) return@collect
+                        lastRestoreState = info.state
+                        when (info.state) {
+                            WorkInfo.State.SUCCEEDED -> viewModel.emitEvent(
+                                ScanEvent.DriveRestoreCompleted(
+                                    scans = info.outputData.getInt(DriveRestoreWorker.KEY_SCANS, 0),
+                                    cards = info.outputData.getInt(DriveRestoreWorker.KEY_CARDS, 0),
+                                )
+                            )
+                            WorkInfo.State.FAILED ->
+                                viewModel.emitEvent(ScanEvent.DriveRestoreFailed)
+                            WorkInfo.State.ENQUEUED ->
+                                viewModel.emitEvent(ScanEvent.DriveRestoreStarted)
+                            else -> {}
+                        }
                     }
                 }
 
@@ -125,12 +173,21 @@ class MainActivity : ComponentActivity() {
                             viewModel.setDriveBackupState(false)
                             viewModel.emitEvent(ScanEvent.DriveBackupDisabled)
                         } else {
+                            pendingDriveAction = DriveAction.ENABLE_BACKUP
                             requestDriveAuthorization { pendingIntent ->
                                 driveConsentLauncher.launch(
                                     IntentSenderRequest.Builder(pendingIntent.intentSender)
                                         .build()
                                 )
                             }
+                        }
+                    },
+                    onRestoreFromDrive = {
+                        pendingDriveAction = DriveAction.RESTORE
+                        requestDriveAuthorization { pendingIntent ->
+                            driveConsentLauncher.launch(
+                                IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                            )
                         }
                     },
                     onScanClick = {
@@ -163,7 +220,31 @@ class MainActivity : ComponentActivity() {
                     onRename = viewModel::rename,
                     onMoveToFolder = viewModel::moveToFolder,
                     onDelete = viewModel::delete,
+                    onAddFolder = viewModel::addFolder,
+                    onRenameFolder = viewModel::renameFolder,
+                    onDeleteFolder = viewModel::deleteFolder,
                 )
+
+                if (showRestoreOffer) {
+                    AlertDialog(
+                        onDismissRequest = { showRestoreOffer = false },
+                        title = { Text(stringResource(R.string.drive_restore_offer_title)) },
+                        text = { Text(stringResource(R.string.drive_restore_offer_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showRestoreOffer = false
+                                DriveBackup.enqueueRestore(this)
+                            }) {
+                                Text(stringResource(R.string.restore))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showRestoreOffer = false }) {
+                                Text(stringResource(R.string.not_now))
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -183,7 +264,7 @@ class MainActivity : ComponentActivity() {
                 if (result.hasResolution() && pendingIntent != null) {
                     onNeedsConsent(pendingIntent)
                 } else {
-                    enableDriveBackup()
+                    performPendingDriveAction()
                 }
             }
             .addOnFailureListener { e ->
@@ -191,6 +272,13 @@ class MainActivity : ComponentActivity() {
                     ScanEvent.DriveBackupFailed(e.message ?: "authorization unavailable")
                 )
             }
+    }
+
+    private fun performPendingDriveAction() {
+        when (pendingDriveAction) {
+            DriveAction.ENABLE_BACKUP -> enableDriveBackup()
+            DriveAction.RESTORE -> DriveBackup.enqueueRestore(this)
+        }
     }
 
     private fun enableDriveBackup() {

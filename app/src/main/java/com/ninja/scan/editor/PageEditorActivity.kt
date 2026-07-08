@@ -62,7 +62,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
-import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.ImageOptimizer
@@ -185,12 +184,7 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
                                     )
                                 }
                                 result
-                                    .onSuccess {
-                                        if (DriveBackup.isEnabled(context)) {
-                                            DriveBackup.enqueue(context)
-                                        }
-                                        onDone()
-                                    }
+                                    .onSuccess { onDone() }
                                     .onFailure { e ->
                                         saving = false
                                         Toast.makeText(

@@ -25,8 +25,11 @@ interface ScanDao {
     @Query("SELECT * FROM scans WHERE driveFileId IS NULL ORDER BY createdAt ASC")
     suspend fun getPendingBackup(): List<ScanDocument>
 
-    @Query("SELECT DISTINCT folder FROM scans WHERE folder IS NOT NULL ORDER BY folder")
-    fun observeFolders(): Flow<List<String>>
+    @Query("SELECT * FROM scans WHERE driveFileId IS NOT NULL ORDER BY createdAt ASC")
+    suspend fun getBackedUp(): List<ScanDocument>
+
+    @Query("SELECT driveFileId FROM scans WHERE driveFileId IS NOT NULL")
+    suspend fun getDriveFileIds(): List<String>
 
     @Query("UPDATE scans SET folder = :folder WHERE id = :id")
     suspend fun setFolder(id: Long, folder: String?)

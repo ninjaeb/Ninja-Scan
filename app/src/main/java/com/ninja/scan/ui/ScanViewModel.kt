@@ -28,6 +28,9 @@ sealed interface ScanEvent {
     data object DriveBackupEnabled : ScanEvent
     data object DriveBackupDisabled : ScanEvent
     data class DriveBackupFailed(val message: String) : ScanEvent
+    data object DriveRestoreStarted : ScanEvent
+    data class DriveRestoreCompleted(val scans: Int, val cards: Int) : ScanEvent
+    data object DriveRestoreFailed : ScanEvent
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -63,6 +66,24 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
 
     fun moveToFolder(scan: ScanDocument, folder: String?) {
         viewModelScope.launch { repository.moveToFolder(scan, folder) }
+    }
+
+    fun addFolder(name: String) {
+        viewModelScope.launch { repository.addFolder(name) }
+    }
+
+    fun renameFolder(oldName: String, newName: String) {
+        viewModelScope.launch {
+            repository.renameFolder(oldName, newName)
+            if (_folderFilter.value == oldName) _folderFilter.value = newName.trim()
+        }
+    }
+
+    fun deleteFolder(name: String) {
+        viewModelScope.launch {
+            repository.deleteFolder(name)
+            if (_folderFilter.value == name) _folderFilter.value = null
+        }
     }
 
     private val _driveBackupEnabled = MutableStateFlow(false)

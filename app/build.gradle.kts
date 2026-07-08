@@ -86,6 +86,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    // org.json is Android-provided at runtime but stubbed (throws) in local
+    // JVM unit tests; pull in the real implementation for DriveManifestTest.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
