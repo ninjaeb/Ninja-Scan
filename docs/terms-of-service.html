@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Ninja Scan's terms of service.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-7 -3 60 60'%3E%3Crect x='-7' y='-3' width='60' height='60' rx='11' fill='%2316213e'/%3E%3Cpath fill='%23e94560' d='M2,19 L12,21 L12,25 L3,25 Z'/%3E%3Cpath fill='%23e94560' d='M4,29 L12,27 L12,31 L6,33 Z'/%3E%3Cpath fill='%23ffffff' d='M12,4 L34,4 L44,14 L44,50 L12,50 Z'/%3E%3Cpath fill='%23c5cae9' d='M34,4 L44,14 L34,14 Z'/%3E%3Cpath fill='%2316213e' d='M12,19 L44,19 L44,31 L12,31 Z'/%3E%3Ccircle cx='21.5' cy='25' r='2.6' fill='%23ffffff'/%3E%3Ccircle cx='34.5' cy='25' r='2.6' fill='%23ffffff'/%3E%3Cpath fill='%2390a4ae' d='M17,37 L39,37 L39,40 L17,40 Z M17,44 L33,44 L33,47 L17,47 Z'/%3E%3Cpath fill='%23e94560' d='M14,41.2 L42,41.2 L42,42.8 L14,42.8 Z'/%3E%3C/svg%3E">
+<title>Ninja Scan — Terms of Service</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --ink: #1b1b2a;
+    --muted: #5b5b6b;
+    --accent: #e94560;
+    --accent-soft: #e9456022;
+    --rule: #e4e1d8;
+    --mask: #16213e;
+  }
+  /* Defaults to light regardless of OS preference — the theme switch
+     script at the bottom always stamps data-theme explicitly on load. */
+  :root[data-theme="dark"] {
+    --bg: #14141f;
+    --surface: #1b1b2c;
+    --ink: #edeef2;
+    --muted: #9a9aae;
+    --accent: #ff6b81;
+    --accent-soft: #ff6b8122;
+    --rule: #2c2c40;
+    --mask: #c5cae9;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --ink: #1b1b2a;
+    --muted: #5b5b6b;
+    --accent: #e94560;
+    --accent-soft: #e9456022;
+    --rule: #e4e1d8;
+    --mask: #16213e;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  body {
+    font-family: ui-sans-serif, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- shared site header ---------- */
+  header.site { padding: 22px 0; border-bottom: 1px solid var(--rule); }
+  header.site .wrap { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 1.05rem; text-decoration: none; color: var(--ink); }
+  .brand svg { width: 34px; height: 34px; flex: none; }
+  .site-links { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .site-links a { text-decoration: none; color: var(--muted); font-size: 0.92rem; }
+  .site-links a:hover { color: var(--ink); }
+  .site-links a.active { color: var(--ink); font-weight: 600; }
+  .switch {
+    display: inline-flex;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .switch button {
+    border: none;
+    background: var(--surface);
+    color: var(--muted);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.02em;
+    padding: 7px 10px;
+    cursor: pointer;
+    border-left: 1px solid var(--rule);
+  }
+  .switch button:first-child { border-left: none; }
+  .switch button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---------- shared site footer ---------- */
+  footer.site { border-top: 1px solid var(--rule); padding: 32px 0 48px; margin-top: 56px; }
+  footer.site .wrap {
+    display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between;
+    align-items: center; font-size: 0.86rem; color: var(--muted);
+  }
+  footer.site nav { display: flex; gap: 22px; flex-wrap: wrap; }
+  footer.site a { text-decoration: none; color: var(--muted); }
+  footer.site a:hover { color: var(--ink); }
+
+  .shell {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 48px 24px 64px;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 680px);
+    gap: 64px;
+    justify-content: center;
+  }
+
+  .rail {
+    position: sticky;
+    top: 48px;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .rail-meta {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+  .rail nav { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--rule); padding-top: 16px; }
+  .rail nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.86rem;
+    padding: 6px 0;
+    display: flex;
+    gap: 10px;
+  }
+  .rail nav a:hover, .rail nav a:focus-visible { color: var(--ink); }
+  .rail nav a .n {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    color: var(--accent);
+    font-size: 0.78rem;
+    flex: none;
+  }
+
+  main { min-width: 0; }
+  .doc-head { margin-bottom: 40px; }
+  .eyebrow {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    font-size: 2.1rem;
+    line-height: 1.15;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .dek { color: var(--muted); font-size: 1.02rem; max-width: 56ch; margin: 0; }
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin: 28px 0 40px;
+    font-size: 0.95rem;
+  }
+  .callout p { margin: 0; }
+  .callout p + p { margin-top: 10px; }
+
+  section { padding-top: 40px; margin-top: 40px; border-top: 1px solid var(--rule); scroll-margin-top: 24px; }
+  section:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+  .sec-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 14px; }
+  .sec-head .n {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    color: var(--accent);
+    font-size: 0.95rem;
+    flex: none;
+  }
+  h2 {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-size: 1.32rem;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+  }
+  p { margin: 0 0 14px; max-width: 66ch; }
+  ul { margin: 0 0 14px; padding-left: 1.2em; max-width: 62ch; }
+  li { margin-bottom: 6px; }
+  strong { font-weight: 650; }
+
+  .doc-foot {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.85rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 32px 20px 72px; }
+    .rail { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 16px; }
+    .rail nav { display: none; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    section { animation: fade 0.4s ease-out both; }
+  }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="-7 -3 60 60" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ninja Scan">
+        <rect x="-7" y="-3" width="60" height="60" rx="11" fill="var(--mask)" />
+        <path fill="var(--accent)" d="M2,19 L12,21 L12,25 L3,25 Z" />
+        <path fill="var(--accent)" d="M4,29 L12,27 L12,31 L6,33 Z" />
+        <path fill="#ffffff" d="M12,4 L34,4 L44,14 L44,50 L12,50 Z" />
+        <path fill="#c5cae9" d="M34,4 L44,14 L34,14 Z" />
+        <path fill="var(--mask)" d="M12,19 L44,19 L44,31 L12,31 Z" />
+        <circle cx="21.5" cy="25" r="2.6" fill="#ffffff" />
+        <circle cx="34.5" cy="25" r="2.6" fill="#ffffff" />
+        <path fill="#90a4ae" d="M17,37 L39,37 L39,40 L17,40 Z M17,44 L33,44 L33,47 L17,47 Z" />
+        <path fill="var(--accent)" d="M14,41.2 L42,41.2 L42,42.8 L14,42.8 Z" />
+      </svg>
+      Ninja Scan
+    </a>
+    <div class="site-links">
+      <a href="index.html">Home</a>
+      <a href="privacy-policy.html">Privacy</a>
+      <a href="terms-of-service.html" class="active">Terms</a>
+      <a href="mailto:me@eugeneboon.com">Contact</a>
+      <div class="switch" role="group" aria-label="Theme">
+        <button type="button" data-theme-choice="light">Light</button>
+        <button type="button" data-theme-choice="dark">Dark</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail">
+    <p class="rail-meta">Terms of Service · v1.0</p>
+    <nav aria-label="Sections">
+      <a href="#acceptance"><span class="n">01</span>Acceptance</a>
+      <a href="#license"><span class="n">02</span>License to use</a>
+      <a href="#content"><span class="n">03</span>Your content</a>
+      <a href="#use"><span class="n">04</span>Acceptable use</a>
+      <a href="#third-party"><span class="n">05</span>Third-party services</a>
+      <a href="#warranty"><span class="n">06</span>No warranty</a>
+      <a href="#liability"><span class="n">07</span>Liability</a>
+      <a href="#availability"><span class="n">08</span>Availability</a>
+      <a href="#termination"><span class="n">09</span>Termination</a>
+      <a href="#law"><span class="n">10</span>Governing law</a>
+      <a href="#changes"><span class="n">11</span>Changes</a>
+      <a href="#contact"><span class="n">12</span>Contact</a>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="doc-head">
+      <p class="eyebrow">Effective July 8, 2026</p>
+      <h1>Terms of Service</h1>
+      <p class="dek">
+        The rules for using Ninja Scan, written the way we'd want them
+        explained to us: plainly, and without surprises.
+      </p>
+    </div>
+
+    <div class="callout">
+      <p><strong>The short version:</strong> Ninja Scan is a free tool. Use
+      it to scan your own documents and cards, keep it lawful, and know that
+      it's provided as-is — we can't guarantee OCR accuracy or that Google's
+      services stay up, and we're not liable if they don't.</p>
+    </div>
+
+    <section id="acceptance">
+      <div class="sec-head"><span class="n">01</span><h2>Acceptance of terms</h2></div>
+      <p>
+        By installing or using Ninja Scan, you agree to these terms. If you
+        don't agree, please don't use the app.
+      </p>
+    </section>
+
+    <section id="license">
+      <div class="sec-head"><span class="n">02</span><h2>License to use the app</h2></div>
+      <p>
+        You're granted a personal, revocable, non-exclusive, non-transferable
+        license to install and use Ninja Scan on devices you own or control,
+        for your own document and business-card scanning. The app's code,
+        name, and logo remain the property of its developer and aren't
+        licensed to you for reuse outside of using the app itself.
+      </p>
+    </section>
+
+    <section id="content">
+      <div class="sec-head"><span class="n">03</span><h2>Your content</h2></div>
+      <p>
+        Everything you scan — documents, business cards, notes, tags — is
+        and stays yours. Ninja Scan doesn't claim any ownership over it, and
+        doesn't transmit it anywhere except a Google Drive folder you
+        control, if you turn backup on. See the
+        <a href="privacy-policy.html">Privacy Policy</a>
+        for the full detail.
+      </p>
+    </section>
+
+    <section id="use">
+      <div class="sec-head"><span class="n">04</span><h2>Acceptable use</h2></div>
+      <p>You agree to use Ninja Scan lawfully, and in particular not to:</p>
+      <ul>
+        <li>Scan, store, or export documents you don't have the right to
+        possess or copy</li>
+        <li>Use the business-card scanner to build contact lists from
+        cards you didn't legitimately receive</li>
+        <li>Attempt to reverse engineer, decompile, or interfere with the
+        app's operation beyond what platform law expressly permits</li>
+      </ul>
+    </section>
+
+    <section id="third-party">
+      <div class="sec-head"><span class="n">05</span><h2>Third-party services</h2></div>
+      <p>
+        Document capture and text recognition run on Google's ML Kit; the
+        optional backup feature uses Google Drive and Google's identity/
+        authorization services; saving a card uses Android's own Contacts
+        app. Each is provided by its own company under its own terms — Ninja
+        Scan isn't responsible for their availability, accuracy, or changes.
+      </p>
+    </section>
+
+    <section id="warranty">
+      <div class="sec-head"><span class="n">06</span><h2>No warranty</h2></div>
+      <p>
+        Ninja Scan is provided <strong>"as is,"</strong> without warranties
+        of any kind. Automatic OCR and field extraction (names, phone
+        numbers, companies, and the like) are heuristic and can be wrong —
+        always check extracted details before relying on them, especially
+        before saving a card to your contacts or exporting a batch.
+      </p>
+    </section>
+
+    <section id="liability">
+      <div class="sec-head"><span class="n">07</span><h2>Limitation of liability</h2></div>
+      <p>
+        To the fullest extent the law allows, the developer of Ninja Scan
+        isn't liable for indirect, incidental, or consequential damages
+        arising from your use of the app — including lost documents, lost
+        contacts, or a failed Drive backup. Because backups are optional and
+        best-effort, keep an independent copy of anything irreplaceable.
+      </p>
+    </section>
+
+    <section id="availability">
+      <div class="sec-head"><span class="n">08</span><h2>Availability &amp; changes</h2></div>
+      <p>
+        Ninja Scan is offered free, with no subscription and no ads. Features
+        may be added, changed, or removed over time, and the app may stop
+        being maintained — we'll do our best to keep your local data readable
+        and exportable (CSV, Excel, PDF) regardless.
+      </p>
+    </section>
+
+    <section id="termination">
+      <div class="sec-head"><span class="n">09</span><h2>Termination</h2></div>
+      <p>
+        You can stop using Ninja Scan at any time by uninstalling it, which
+        removes its local data from your device. You can revoke its access
+        to Google Drive at any time from
+        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.
+      </p>
+    </section>
+
+    <section id="law">
+      <div class="sec-head"><span class="n">10</span><h2>Governing law</h2></div>
+      <p>
+        These terms are governed by the laws of the developer's home
+        jurisdiction, without regard to conflict-of-law principles.
+        <em>(Placeholder — fill in a specific country/state before
+        publishing.)</em>
+      </p>
+    </section>
+
+    <section id="changes">
+      <div class="sec-head"><span class="n">11</span><h2>Changes to these terms</h2></div>
+      <p>
+        If these terms change, the effective date above will be updated, and
+        material changes will be called out in the app's release notes.
+      </p>
+    </section>
+
+    <section id="contact">
+      <div class="sec-head"><span class="n">12</span><h2>Contact</h2></div>
+      <p>
+        Questions about these terms can be sent to
+        <a href="mailto:me@eugeneboon.com">me@eugeneboon.com</a>.
+      </p>
+    </section>
+
+    <div class="doc-foot">
+      <span>Ninja Scan · Terms of Service · effective July 8, 2026</span>
+      <span>Draft — have this reviewed before publishing to an app store listing.</span>
+    </div>
+  </main>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <span>© 2026 Ninja Scan</span>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms-of-service.html">Terms of Service</a>
+      <a href="mailto:me@eugeneboon.com">Contact</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = document.querySelectorAll('[data-theme-choice]');
+    function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+    function applyTheme(theme) {
+      root.setAttribute('data-theme', theme);
+      safeSet('ninjascan-theme', theme);
+      buttons.forEach(function (btn) {
+        btn.setAttribute('aria-pressed', btn.getAttribute('data-theme-choice') === theme ? 'true' : 'false');
+      });
+    }
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () { applyTheme(btn.getAttribute('data-theme-choice')); });
+    });
+    // Always defaults to light, regardless of OS preference, unless the
+    // visitor has explicitly picked dark on this device before.
+    applyTheme(safeGet('ninjascan-theme') === 'dark' ? 'dark' : 'light');
+  })();
+</script>
+</body>
+</html>
