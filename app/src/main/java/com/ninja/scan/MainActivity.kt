@@ -152,6 +152,10 @@ class MainActivity : ComponentActivity() {
                     onShareImages = { ShareActions.shareImages(this, it) },
                     onShareLongImage = { ShareActions.shareLongImage(this, it) },
                     onShareSeparatePdfs = { ShareActions.shareSeparatePdfs(this, it) },
+                    onSharePdfs = { ShareActions.sharePdfs(this, it) },
+                    onShareImagesMulti = { ShareActions.shareImagesMulti(this, it) },
+                    onShareLongImageMulti = { ShareActions.shareLongImageMulti(this, it) },
+                    onShareSeparatePdfsMulti = { ShareActions.shareSeparatePdfsMulti(this, it) },
                     onSaveToCloud = { scan ->
                         viewModel.requestExport(scan)
                         exportLauncher.launch("${scan.title}.pdf")

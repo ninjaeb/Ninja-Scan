@@ -81,6 +81,31 @@ class CardParserTest {
     }
 
     @Test
+    fun `stacked name and title beat a taller unrelated logo line`() {
+        val lines = listOf(
+            line("SiGNMASTR.", top = 0, left = 0, right = 300, bottom = 80),
+            line("Wilson Choo", top = 150, left = 0, right = 180, bottom = 170),
+            line("Chief Operating Officer", top = 175, left = 0, right = 280, bottom = 195),
+        )
+        val card = CardParser.parse(lines)
+        assertEquals("Wilson Choo", card.name)
+        assertEquals("Chief Operating Officer", card.jobTitle)
+    }
+
+    @Test
+    fun `falls back to keyword scan when no name-title line is directly adjacent`() {
+        val lines = listOf(
+            line("Jane Smith", top = 0, bottom = 20),
+            line("Acme Solutions Ltd", top = 20, bottom = 40),
+            line("Senior Consultant", top = 40, bottom = 60),
+            line("jane.smith@acme.com", top = 60, bottom = 80),
+        )
+        val card = CardParser.parse(lines)
+        assertEquals("Jane Smith", card.name)
+        assertEquals("Senior Consultant", card.jobTitle)
+    }
+
+    @Test
     fun `splitLineIntoColumns separates a wide gap but keeps a normal word gap together`() {
         val wideGap = listOf(
             line("Wong", top = 0, left = 0, right = 100),

@@ -37,17 +37,22 @@ Dropbox, or any other cloud provider.
   OCR text, and re-queue the scan for Drive backup.
 - **Share in any format** — Share opens a format sheet: PDF, per-page
   JPEG images, one tall "long image", or every page as its own PDF
-  (all watermarked when a watermark is set).
-- **Viewer action bar** — an open document has Edit / Share / To cloud
-  at the bottom; each list row's menu offers Share, Rename, Delete,
-  Save to cloud, and Move to folder.
+  (all watermarked when a watermark is set). Shared/exported files are
+  named after the document with a "-scan-with-Ninja-Scan-App" suffix,
+  and the share sheet includes a promotional caption. Long-press a
+  document in the library to select several at once and share them
+  together in one chooser.
+- **Viewer action bar** — an open document has Add watermark / Add Scan /
+  Share / Edit / Save at the bottom; each list row's menu offers Share,
+  Rename, Delete, Save to cloud, and Move to folder.
 - **Business card search, notes, and tags** — search across every card
   field; tap a card to open a full-page editor (scanned card image, a
   taller address box, notes, and comma-separated tags). Field extraction
   is layout-aware: ML Kit's per-line bounding boxes are used to split
   side-by-side columns (e.g. a name and job title printed next to each
-  other) before the name/company/title heuristics run, and the most
-  prominent (tallest) line is preferred as the name.
+  other) before the name/company/title heuristics run, and a name line
+  with a job-title-shaped line directly below it is preferred over the
+  tallest-line fallback (so a large logo doesn't outrank the real name).
 - **Name and organize on save** — right after a scan is saved, a dialog
   offers to rename it and file it into a folder (or skip).
 - **Originals kept** — the untouched full-resolution captures are stored

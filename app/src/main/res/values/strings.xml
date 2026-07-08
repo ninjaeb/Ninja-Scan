@@ -47,6 +47,7 @@
     <string name="scan_card">Scan card</string>
     <string name="scan_business_card">Scan business card</string>
     <string name="save_to_contacts">Save to phone contacts</string>
+    <string name="export_contacts">Export contacts</string>
     <string name="export_csv">Export as CSV</string>
     <string name="export_excel">Export as Excel</string>
     <string name="exported_contacts">Contacts exported</string>
@@ -78,4 +79,9 @@
     <string name="remove_from_folder">Remove from folder</string>
     <string name="all_scans">All</string>
     <string name="move">Move</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="documents_selected">%1$d documents selected</string>
+    <string name="share_multiple_subject">%1$d documents</string>
+    <string name="share_caption">Scan with Ninja Scan App, no ads, free, no watermark</string>
+    <string name="add_scan">Add Scan</string>
 </resources>

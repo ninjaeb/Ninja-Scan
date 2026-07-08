@@ -41,6 +41,10 @@ object CardParser {
         "building", "tower", "plaza", "park", "city", "state", "postcode",
     )
 
+    private const val NAME_TITLE_GAP_HEIGHT_MULTIPLIER = 1.5
+    private const val NAME_TITLE_MIN_GAP_PX = 8
+    private const val NAME_TITLE_HORIZONTAL_SLACK_PX = 20
+
     /**
      * Compatibility entry point for plain OCR text with no layout info.
      * Degrades to line-order ranking (equivalent to the pre-layout-aware
@@ -98,7 +102,15 @@ object CardParser {
                     !(phoneRegex.containsMatchIn(text) && text.count(Char::isDigit) >= 7)
             }
 
-        val jobTitle = remaining.firstOrNull { (_, text) ->
+        // High-confidence signal: a name-shaped line with a job-title-shaped
+        // line directly below it (how most cards actually lay out a
+        // contact's details). Takes priority over the keyword-anywhere scan
+        // and the tallest-line ranking below, since neither of those account
+        // for position — a large stylized company logo can otherwise easily
+        // out-rank the real (smaller-font) name.
+        val pair = findNameTitlePair(remaining)
+
+        val jobTitle = pair?.second?.text ?: remaining.firstOrNull { (_, text) ->
             val lower = text.lowercase()
             text.count(Char::isDigit) == 0 && titleHints.any { lower.contains(it) }
         }?.text.orEmpty()
@@ -110,7 +122,7 @@ object CardParser {
             }
         }?.text.orEmpty()
 
-        val name = selectName(remaining, jobTitle, company)
+        val name = pair?.first?.text ?: selectName(remaining, jobTitle, company)
 
         // Address: the leftover lines that actually look like an address.
         val address = remaining
@@ -133,6 +145,67 @@ object CardParser {
         )
     }
 
+    private fun isAddressLike(text: String): Boolean {
+        val lower = text.lowercase()
+        return addressHints.any { lower.contains(it) }
+    }
+
+    private fun looksLikeCompany(text: String): Boolean = companyHints.any { hint ->
+        Regex("(?i)(^|[\\s.,&])${Regex.escape(hint)}([\\s.,&]|$)").containsMatchIn(text)
+    }
+
+    private fun looksLikeName(text: String): Boolean {
+        if (text.length !in 3..40 || text.any(Char::isDigit)) return false
+        val words = text.split(Regex("\\s+"))
+        return words.size in 1..4 && words.all { word ->
+            word.firstOrNull()?.isLetter() == true &&
+                (word.first().isUpperCase() || word.none(Char::isLowerCase))
+        }
+    }
+
+    private fun couldBeName(text: String): Boolean =
+        text.length in 3..40 && text.none(Char::isDigit) && !isAddressLike(text)
+
+    private fun matchesTitleHint(text: String): Boolean {
+        val lower = text.lowercase()
+        return text.count(Char::isDigit) == 0 && titleHints.any { lower.contains(it) }
+    }
+
+    private fun gapOk(a: OcrLine, b: OcrLine): Boolean {
+        val gap = b.top - a.bottom
+        if (gap < 0) return false
+        return gap <= maxOf((a.height * NAME_TITLE_GAP_HEIGHT_MULTIPLIER).toInt(), NAME_TITLE_MIN_GAP_PX)
+    }
+
+    private fun horizontallyAligned(a: OcrLine, b: OcrLine): Boolean {
+        val left = maxOf(a.left, b.left)
+        val right = minOf(a.right, b.right)
+        return right >= left || (left - right) <= NAME_TITLE_HORIZONTAL_SLACK_PX
+    }
+
+    /**
+     * Topmost-first search for a name line immediately followed (in the same
+     * column) by a job-title-shaped line. Returns null if no such adjacency
+     * exists anywhere on the card, so callers can fall back to the
+     * independent keyword/height-based heuristics.
+     */
+    private fun findNameTitlePair(candidates: List<Candidate>): Pair<Candidate, Candidate>? {
+        val byTop = candidates.sortedBy { it.line.top }
+        for (a in byTop) {
+            // Company-shaped lines are excluded from name candidacy here:
+            // otherwise a company name sitting directly above an unrelated
+            // job-title line elsewhere on the card could be picked as the
+            // "name" instead of the real person's name.
+            if (!looksLikeName(a.text) || isAddressLike(a.text) || looksLikeCompany(a.text)) continue
+            val nearestBelow = byTop
+                .filter { it !== a && gapOk(a.line, it.line) && horizontallyAligned(a.line, it.line) }
+                .minByOrNull { it.line.top - a.line.bottom }
+                ?: continue
+            if (matchesTitleHint(nearestBelow.text)) return a to nearestBelow
+        }
+        return null
+    }
+
     /**
      * Picks the most likely person's name from the remaining candidates,
      * preferring a strict Title-Case/ALL-CAPS shape and, among ties,
@@ -140,29 +213,13 @@ object CardParser {
      * often the name on a business card) and then the topmost position.
      * The relaxed fallback still excludes digits and address-like text, so
      * an address line can never be picked — unlike the old loose fallback.
+     * Only used when [findNameTitlePair] finds no positional match.
      */
     private fun selectName(
         remaining: List<Candidate>,
         jobTitle: String,
         company: String,
     ): String {
-        fun isAddressLike(text: String): Boolean {
-            val lower = text.lowercase()
-            return addressHints.any { lower.contains(it) }
-        }
-
-        fun looksLikeName(text: String): Boolean {
-            if (text.length !in 3..40 || text.any(Char::isDigit)) return false
-            val words = text.split(Regex("\\s+"))
-            return words.size in 1..4 && words.all { word ->
-                word.firstOrNull()?.isLetter() == true &&
-                    (word.first().isUpperCase() || word.none(Char::isLowerCase))
-            }
-        }
-
-        fun couldBeName(text: String): Boolean =
-            text.length in 3..40 && text.none(Char::isDigit) && !isAddressLike(text)
-
         val candidates = remaining.filter { (_, text) -> text != jobTitle && text != company }
         val strict = candidates.filter { (_, text) -> looksLikeName(text) && !isAddressLike(text) }
         val relaxed = candidates.filter { (_, text) -> couldBeName(text) }

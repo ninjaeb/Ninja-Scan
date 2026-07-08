@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,9 +21,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.BrandingWatermark
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,8 +35,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -57,8 +63,12 @@ import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.editor.PageEditorActivity
 import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.PdfEditor
 import com.ninja.scan.util.ShareActions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -67,8 +77,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Displays a scanned PDF in-app with a bottom action bar:
- * Edit pages / Share (format sheet) / Save to cloud.
+ * Displays a scanned PDF in-app with a bottom action bar: Add watermark /
+ * Add Scan / Share (format sheet) / Edit pages / Save (to cloud).
  */
 class PdfViewerActivity : ComponentActivity() {
 
@@ -104,6 +114,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
 
     var scan by remember { mutableStateOf<ScanDocument?>(null) }
     var sharing by remember { mutableStateOf(false) }
+    var editingWatermark by remember { mutableStateOf(false) }
 
     LaunchedEffect(scanId) {
         val loaded = app.repository.getScan(scanId)
@@ -116,6 +127,24 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
         val current = scan
         if (destination != null && current != null) {
             scope.launch { app.repository.exportTo(current, destination) }
+        }
+    }
+
+    val addScanLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { activityResult ->
+        val newUris = GmsDocumentScanningResult.fromActivityResultIntent(activityResult.data)
+            ?.pages.orEmpty().map { it.imageUri }
+        val current = scan
+        if (newUris.isNotEmpty() && current != null) {
+            scope.launch {
+                val existingCount = withContext(Dispatchers.IO) {
+                    PdfEditor.pageCount(File(current.pdfPath))
+                }
+                val allPages = List(existingCount) { EditPage.FromPdf(it) } +
+                    newUris.map { EditPage.FromImage(it) }
+                scan = app.repository.applyPageEdits(current.id, allPages, current.watermark)
+            }
         }
     }
 
@@ -136,13 +165,22 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 NavigationBarItem(
                     selected = false,
                     enabled = current != null,
+                    onClick = { editingWatermark = true },
+                    icon = { Icon(Icons.Filled.BrandingWatermark, contentDescription = null) },
+                    label = { Text(stringResource(R.string.watermark)) },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = current != null,
                     onClick = {
-                        current?.let {
-                            context.startActivity(PageEditorActivity.intent(context, it.id))
-                        }
+                        GmsDocumentScanning.getClient(addScanOptions)
+                            .getStartScanIntent(activity)
+                            .addOnSuccessListener { sender ->
+                                addScanLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                            }
                     },
-                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                    label = { Text(stringResource(R.string.edit)) },
+                    icon = { Icon(Icons.Filled.AddAPhoto, contentDescription = null) },
+                    label = { Text(stringResource(R.string.add_scan)) },
                 )
                 NavigationBarItem(
                     selected = false,
@@ -154,9 +192,20 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 NavigationBarItem(
                     selected = false,
                     enabled = current != null,
+                    onClick = {
+                        current?.let {
+                            context.startActivity(PageEditorActivity.intent(context, it.id))
+                        }
+                    },
+                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                    label = { Text(stringResource(R.string.edit)) },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = current != null,
                     onClick = { current?.let { exportLauncher.launch("${it.title}.pdf") } },
                     icon = { Icon(Icons.Filled.CloudUpload, contentDescription = null) },
-                    label = { Text(stringResource(R.string.to_cloud)) },
+                    label = { Text(stringResource(R.string.save)) },
                 )
             }
         },
@@ -171,7 +220,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 CircularProgressIndicator()
             }
         } else {
-            val session = remember(current.pdfPath, current.watermark) {
+            val session = remember(current.pdfPath, current.watermark, current.pageCount) {
                 PdfSession(File(current.pdfPath), current.watermark)
             }
             DisposableEffect(session) {
@@ -205,7 +254,43 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
             },
         )
     }
+
+    if (editingWatermark && current != null) {
+        var text by remember(current.id) { mutableStateOf(current.watermark.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { editingWatermark = false },
+            title = { Text(stringResource(R.string.watermark)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.watermark_hint)) },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    editingWatermark = false
+                    scope.launch { scan = app.repository.updateWatermark(current, text) }
+                }) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingWatermark = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 }
+
+private val addScanOptions = GmsDocumentScannerOptions.Builder()
+    .setGalleryImportAllowed(true)
+    .setPageLimit(50)
+    .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+    .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+    .build()
 
 @Composable
 private fun PdfPage(session: PdfSession, index: Int, targetWidthPx: Int) {

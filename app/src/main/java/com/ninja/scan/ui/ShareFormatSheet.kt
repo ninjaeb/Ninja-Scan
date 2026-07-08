@@ -51,8 +51,49 @@ fun ShareFormatSheet(
     onLongImage: () -> Unit,
     onSeparatePdfs: () -> Unit,
 ) {
+    ShareFormatSheetBody(
+        header = { ScanSheetHeader(scan) },
+        onDismiss = onDismiss,
+        onPdf = onPdf,
+        onImages = onImages,
+        onLongImage = onLongImage,
+        onSeparatePdfs = onSeparatePdfs,
+    )
+}
+
+/** Same format choices, batched over several selected documents at once. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ShareFormatSheet(
+    scans: List<ScanDocument>,
+    onDismiss: () -> Unit,
+    onPdf: () -> Unit,
+    onImages: () -> Unit,
+    onLongImage: () -> Unit,
+    onSeparatePdfs: () -> Unit,
+) {
+    ShareFormatSheetBody(
+        header = { MultiScanSheetHeader(scans) },
+        onDismiss = onDismiss,
+        onPdf = onPdf,
+        onImages = onImages,
+        onLongImage = onLongImage,
+        onSeparatePdfs = onSeparatePdfs,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ShareFormatSheetBody(
+    header: @Composable () -> Unit,
+    onDismiss: () -> Unit,
+    onPdf: () -> Unit,
+    onImages: () -> Unit,
+    onLongImage: () -> Unit,
+    onSeparatePdfs: () -> Unit,
+) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        ScanSheetHeader(scan)
+        header()
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         SheetAction(Icons.Filled.PictureAsPdf, stringResource(R.string.share_as_pdf), onClick = onPdf)
         SheetAction(Icons.Filled.Image, stringResource(R.string.share_as_images), onClick = onImages)
@@ -94,6 +135,34 @@ internal fun ScanSheetHeader(scan: ScanDocument) {
                 else stringResource(R.string.pages, scan.pageCount)
             Text(
                 "$pages · ${Formatter.formatShortFileSize(context, scan.sizeBytes)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MultiScanSheetHeader(scans: List<ScanDocument>) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text(
+                stringResource(R.string.documents_selected, scans.size),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            val totalPages = scans.sumOf { it.pageCount }
+            val pages =
+                if (totalPages == 1) stringResource(R.string.page)
+                else stringResource(R.string.pages, totalPages)
+            val totalSize = scans.sumOf { it.sizeBytes }
+            Text(
+                "$pages · ${Formatter.formatShortFileSize(context, totalSize)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

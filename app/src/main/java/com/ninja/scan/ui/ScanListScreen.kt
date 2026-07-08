@@ -1,5 +1,8 @@
 package com.ninja.scan.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ContactPage
@@ -24,9 +28,12 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -45,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,7 +68,6 @@ import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
 import android.text.format.DateUtils
 import android.text.format.Formatter
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
 
@@ -87,6 +94,10 @@ fun ScanListScreen(
     onShareImages: (ScanDocument) -> Unit,
     onShareLongImage: (ScanDocument) -> Unit,
     onShareSeparatePdfs: (ScanDocument) -> Unit,
+    onSharePdfs: (List<ScanDocument>) -> Unit,
+    onShareImagesMulti: (List<ScanDocument>) -> Unit,
+    onShareLongImageMulti: (List<ScanDocument>) -> Unit,
+    onShareSeparatePdfsMulti: (List<ScanDocument>) -> Unit,
     onSaveToCloud: (ScanDocument) -> Unit,
     onRename: (ScanDocument, String) -> Unit,
     onMoveToFolder: (ScanDocument, String?) -> Unit,
@@ -107,22 +118,48 @@ fun ScanListScreen(
     var movingScan by remember { mutableStateOf<ScanDocument?>(null) }
     var deletingScan by remember { mutableStateOf<ScanDocument?>(null) }
 
+    // Long-press a row to pick several scans and share them together.
+    val selectedIds = remember { mutableStateListOf<Long>() }
+    val selectionActive = selectedIds.isNotEmpty()
+    var multiSharingScans by remember { mutableStateOf<List<ScanDocument>?>(null) }
+    BackHandler(enabled = selectionActive) { selectedIds.clear() }
+
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                actions = {
-                    IconButton(onClick = onToggleDriveBackup) {
-                        Icon(
-                            if (driveBackupEnabled) Icons.Filled.CloudDone
-                            else Icons.Filled.CloudOff,
-                            contentDescription = stringResource(R.string.drive_backup),
-                            tint = if (driveBackupEnabled) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-            )
+            if (selectionActive) {
+                CenterAlignedTopAppBar(
+                    title = { Text(stringResource(R.string.selected_count, selectedIds.size)) },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedIds.clear() }) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cancel))
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                multiSharingScans = scans.filter { it.id in selectedIds }
+                            },
+                        ) {
+                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
+                        }
+                    },
+                )
+            } else {
+                CenterAlignedTopAppBar(
+                    title = { Text(stringResource(R.string.app_name)) },
+                    actions = {
+                        IconButton(onClick = onToggleDriveBackup) {
+                            Icon(
+                                if (driveBackupEnabled) Icons.Filled.CloudDone
+                                else Icons.Filled.CloudOff,
+                                contentDescription = stringResource(R.string.drive_backup),
+                                tint = if (driveBackupEnabled) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
@@ -226,7 +263,13 @@ fun ScanListScreen(
                     items(scans, key = { it.id }) { scan ->
                         ScanRow(
                             scan = scan,
+                            selectionMode = selectionActive,
+                            selected = scan.id in selectedIds,
                             onClick = { onOpen(scan) },
+                            onToggleSelect = {
+                                if (scan.id in selectedIds) selectedIds.remove(scan.id)
+                                else selectedIds.add(scan.id)
+                            },
                             onShare = { sharingScan = scan },
                             onRename = { renamingScan = scan },
                             onDelete = { deletingScan = scan },
@@ -247,6 +290,21 @@ fun ScanListScreen(
             onImages = { sharingScan = null; onShareImages(scan) },
             onLongImage = { sharingScan = null; onShareLongImage(scan) },
             onSeparatePdfs = { sharingScan = null; onShareSeparatePdfs(scan) },
+        )
+    }
+
+    multiSharingScans?.let { list ->
+        ShareFormatSheet(
+            scans = list,
+            onDismiss = { multiSharingScans = null },
+            onPdf = { multiSharingScans = null; selectedIds.clear(); onSharePdfs(list) },
+            onImages = { multiSharingScans = null; selectedIds.clear(); onShareImagesMulti(list) },
+            onLongImage = {
+                multiSharingScans = null; selectedIds.clear(); onShareLongImageMulti(list)
+            },
+            onSeparatePdfs = {
+                multiSharingScans = null; selectedIds.clear(); onShareSeparatePdfsMulti(list)
+            },
         )
     }
 
@@ -475,10 +533,14 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ScanRow(
     scan: ScanDocument,
+    selectionMode: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
+    onToggleSelect: () -> Unit,
     onShare: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -487,14 +549,27 @@ private fun ScanRow(
 ) {
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surface,
+        ),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = { if (selectionMode) onToggleSelect() else onClick() },
+                    onLongClick = onToggleSelect,
+                )
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+                Spacer(Modifier.width(8.dp))
+            }
             val thumbnail = scan.thumbnailPath?.let { File(it) }?.takeIf { it.exists() }
             if (thumbnail != null) {
                 AsyncImage(
@@ -541,7 +616,7 @@ private fun ScanRow(
                     }
                 }
             }
-            Box {
+            if (!selectionMode) Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = null)
                 }

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -224,7 +225,10 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
                             onClick = { exportMenuOpen = true },
                             enabled = cards.isNotEmpty(),
                         ) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = null)
+                            Icon(
+                                Icons.Filled.FileDownload,
+                                contentDescription = stringResource(R.string.export_contacts),
+                            )
                         }
                         DropdownMenu(
                             expanded = exportMenuOpen,

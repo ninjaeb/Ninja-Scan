@@ -59,6 +59,21 @@ class ScanRepository(
         dao.setFolder(scan.id, folder?.trim()?.takeIf { it.isNotEmpty() })
 
     /**
+     * Updates the on-the-fly watermark text without touching the stored PDF
+     * (it is stamped in at render/share/export time, per [applyPageEdits]).
+     */
+    suspend fun updateWatermark(scan: ScanDocument, watermark: String?): ScanDocument =
+        withContext(Dispatchers.IO) {
+            val cleaned = watermark?.trim()?.takeIf { it.isNotEmpty() }
+            val updated = scan.copy(
+                watermark = cleaned,
+                driveFileId = if (cleaned != scan.watermark) null else scan.driveFileId,
+            )
+            dao.update(updated)
+            updated
+        }
+
+    /**
      * Replaces a scan's PDF with a rebuilt version from the editor: pages
      * reordered/rotated/removed/added. The watermark is NOT baked into the
      * stored PDF — it is saved on the scan and stamped on the fly when the
@@ -217,20 +232,27 @@ class ScanRepository(
     private val shareDir: File
         get() = File(context.cacheDir, "share").apply { mkdirs() }
 
-    private fun shareBaseName(scan: ScanDocument): String =
-        scan.title.replace(Regex("[^A-Za-z0-9 ._-]"), "_").ifBlank { "scan-${scan.id}" }
+    private fun shareBaseName(scan: ScanDocument): String {
+        val sanitized =
+            scan.title.replace(Regex("[^A-Za-z0-9 ._-]"), "_").ifBlank { "scan-${scan.id}" }
+        return "$sanitized-scan-with-Ninja-Scan-App"
+    }
 
     /**
-     * Returns the PDF to hand to other apps: the stored file as-is when the
-     * scan has no watermark, otherwise a watermarked copy in the cache.
+     * Returns the PDF to hand to other apps: a named copy of the stored file
+     * (watermarked when set) so shared/exported files carry a recognizable
+     * name instead of the internal storage filename.
      */
     suspend fun preparePdfForSharing(scan: ScanDocument): File = withContext(Dispatchers.IO) {
         val source = File(scan.pdfPath)
-        val watermark = scan.watermark?.takeIf { it.isNotBlank() }
-            ?: return@withContext source
         val target = File(shareDir, "${shareBaseName(scan)}.pdf")
-        check(PdfEditor.writeWatermarkedCopy(context, source, watermark, target) > 0) {
-            "Could not prepare the document"
+        val watermark = scan.watermark?.takeIf { it.isNotBlank() }
+        if (watermark != null) {
+            check(PdfEditor.writeWatermarkedCopy(context, source, watermark, target) > 0) {
+                "Could not prepare the document"
+            }
+        } else {
+            source.copyTo(target, overwrite = true)
         }
         target
     }

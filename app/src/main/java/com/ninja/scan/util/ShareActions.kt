@@ -6,7 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import com.ninja.scan.DocScannerApp
+import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
+import com.ninja.scan.data.ScanRepository
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -41,10 +43,34 @@ object ShareActions {
         }
     }
 
+    fun sharePdfs(activity: ComponentActivity, scans: List<ScanDocument>) {
+        launchShareMulti(activity, scans) { repository, scan ->
+            listOf(repository.preparePdfForSharing(scan)) to "application/pdf"
+        }
+    }
+
+    fun shareImagesMulti(activity: ComponentActivity, scans: List<ScanDocument>) {
+        launchShareMulti(activity, scans) { repository, scan ->
+            repository.preparePageImages(scan) to "image/jpeg"
+        }
+    }
+
+    fun shareLongImageMulti(activity: ComponentActivity, scans: List<ScanDocument>) {
+        launchShareMulti(activity, scans) { repository, scan ->
+            listOf(repository.prepareLongImage(scan)) to "image/jpeg"
+        }
+    }
+
+    fun shareSeparatePdfsMulti(activity: ComponentActivity, scans: List<ScanDocument>) {
+        launchShareMulti(activity, scans) { repository, scan ->
+            repository.prepareSeparatePdfs(scan) to "application/pdf"
+        }
+    }
+
     private inline fun launchShare(
         activity: ComponentActivity,
         scan: ScanDocument,
-        crossinline prepare: suspend (com.ninja.scan.data.ScanRepository) -> Pair<List<File>, String>,
+        crossinline prepare: suspend (ScanRepository) -> Pair<List<File>, String>,
     ) {
         val repository = (activity.application as DocScannerApp).repository
         activity.lifecycleScope.launch {
@@ -64,9 +90,54 @@ object ShareActions {
                 }
             }.apply {
                 putExtra(Intent.EXTRA_SUBJECT, scan.title)
+                putExtra(Intent.EXTRA_TEXT, activity.getString(R.string.share_caption))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             activity.startActivity(Intent.createChooser(intent, scan.title))
+        }
+    }
+
+    /**
+     * Same as [launchShare] but prepares every scan's files (best-effort per
+     * scan — one failure doesn't block the others) and shares them together.
+     */
+    private inline fun launchShareMulti(
+        activity: ComponentActivity,
+        scans: List<ScanDocument>,
+        crossinline prepare: suspend (ScanRepository, ScanDocument) -> Pair<List<File>, String>,
+    ) {
+        val repository = (activity.application as DocScannerApp).repository
+        activity.lifecycleScope.launch {
+            var mimeType = "application/pdf"
+            val files = scans.flatMap { scan ->
+                runCatching { prepare(repository, scan) }.getOrNull()?.let { (scanFiles, mime) ->
+                    mimeType = mime
+                    scanFiles
+                }.orEmpty()
+            }
+            if (files.isEmpty()) return@launch
+            val uris = ArrayList(files.map { contentUri(activity, it) })
+            val subject = if (scans.size == 1) {
+                scans.first().title
+            } else {
+                activity.getString(R.string.share_multiple_subject, scans.size)
+            }
+            val intent = if (uris.size == 1) {
+                Intent(Intent.ACTION_SEND).apply {
+                    type = mimeType
+                    putExtra(Intent.EXTRA_STREAM, uris.first())
+                }
+            } else {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = mimeType
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                }
+            }.apply {
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, activity.getString(R.string.share_caption))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            activity.startActivity(Intent.createChooser(intent, subject))
         }
     }
 
