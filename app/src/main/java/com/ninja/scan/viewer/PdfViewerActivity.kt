@@ -42,6 +42,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,6 +69,7 @@ import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.editor.PageEditorActivity
+import com.ninja.scan.ui.SaveFormatSheet
 import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.util.EditPage
@@ -84,7 +87,7 @@ import java.io.File
 
 /**
  * Displays a scanned PDF in-app with a bottom action bar: Add watermark /
- * Add Scan / Share (format sheet) / Edit pages / Save (to cloud).
+ * Add Scan / Share (format sheet) / Edit pages / Save (PDF or images).
  */
 class PdfViewerActivity : ComponentActivity() {
 
@@ -120,8 +123,10 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
 
     var scan by remember { mutableStateOf<ScanDocument?>(null) }
     var sharing by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
     var editingWatermark by remember { mutableStateOf(false) }
     var renamingTitle by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(scanId) {
         val loaded = app.repository.getScan(scanId)
@@ -190,6 +195,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
@@ -233,7 +239,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 NavigationBarItem(
                     selected = false,
                     enabled = current != null,
-                    onClick = { current?.let { exportLauncher.launch("${it.title}.pdf") } },
+                    onClick = { saving = true },
                     icon = { Icon(Icons.Filled.CloudUpload, contentDescription = null) },
                     label = { BarLabel(stringResource(R.string.save)) },
                 )
@@ -281,6 +287,26 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
             onLongImage = { sharing = false; ShareActions.shareLongImage(activity, current) },
             onSeparatePdfs = {
                 sharing = false; ShareActions.shareSeparatePdfs(activity, current)
+            },
+        )
+    }
+
+    if (saving && current != null) {
+        SaveFormatSheet(
+            scan = current,
+            onDismiss = { saving = false },
+            onPdf = { saving = false; exportLauncher.launch("${current.title}.pdf") },
+            onImages = {
+                saving = false
+                scope.launch {
+                    val count = app.repository.saveImagesToDevice(current)
+                    val message = if (count > 0) {
+                        context.getString(R.string.saved_images_to_device, count)
+                    } else {
+                        context.getString(R.string.save_images_failed)
+                    }
+                    snackbarHostState.showSnackbar(message)
+                }
             },
         )
     }

@@ -10,6 +10,11 @@
     <!-- Uploading backups to Google Drive -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Saving scanned pages as images to the device gallery pre-scoped-storage -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <application
         android:name=".DocScannerApp"
         android:allowBackup="true"

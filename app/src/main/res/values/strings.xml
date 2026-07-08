@@ -40,6 +40,10 @@
     <string name="watermark_hint">Text stamped diagonally across every page when the document is viewed, shared, or uploaded. Clear the text to remove the watermark.</string>
     <string name="share_as_images">Share as images</string>
     <string name="share_as_pdf">Share as PDF</string>
+    <string name="save_as_pdf">Save as PDF</string>
+    <string name="save_as_images">Save as images</string>
+    <string name="saved_images_to_device">Saved %1$d images to Pictures/Ninja Scan</string>
+    <string name="save_images_failed">Could not save images</string>
     <string name="share_as_long_image">Share as long image</string>
     <string name="export_separate_pdfs">Export pages as separate PDFs</string>
     <string name="to_cloud">To cloud</string>

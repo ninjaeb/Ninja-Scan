@@ -189,3 +189,21 @@ internal fun SheetAction(
         Text(label, style = MaterialTheme.typography.bodyLarge, color = tint)
     }
 }
+
+/** "How do you want to save this?" sheet: PDF, or every page as an image. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SaveFormatSheet(
+    scan: ScanDocument,
+    onDismiss: () -> Unit,
+    onPdf: () -> Unit,
+    onImages: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        ScanSheetHeader(scan)
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        SheetAction(Icons.Filled.PictureAsPdf, stringResource(R.string.save_as_pdf), onClick = onPdf)
+        SheetAction(Icons.Filled.Image, stringResource(R.string.save_as_images), onClick = onImages)
+        Spacer(Modifier.height(24.dp))
+    }
+}

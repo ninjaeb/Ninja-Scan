@@ -1,8 +1,15 @@
 package com.ninja.scan.data
 
+import android.Manifest
+import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveFile
 import com.ninja.scan.drive.DriveManifest
@@ -445,6 +452,53 @@ class ScanRepository(
                 shareBaseName(scan),
             )
         }
+
+    /**
+     * Saves the scan's pages (watermarked if set) as JPEGs into the device's
+     * Pictures/Ninja Scan gallery folder. Returns how many pages were saved.
+     */
+    suspend fun saveImagesToDevice(scan: ScanDocument): Int = withContext(Dispatchers.IO) {
+        preparePageImages(scan).count { file ->
+            val uri = insertGalleryImage(file) ?: return@count false
+            context.contentResolver.openOutputStream(uri)?.use { output ->
+                file.inputStream().use { it.copyTo(output) }
+            } != null
+        }
+    }
+
+    /**
+     * Below API 29 (scoped storage), writing to the public Pictures folder
+     * needs WRITE_EXTERNAL_STORAGE and an explicit file path — a real but
+     * vanishingly rare case, so we degrade to "nothing saved" rather than
+     * build a runtime permission-request flow for it.
+     */
+    private fun insertGalleryImage(file: File): Uri? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return null
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, file.name)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_PICTURES}/${DriveBackup.FOLDER_NAME}",
+                )
+            } else {
+                val dir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                    DriveBackup.FOLDER_NAME,
+                )
+                dir.mkdirs()
+                @Suppress("DEPRECATION")
+                put(MediaStore.Images.Media.DATA, File(dir, file.name).absolutePath)
+            }
+        }
+        return context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+    }
 
     /** Stitches all pages into one tall shareable JPEG ("long image"). */
     suspend fun prepareLongImage(scan: ScanDocument): File = withContext(Dispatchers.IO) {
