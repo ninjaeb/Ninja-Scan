@@ -87,6 +87,7 @@
     <string name="new_folder_hint">New folder name</string>
     <string name="remove_from_folder">Remove from folder</string>
     <string name="all_scans">All</string>
+    <string name="all_cards">All</string>
     <string name="move">Move</string>
     <string name="selected_count">%1$d selected</string>
     <string name="documents_selected">%1$d documents selected</string>

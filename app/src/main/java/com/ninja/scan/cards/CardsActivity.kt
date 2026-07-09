@@ -16,6 +16,7 @@ import androidx.work.WorkInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -266,18 +267,20 @@ private fun CardsScreen(
     }
 
     val cards by app.repository.cards.collectAsState(initial = emptyList())
+    val allTags by app.repository.tags.collectAsState(initial = emptyList())
     var draft by remember { mutableStateOf<BusinessCard?>(null) }
     var deleting by remember { mutableStateOf<BusinessCard?>(null) }
     var parsing by remember { mutableStateOf(false) }
     var exportMenuOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var tagFilter by remember { mutableStateOf<Long?>(null) }
 
     // Refreshed whenever the card list changes, and when returning from the
     // detail screen (tag edits there don't touch the `cards` Flow itself).
     var tagsByCard by remember { mutableStateOf<Map<Long, List<Tag>>>(emptyMap()) }
     LaunchedEffect(cards, draft) { tagsByCard = app.repository.getCardTagsByCard() }
 
-    val filteredCards = if (searchQuery.isBlank()) cards else cards.filter { card ->
+    val searchFiltered = if (searchQuery.isBlank()) cards else cards.filter { card ->
         val query = searchQuery.trim()
         listOf(
             card.name, card.company, card.jobTitle, card.phone,
@@ -285,6 +288,9 @@ private fun CardsScreen(
         ).any { it.contains(query, ignoreCase = true) } ||
             tagsByCard[card.id].orEmpty().any { it.title.contains(query, ignoreCase = true) }
     }
+    val filteredCards = tagFilter?.let { id ->
+        searchFiltered.filter { card -> tagsByCard[card.id].orEmpty().any { it.id == id } }
+    } ?: searchFiltered
 
     val scannerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -506,6 +512,29 @@ private fun CardsScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+            }
+            if (allTags.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp),
+                ) {
+                    item {
+                        LongPressableChip(
+                            label = stringResource(R.string.all_cards),
+                            selected = tagFilter == null,
+                            onClick = { tagFilter = null },
+                        )
+                    }
+                    items(allTags, key = { it.id }) { tag ->
+                        LongPressableChip(
+                            label = tag.title,
+                            selected = tagFilter == tag.id,
+                            leadingDot = hexToColor(tag.color),
+                            onClick = { tagFilter = if (tagFilter == tag.id) null else tag.id },
+                        )
+                    }
+                }
             }
             when {
                 parsing -> Box(

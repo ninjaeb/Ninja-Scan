@@ -1,6 +1,7 @@
 package com.ninja.scan.drive
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -79,6 +80,7 @@ class DriveBackupWorker(
                 } catch (e: DriveAuthException) {
                     return@withContext Result.retry()
                 } catch (e: Exception) {
+                    Log.w(TAG, "Upload failed for scan ${scan.id}", e)
                     failures++
                 }
             }
@@ -96,6 +98,7 @@ class DriveBackupWorker(
                 } catch (e: DriveAuthException) {
                     return@withContext Result.retry()
                 } catch (e: Exception) {
+                    Log.w(TAG, "Upload failed for card ${card.id}", e)
                     failures++
                 }
             }
@@ -157,5 +160,9 @@ class DriveBackupWorker(
             }
         }
         DriveBackup.setCachedManifestId(applicationContext, manifestId)
+    }
+
+    private companion object {
+        const val TAG = "DriveBackupWorker"
     }
 }

@@ -71,13 +71,25 @@ internal class DriveRestClient(private val token: String) {
 
     /** Finds or creates a subfolder of [parentId], reusing a cached id when valid. */
     fun resolveSubfolder(context: Context, parentId: String, name: String): String {
+        // Checking trashed-state alone isn't enough: if the main backup
+        // folder ever gets re-created (e.g. the user deleted it in Drive),
+        // a cached "cards" id from the old tree would still "exist" but no
+        // longer sit under the current parent, silently orphaning uploads.
         DriveBackup.cachedCardsFolderId(context)?.let { cached ->
-            if (folderExists(cached)) return cached
+            if (isChildOf(cached, parentId)) return cached
         }
         val id = findFolder(name, parentId) ?: createFolder(name, parentId)
         DriveBackup.setCachedCardsFolderId(context, id)
         return id
     }
+
+    private fun isChildOf(fileId: String, parentId: String): Boolean = runCatching {
+        val json = request("GET", "https://www.googleapis.com/drive/v3/files/$fileId?fields=trashed,parents")
+        !json.optBoolean("trashed", false) &&
+            json.optJSONArray("parents")?.let { parents ->
+                (0 until parents.length()).any { parents.getString(it) == parentId }
+            } == true
+    }.getOrDefault(false)
 
     /** Uploads [file] under [name] into [folderId] with the given [mimeType]. */
     fun uploadFile(file: File, name: String, folderId: String, mimeType: String): String {
