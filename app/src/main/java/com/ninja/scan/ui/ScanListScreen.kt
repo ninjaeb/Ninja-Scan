@@ -77,6 +77,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -666,9 +668,12 @@ private fun SaveDetailsDialog(
     onConfirm: (title: String, folder: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var title by remember(scan.id) { mutableStateOf(scan.title) }
+    var titleField by remember(scan.id) {
+        mutableStateOf(TextFieldValue(scan.title, selection = TextRange(0, scan.title.length)))
+    }
     var selectedFolder by remember(scan.id) { mutableStateOf(scan.folder) }
     var newFolder by remember(scan.id) { mutableStateOf("") }
+    val nameFocusRequester = remember { FocusRequester() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -676,11 +681,13 @@ private fun SaveDetailsDialog(
         text = {
             Column {
                 OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
+                    value = titleField,
+                    onValueChange = { titleField = it },
                     singleLine = true,
                     label = { Text(stringResource(R.string.field_name)) },
+                    modifier = Modifier.focusRequester(nameFocusRequester),
                 )
+                LaunchedEffect(Unit) { nameFocusRequester.requestFocus() }
                 if (folders.isNotEmpty()) {
                     Text(
                         stringResource(R.string.save_details_folder),
@@ -717,7 +724,7 @@ private fun SaveDetailsDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                onConfirm(title, newFolder.trim().ifEmpty { selectedFolder })
+                onConfirm(titleField.text, newFolder.trim().ifEmpty { selectedFolder })
             }) {
                 Text(stringResource(R.string.save))
             }
