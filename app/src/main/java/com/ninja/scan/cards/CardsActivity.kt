@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Language
@@ -916,19 +917,34 @@ private fun CardDetailScreen(
                                 Icon(
                                     Icons.Filled.Call,
                                     contentDescription = stringResource(R.string.call),
+                                    tint = CallGreen,
                                 )
                             }
                             IconButton(onClick = { openWhatsApp(context, phone) }) {
                                 Icon(
                                     Icons.Filled.Chat,
                                     contentDescription = stringResource(R.string.whatsapp),
+                                    tint = WhatsAppGreen,
                                 )
                             }
                         }
                     }
                 } else null,
             )
-            field(email, R.string.field_email, { email = it }, keyboardType = KeyboardType.Email)
+            field(
+                email, R.string.field_email, { email = it },
+                keyboardType = KeyboardType.Email,
+                trailingIcon = if (email.isNotBlank()) {
+                    {
+                        IconButton(onClick = { openEmail(context, email) }) {
+                            Icon(
+                                Icons.Filled.Email,
+                                contentDescription = stringResource(R.string.send_email),
+                            )
+                        }
+                    }
+                } else null,
+            )
             field(
                 website, R.string.field_website, { website = it },
                 keyboardType = KeyboardType.Uri,
@@ -951,6 +967,7 @@ private fun CardDetailScreen(
                             Icon(
                                 Icons.Filled.Map,
                                 contentDescription = stringResource(R.string.open_map),
+                                tint = MapsRed,
                             )
                         }
                     }
@@ -1025,6 +1042,12 @@ private fun saveToContacts(context: Context, card: BusinessCard, tags: List<Tag>
     runCatching { context.startActivity(intent) }
 }
 
+// Brand colors for the contact action icons, so each is recognizable at a
+// glance rather than all reading as the same neutral icon tint.
+private val CallGreen = Color(0xFF34A853)
+private val WhatsAppGreen = Color(0xFF25D366)
+private val MapsRed = Color(0xFFEA4335)
+
 /** Opens the system dialer pre-filled with the number (no CALL_PHONE permission needed). */
 private fun openDialer(context: Context, phone: String) {
     val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}"))
@@ -1035,6 +1058,14 @@ private fun openDialer(context: Context, phone: String) {
 private fun openWhatsApp(context: Context, phone: String) {
     val digits = phone.filter { it.isDigit() }
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits"))
+    runCatching { context.startActivity(intent) }
+}
+
+/** EXTRA_EMAIL (rather than embedding the address in the URI) avoids encoding pitfalls. */
+private fun openEmail(context: Context, email: String) {
+    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
+        putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
+    }
     runCatching { context.startActivity(intent) }
 }
 
