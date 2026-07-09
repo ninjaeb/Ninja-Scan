@@ -109,6 +109,7 @@ import com.ninja.scan.R
 import com.ninja.scan.data.BusinessCard
 import com.ninja.scan.data.Tag
 import com.ninja.scan.drive.DriveBackup
+import com.ninja.scan.drive.DriveBackupWorker
 import com.ninja.scan.ui.AppTitleWithIcon
 import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.DriveSyncProgressBar
@@ -206,6 +207,7 @@ private fun CardsScreen(
             }
         }
     }
+    var lastBackupState by remember { mutableStateOf<WorkInfo.State?>(null) }
     LaunchedEffect(Unit) {
         DriveBackup.backupWorkInfo(context).collect { infos ->
             val info = infos.firstOrNull() ?: return@collect
@@ -216,6 +218,32 @@ private fun CardsScreen(
                 )
             } else {
                 null
+            }
+            if (info.state == lastBackupState) return@collect
+            lastBackupState = info.state
+            when (info.state) {
+                WorkInfo.State.SUCCEEDED -> {
+                    val backedUpScans = info.outputData.getInt(DriveBackupWorker.KEY_SCANS_BACKED_UP, 0)
+                    val backedUpCards = info.outputData.getInt(DriveBackupWorker.KEY_CARDS_BACKED_UP, 0)
+                    if (backedUpScans > 0 || backedUpCards > 0) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                context.getString(R.string.drive_backup_done, backedUpScans, backedUpCards)
+                            )
+                        }
+                    }
+                }
+                WorkInfo.State.FAILED -> {
+                    val failures = info.outputData.getInt(DriveBackupWorker.KEY_FAILURES, 0)
+                    if (failures > 0) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                context.getString(R.string.drive_backup_incomplete, failures)
+                            )
+                        }
+                    }
+                }
+                else -> {}
             }
         }
     }

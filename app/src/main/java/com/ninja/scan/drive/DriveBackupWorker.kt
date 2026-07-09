@@ -71,12 +71,15 @@ class DriveBackupWorker(
         setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
 
         var failures = 0
+        var scansBackedUp = 0
+        var cardsBackedUp = 0
         for (scan in pendingScans) {
             val pdf = File(scan.pdfPath)
             if (pdf.exists()) {
                 try {
                     val fileId = drive.uploadPdf(pdf, "${scan.title}.pdf", folderId)
                     app.repository.markBackedUp(scan.id, fileId)
+                    scansBackedUp++
                 } catch (e: DriveAuthException) {
                     return@withContext Result.retry()
                 } catch (e: Exception) {
@@ -95,6 +98,7 @@ class DriveBackupWorker(
                     val fileId =
                         drive.uploadFile(photo, "card-${card.id}.jpg", cardsFolderId, "image/jpeg")
                     app.repository.markCardPhotoBackedUp(card.id, fileId)
+                    cardsBackedUp++
                 } catch (e: DriveAuthException) {
                     return@withContext Result.retry()
                 } catch (e: Exception) {
@@ -114,7 +118,19 @@ class DriveBackupWorker(
             return@withContext Result.retry()
         }
 
-        if (failures > 0) Result.retry() else Result.success()
+        val output = workDataOf(
+            KEY_SCANS_BACKED_UP to scansBackedUp,
+            KEY_CARDS_BACKED_UP to cardsBackedUp,
+            KEY_FAILURES to failures,
+        )
+        when {
+            failures == 0 -> Result.success(output)
+            // Retries forever otherwise, which looks identical to "never
+            // syncing" from the UI (no terminal state ever reported). Cap it
+            // so a real failure surfaces as a snackbar instead of silence.
+            runAttemptCount < MAX_ATTEMPTS -> Result.retry()
+            else -> Result.failure(output)
+        }
     }
 
     private suspend fun uploadManifest(
@@ -162,7 +178,11 @@ class DriveBackupWorker(
         DriveBackup.setCachedManifestId(applicationContext, manifestId)
     }
 
-    private companion object {
-        const val TAG = "DriveBackupWorker"
+    companion object {
+        const val KEY_SCANS_BACKED_UP = "scans_backed_up"
+        const val KEY_CARDS_BACKED_UP = "cards_backed_up"
+        const val KEY_FAILURES = "failures"
+        private const val TAG = "DriveBackupWorker"
+        private const val MAX_ATTEMPTS = 5
     }
 }

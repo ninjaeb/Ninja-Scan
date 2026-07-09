@@ -26,6 +26,8 @@
     <string name="drive_backup_enabled">Drive backup on — scans upload automatically</string>
     <string name="drive_backup_disabled">Drive backup off</string>
     <string name="drive_backup_failed">Could not set up Drive backup: %1$s</string>
+    <string name="drive_backup_done">Backed up %1$d documents and %2$d cards</string>
+    <string name="drive_backup_incomplete">Backup incomplete — %1$d item(s) couldn\'t sync</string>
     <string name="backed_up_to_drive">Backed up to Google Drive</string>
     <string name="edit_pages">Edit pages</string>
     <string name="add_pages">Add pages</string>

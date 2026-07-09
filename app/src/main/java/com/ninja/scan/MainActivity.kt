@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.work.WorkInfo
 import com.ninja.scan.cards.CardsActivity
 import com.ninja.scan.drive.DriveBackup
+import com.ninja.scan.drive.DriveBackupWorker
 import com.ninja.scan.drive.DriveRestoreWorker
 import com.ninja.scan.ui.ScanEvent
 import com.ninja.scan.ui.ScanListScreen
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
                 val snackbarHostState = remember { SnackbarHostState() }
                 var showRestoreOffer by remember { mutableStateOf(false) }
                 var lastRestoreState by remember { mutableStateOf<WorkInfo.State?>(null) }
+                var lastBackupState by remember { mutableStateOf<WorkInfo.State?>(null) }
                 var restoreProgress by remember { mutableStateOf<SyncProgress?>(null) }
                 var backupProgress by remember { mutableStateOf<SyncProgress?>(null) }
 
@@ -132,6 +134,10 @@ class MainActivity : ComponentActivity() {
                                 getString(R.string.drive_backup_started)
                             is ScanEvent.DriveBackupFailed ->
                                 getString(R.string.drive_backup_failed, event.message)
+                            is ScanEvent.DriveBackupCompleted ->
+                                getString(R.string.drive_backup_done, event.scans, event.cards)
+                            is ScanEvent.DriveBackupIncomplete ->
+                                getString(R.string.drive_backup_incomplete, event.failures)
                             ScanEvent.DriveRestoreStarted ->
                                 getString(R.string.drive_restore_started)
                             is ScanEvent.DriveRestoreCompleted ->
@@ -175,8 +181,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Backup has no terminal-state snackbar (it's a routine
-                // background op), just a live progress readout while running.
+                // A routine background op, so only a genuine terminal state
+                // change (not every recomposition) surfaces a snackbar — and
+                // only when there was something to report (avoids a snackbar
+                // on every no-op periodic run).
                 LaunchedEffect(Unit) {
                     DriveBackup.backupWorkInfo(this@MainActivity).collect { infos ->
                         val info = infos.firstOrNull() ?: return@collect
@@ -187,6 +195,24 @@ class MainActivity : ComponentActivity() {
                             )
                         } else {
                             null
+                        }
+                        if (info.state == lastBackupState) return@collect
+                        lastBackupState = info.state
+                        when (info.state) {
+                            WorkInfo.State.SUCCEEDED -> {
+                                val scans = info.outputData.getInt(DriveBackupWorker.KEY_SCANS_BACKED_UP, 0)
+                                val cards = info.outputData.getInt(DriveBackupWorker.KEY_CARDS_BACKED_UP, 0)
+                                if (scans > 0 || cards > 0) {
+                                    viewModel.emitEvent(ScanEvent.DriveBackupCompleted(scans, cards))
+                                }
+                            }
+                            WorkInfo.State.FAILED -> {
+                                val failures = info.outputData.getInt(DriveBackupWorker.KEY_FAILURES, 0)
+                                if (failures > 0) {
+                                    viewModel.emitEvent(ScanEvent.DriveBackupIncomplete(failures))
+                                }
+                            }
+                            else -> {}
                         }
                     }
                 }
