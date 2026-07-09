@@ -83,6 +83,7 @@ import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
+import kotlin.math.abs
 
 private const val HINT_KEY_DOCUMENTS = "documents"
 
@@ -165,8 +166,8 @@ fun ScanListScreen(
     }
 
     Scaffold(
-        // Swipe left-to-right (finger moving right) to jump to Cards, matching
-        // the "Cards" bottom-nav tab one screen over. Consumed only past a
+        // A horizontal swipe in either direction jumps to Cards, matching the
+        // "Cards" bottom-nav tab one screen over. Consumed only past a
         // deliberate threshold so it can't misfire from small drags/taps.
         modifier = Modifier.pointerInput(onOpenCards) {
             val threshold = 120.dp.toPx()
@@ -174,7 +175,7 @@ fun ScanListScreen(
             detectHorizontalDragGestures(
                 onDragStart = { totalDrag = 0f },
                 onDragEnd = {
-                    if (!selectionActive && totalDrag > threshold) onOpenCards()
+                    if (!selectionActive && abs(totalDrag) > threshold) onOpenCards()
                 },
                 onDragCancel = { totalDrag = 0f },
             ) { change, dragAmount ->

@@ -130,6 +130,7 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.math.abs
 
 /** Business card library: scan cards, manage contacts, export CSV/Excel. */
 class CardsActivity : ComponentActivity() {
@@ -436,16 +437,16 @@ private fun CardsScreen(
     }
 
     Scaffold(
-        // Swipe right-to-left (finger moving left) to go back to Documents,
-        // one screen over. Consumed only past a deliberate threshold so it
-        // can't misfire from small drags/taps.
+        // A horizontal swipe in either direction goes back to Documents, one
+        // screen over. Consumed only past a deliberate threshold so it can't
+        // misfire from small drags/taps.
         modifier = Modifier.pointerInput(onBack) {
             val threshold = 120.dp.toPx()
             var totalDrag = 0f
             detectHorizontalDragGestures(
                 onDragStart = { totalDrag = 0f },
                 onDragEnd = {
-                    if (!cardSelectionActive && totalDrag < -threshold) onBack()
+                    if (!cardSelectionActive && abs(totalDrag) > threshold) onBack()
                 },
                 onDragCancel = { totalDrag = 0f },
             ) { change, dragAmount ->
