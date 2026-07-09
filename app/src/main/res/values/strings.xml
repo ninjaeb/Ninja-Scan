@@ -60,6 +60,8 @@
     <string name="edit">Edit</string>
     <string name="delete_card_title">Delete card?</string>
     <string name="delete_card_body">“%1$s” will be removed from this device.</string>
+    <string name="delete_cards_dialog_title">Delete cards?</string>
+    <string name="delete_cards_dialog_body">%1$d contacts will be removed from this device.</string>
     <string name="field_name">Name</string>
     <string name="field_company">Company</string>
     <string name="field_job_title">Job title</string>

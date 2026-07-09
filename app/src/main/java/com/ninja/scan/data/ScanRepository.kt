@@ -598,6 +598,16 @@ class ScanRepository(
         enqueueBackupIfEnabled()
     }
 
+    suspend fun deleteCards(cards: List<BusinessCard>) {
+        if (cards.isEmpty()) return
+        for (card in cards) {
+            card.thumbnailPath?.let { File(it).delete() }
+            card.photoDriveFileId?.let { DriveBackup.addStaleFileId(context, it) }
+            cardDao.delete(card)
+        }
+        enqueueBackupIfEnabled() // one enqueue for the whole batch, not N
+    }
+
     /** Writes all cards as CSV to a user-chosen SAF destination. */
     suspend fun exportCardsCsv(cards: List<BusinessCard>, destination: Uri): Boolean =
         withContext(Dispatchers.IO) {

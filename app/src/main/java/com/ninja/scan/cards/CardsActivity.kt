@@ -13,8 +13,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.work.WorkInfo
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.Box
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -56,7 +59,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -77,6 +82,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -271,6 +277,12 @@ private fun CardsScreen(
     var draft by remember { mutableStateOf<BusinessCard?>(null) }
     var deleting by remember { mutableStateOf<BusinessCard?>(null) }
     var parsing by remember { mutableStateOf(false) }
+
+    // Long-press a card to pick several and delete them together.
+    val selectedCardIds = remember { mutableStateListOf<Long>() }
+    val cardSelectionActive = selectedCardIds.isNotEmpty()
+    var deletingCards by remember { mutableStateOf<List<BusinessCard>?>(null) }
+    BackHandler(enabled = cardSelectionActive) { selectedCardIds.clear() }
     var exportMenuOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var tagFilter by remember { mutableStateOf<Long?>(null) }
@@ -379,78 +391,98 @@ private fun CardsScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { AppTitleWithIcon(stringResource(R.string.business_cards)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    }
-                },
-                actions = {
-                    Box {
+            if (cardSelectionActive) {
+                CenterAlignedTopAppBar(
+                    title = { Text(stringResource(R.string.selected_count, selectedCardIds.size)) },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedCardIds.clear() }) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cancel))
+                        }
+                    },
+                    actions = {
                         IconButton(
-                            onClick = { exportMenuOpen = true },
-                            enabled = cards.isNotEmpty(),
+                            onClick = {
+                                deletingCards = cards.filter { it.id in selectedCardIds }
+                            },
                         ) {
-                            Icon(
-                                Icons.Filled.FileDownload,
-                                contentDescription = stringResource(R.string.export_contacts),
-                            )
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
                         }
-                        DropdownMenu(
-                            expanded = exportMenuOpen,
-                            onDismissRequest = { exportMenuOpen = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.export_csv)) },
-                                onClick = {
-                                    exportMenuOpen = false
-                                    csvLauncher.launch("ninja-scan-contacts.csv")
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.export_excel)) },
-                                onClick = {
-                                    exportMenuOpen = false
-                                    xlsxLauncher.launch("ninja-scan-contacts.xlsx")
-                                },
-                            )
+                    },
+                )
+            } else {
+                CenterAlignedTopAppBar(
+                    title = { AppTitleWithIcon(stringResource(R.string.business_cards)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
-                    }
-                    ThemeToggleButton(isDarkTheme = isDarkTheme, onToggle = onToggleTheme)
-                    DriveMenuButton(
-                        enabled = driveBackupEnabled,
-                        expanded = driveMenuOpen,
-                        onExpandedChange = { driveMenuOpen = it },
-                        onToggle = {
-                            if (driveBackupEnabled) {
-                                DriveBackup.setEnabled(context, false)
-                                driveBackupEnabled = false
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        context.getString(R.string.drive_backup_disabled)
-                                    )
-                                }
-                            } else {
-                                pendingDriveRestore = false
-                                requestDriveAuthorization()
-                            }
-                        },
-                        onRestore = {
-                            pendingDriveRestore = true
-                            requestDriveAuthorization()
-                        },
-                        onBackupNow = {
-                            DriveBackup.enqueue(context)
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    context.getString(R.string.drive_backup_started)
+                    },
+                    actions = {
+                        Box {
+                            IconButton(
+                                onClick = { exportMenuOpen = true },
+                                enabled = cards.isNotEmpty(),
+                            ) {
+                                Icon(
+                                    Icons.Filled.FileDownload,
+                                    contentDescription = stringResource(R.string.export_contacts),
                                 )
                             }
-                        },
-                    )
-                },
-            )
+                            DropdownMenu(
+                                expanded = exportMenuOpen,
+                                onDismissRequest = { exportMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.export_csv)) },
+                                    onClick = {
+                                        exportMenuOpen = false
+                                        csvLauncher.launch("ninja-scan-contacts.csv")
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.export_excel)) },
+                                    onClick = {
+                                        exportMenuOpen = false
+                                        xlsxLauncher.launch("ninja-scan-contacts.xlsx")
+                                    },
+                                )
+                            }
+                        }
+                        ThemeToggleButton(isDarkTheme = isDarkTheme, onToggle = onToggleTheme)
+                        DriveMenuButton(
+                            enabled = driveBackupEnabled,
+                            expanded = driveMenuOpen,
+                            onExpandedChange = { driveMenuOpen = it },
+                            onToggle = {
+                                if (driveBackupEnabled) {
+                                    DriveBackup.setEnabled(context, false)
+                                    driveBackupEnabled = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            context.getString(R.string.drive_backup_disabled)
+                                        )
+                                    }
+                                } else {
+                                    pendingDriveRestore = false
+                                    requestDriveAuthorization()
+                                }
+                            },
+                            onRestore = {
+                                pendingDriveRestore = true
+                                requestDriveAuthorization()
+                            },
+                            onBackupNow = {
+                                DriveBackup.enqueue(context)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(R.string.drive_backup_started)
+                                    )
+                                }
+                            },
+                        )
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
@@ -631,7 +663,13 @@ private fun CardsScreen(
                         CardRow(
                             card = card,
                             tags = cardTags,
+                            selectionMode = cardSelectionActive,
+                            selected = card.id in selectedCardIds,
                             onOpen = { draft = card },
+                            onToggleSelect = {
+                                if (card.id in selectedCardIds) selectedCardIds.remove(card.id)
+                                else selectedCardIds.add(card.id)
+                            },
                             onSaveToContacts = { saveToContacts(context, card, cardTags) },
                             onDelete = { deleting = card },
                         )
@@ -661,6 +699,26 @@ private fun CardsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deleting = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    deletingCards?.let { list ->
+        AlertDialog(
+            onDismissRequest = { deletingCards = null },
+            title = { Text(stringResource(R.string.delete_cards_dialog_title)) },
+            text = { Text(stringResource(R.string.delete_cards_dialog_body, list.size)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingCards = null
+                    selectedCardIds.clear()
+                    scope.launch { app.repository.deleteCards(list) }
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingCards = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
@@ -710,23 +768,40 @@ private fun CardsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CardRow(
     card: BusinessCard,
     tags: List<Tag>,
+    selectionMode: Boolean,
+    selected: Boolean,
     onOpen: () -> Unit,
+    onToggleSelect: () -> Unit,
     onSaveToContacts: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surface,
+        ),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onOpen)
+                .combinedClickable(
+                    onClick = { if (selectionMode) onToggleSelect() else onOpen() },
+                    onLongClick = onToggleSelect,
+                )
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+                Spacer(Modifier.width(8.dp))
+            }
             val thumbnail = card.thumbnailPath?.let(::File)?.takeIf { it.exists() }
             if (thumbnail != null) {
                 AsyncImage(
@@ -779,7 +854,7 @@ private fun CardRow(
                 }
                 CardTagsRow(tags)
             }
-            Box {
+            if (!selectionMode) Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = null)
                 }
