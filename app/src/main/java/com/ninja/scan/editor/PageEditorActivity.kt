@@ -45,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -55,6 +56,8 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -257,6 +260,7 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
 
     if (editingWatermark) {
         var text by remember { mutableStateOf(watermark) }
+        val focusRequester = remember { FocusRequester() }
         AlertDialog(
             onDismissRequest = { editingWatermark = false },
             title = { Text(stringResource(R.string.watermark)) },
@@ -271,8 +275,11 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
                         value = text,
                         onValueChange = { text = it },
                         singleLine = true,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .focusRequester(focusRequester),
                     )
+                    LaunchedEffect(Unit) { focusRequester.requestFocus() }
                 }
             },
             confirmButton = {

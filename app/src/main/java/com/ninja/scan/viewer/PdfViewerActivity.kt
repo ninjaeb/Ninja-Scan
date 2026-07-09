@@ -57,6 +57,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
@@ -314,6 +316,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
 
     if (editingWatermark && current != null) {
         var text by remember(current.id) { mutableStateOf(current.watermark.orEmpty()) }
+        val focusRequester = remember { FocusRequester() }
         AlertDialog(
             onDismissRequest = { editingWatermark = false },
             title = { Text(stringResource(R.string.watermark)) },
@@ -323,7 +326,9 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     onValueChange = { text = it },
                     singleLine = true,
                     placeholder = { Text(stringResource(R.string.watermark_hint)) },
+                    modifier = Modifier.focusRequester(focusRequester),
                 )
+                LaunchedEffect(Unit) { focusRequester.requestFocus() }
             },
             confirmButton = {
                 Row {
@@ -354,6 +359,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
 
     if (renamingTitle && current != null) {
         var title by remember(current.id) { mutableStateOf(current.title) }
+        val focusRequester = remember { FocusRequester() }
         AlertDialog(
             onDismissRequest = { renamingTitle = false },
             title = { Text(stringResource(R.string.rename)) },
@@ -362,7 +368,9 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     value = title,
                     onValueChange = { title = it },
                     singleLine = true,
+                    modifier = Modifier.focusRequester(focusRequester),
                 )
+                LaunchedEffect(Unit) { focusRequester.requestFocus() }
             },
             confirmButton = {
                 TextButton(onClick = {

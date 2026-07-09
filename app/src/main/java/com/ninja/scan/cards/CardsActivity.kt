@@ -81,6 +81,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
@@ -1057,6 +1059,7 @@ private fun TagEditorDialog(
 ) {
     var title by remember { mutableStateOf(existing?.title.orEmpty()) }
     var description by remember { mutableStateOf(existing?.description.orEmpty()) }
+    val focusRequester = remember { FocusRequester() }
     val palette = listOf(
         colorResource(R.color.tag_red), colorResource(R.color.tag_orange),
         colorResource(R.color.tag_amber), colorResource(R.color.tag_green),
@@ -1084,8 +1087,11 @@ private fun TagEditorDialog(
                     onValueChange = { title = it },
                     label = { Text(stringResource(R.string.tag_title)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
                 )
+                LaunchedEffect(Unit) { focusRequester.requestFocus() }
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },

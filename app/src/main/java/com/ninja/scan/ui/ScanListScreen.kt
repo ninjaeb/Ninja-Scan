@@ -388,6 +388,7 @@ fun ScanListScreen(
 
     renamingScan?.let { scan ->
         var title by remember(scan.id) { mutableStateOf(scan.title) }
+        val focusRequester = remember { FocusRequester() }
         AlertDialog(
             onDismissRequest = { renamingScan = null },
             title = { Text(stringResource(R.string.rename)) },
@@ -396,7 +397,9 @@ fun ScanListScreen(
                     value = title,
                     onValueChange = { title = it },
                     singleLine = true,
+                    modifier = Modifier.focusRequester(focusRequester),
                 )
+                LaunchedEffect(Unit) { focusRequester.requestFocus() }
             },
             confirmButton = {
                 TextButton(onClick = { renamingScan = null; onRename(scan, title) }) {
@@ -543,6 +546,7 @@ fun ScanListScreen(
         var name by remember(folder) { mutableStateOf(folder) }
         val trimmed = name.trim()
         val collides = trimmed != folder && folders.contains(trimmed)
+        val focusRequester = remember { FocusRequester() }
         AlertDialog(
             onDismissRequest = { renamingFolder = null },
             title = { Text(stringResource(R.string.rename_folder)) },
@@ -552,7 +556,9 @@ fun ScanListScreen(
                         value = name,
                         onValueChange = { name = it },
                         singleLine = true,
+                        modifier = Modifier.focusRequester(focusRequester),
                     )
+                    LaunchedEffect(Unit) { focusRequester.requestFocus() }
                     if (collides) {
                         Text(
                             stringResource(R.string.folder_merge_warning),
