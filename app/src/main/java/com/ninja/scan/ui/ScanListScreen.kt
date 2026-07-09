@@ -333,8 +333,11 @@ fun ScanListScreen(
                 scans.isEmpty() -> EmptyLibrary()
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    // Bottom padding must clear the two stacked FABs (56dp
+                    // each + 12dp spacer between = 124dp) plus Scaffold's own
+                    // margin around them, or the last row hides behind them.
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 172.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {

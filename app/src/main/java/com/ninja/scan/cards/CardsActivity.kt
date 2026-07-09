@@ -553,8 +553,11 @@ private fun CardsScreen(
 
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    // Bottom padding must clear the single FAB (56dp) plus
+                    // Scaffold's own margin around it, or the last row hides
+                    // behind it.
                     contentPadding = PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 112.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
