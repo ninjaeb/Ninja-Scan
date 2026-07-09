@@ -237,7 +237,15 @@ class MainActivity : ComponentActivity() {
                     onDismissScanDetails = viewModel::dismissScanDetails,
                     onSearchQueryChange = viewModel::onSearchQueryChange,
                     onFolderFilterChange = viewModel::onFolderFilterChange,
-                    onOpenCards = { startActivity(CardsActivity.intent(this)) },
+                    onOpenCards = {
+                        startActivity(CardsActivity.intent(this))
+                        // Continues the swipe's motion into the activity
+                        // transition instead of a plain cut: Cards slides in
+                        // from the left (the direction the finger dragged),
+                        // Documents slides out to the right.
+                        @Suppress("DEPRECATION")
+                        overridePendingTransition(R.anim.slide_in_from_left, R.anim.slide_out_to_right)
+                    },
                     onScanCardClick = {
                         startActivity(CardsActivity.intent(this, startScan = true))
                     },

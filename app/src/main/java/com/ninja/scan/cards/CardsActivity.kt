@@ -149,7 +149,15 @@ class CardsActivity : ComponentActivity() {
             DocScannerTheme(darkTheme = isDarkTheme) {
                 CardsScreen(
                     autoStartScan = autoStartScan,
-                    onBack = { finish() },
+                    onBack = {
+                        finish()
+                        // Continues the swipe's motion into the activity
+                        // transition instead of a plain cut: Documents slides
+                        // in from the right (the direction the finger
+                        // dragged), Cards slides out to the left.
+                        @Suppress("DEPRECATION")
+                        overridePendingTransition(R.anim.slide_in_from_right, R.anim.slide_out_to_left)
+                    },
                     isDarkTheme = isDarkTheme,
                     onToggleTheme = {
                         isDarkTheme = !isDarkTheme
