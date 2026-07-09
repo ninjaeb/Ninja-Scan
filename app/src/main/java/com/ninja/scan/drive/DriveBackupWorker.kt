@@ -30,6 +30,29 @@ class DriveBackupWorker(
         val app = applicationContext as DocScannerApp
         if (!DriveBackup.isEnabled(applicationContext)) return@withContext Result.success()
 
+        var failures = 0
+        var scansBackedUp = 0
+        var cardsBackedUp = 0
+
+        // Every retry path shares this so NONE of them can retry forever
+        // silently — that looked identical to "never syncing" from the UI,
+        // since no terminal state was ever reported for the user to see.
+        fun giveUpOrRetry(stage: String, e: Exception?): Result {
+            failures++
+            Log.w(TAG, "Backup failed at: $stage (attempt $runAttemptCount)", e)
+            return if (runAttemptCount < MAX_ATTEMPTS) {
+                Result.retry()
+            } else {
+                Result.failure(
+                    workDataOf(
+                        KEY_SCANS_BACKED_UP to scansBackedUp,
+                        KEY_CARDS_BACKED_UP to cardsBackedUp,
+                        KEY_FAILURES to failures,
+                    )
+                )
+            }
+        }
+
         // Authorization was granted from the UI; here this returns a cached
         // access token without user interaction, or a resolution if consent
         // was revoked — in which case we give up until the user re-enables.
@@ -37,7 +60,7 @@ class DriveBackupWorker(
             Identity.getAuthorizationClient(applicationContext)
                 .authorize(DriveBackup.authorizationRequest())
                 .await()
-        }.getOrNull() ?: return@withContext Result.retry()
+        }.getOrNull() ?: return@withContext giveUpOrRetry("authorize", null)
         val token = authResult.accessToken
         if (authResult.hasResolution() || token == null) {
             DriveBackup.setEnabled(applicationContext, false)
@@ -48,12 +71,12 @@ class DriveBackupWorker(
         val folderId = try {
             drive.resolveFolder(applicationContext)
         } catch (e: Exception) {
-            return@withContext Result.retry()
+            return@withContext giveUpOrRetry("resolveFolder", e)
         }
         val cardsFolderId = try {
             drive.resolveSubfolder(applicationContext, folderId, "cards")
         } catch (e: Exception) {
-            return@withContext Result.retry()
+            return@withContext giveUpOrRetry("resolveSubfolder(cards)", e)
         }
 
         // Replaced copies (page edits, watermark changes) are deleted so the
@@ -70,9 +93,6 @@ class DriveBackupWorker(
         var current = 0
         setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
 
-        var failures = 0
-        var scansBackedUp = 0
-        var cardsBackedUp = 0
         for (scan in pendingScans) {
             val pdf = File(scan.pdfPath)
             if (pdf.exists()) {
@@ -81,7 +101,7 @@ class DriveBackupWorker(
                     app.repository.markBackedUp(scan.id, fileId)
                     scansBackedUp++
                 } catch (e: DriveAuthException) {
-                    return@withContext Result.retry()
+                    return@withContext giveUpOrRetry("upload scan ${scan.id} (auth)", e)
                 } catch (e: Exception) {
                     Log.w(TAG, "Upload failed for scan ${scan.id}", e)
                     failures++
@@ -100,7 +120,7 @@ class DriveBackupWorker(
                     app.repository.markCardPhotoBackedUp(card.id, fileId)
                     cardsBackedUp++
                 } catch (e: DriveAuthException) {
-                    return@withContext Result.retry()
+                    return@withContext giveUpOrRetry("upload card ${card.id} (auth)", e)
                 } catch (e: Exception) {
                     Log.w(TAG, "Upload failed for card ${card.id}", e)
                     failures++
@@ -115,21 +135,19 @@ class DriveBackupWorker(
         try {
             uploadManifest(app, drive, folderId)
         } catch (e: Exception) {
-            return@withContext Result.retry()
+            return@withContext giveUpOrRetry("uploadManifest", e)
         }
 
-        val output = workDataOf(
-            KEY_SCANS_BACKED_UP to scansBackedUp,
-            KEY_CARDS_BACKED_UP to cardsBackedUp,
-            KEY_FAILURES to failures,
-        )
-        when {
-            failures == 0 -> Result.success(output)
-            // Retries forever otherwise, which looks identical to "never
-            // syncing" from the UI (no terminal state ever reported). Cap it
-            // so a real failure surfaces as a snackbar instead of silence.
-            runAttemptCount < MAX_ATTEMPTS -> Result.retry()
-            else -> Result.failure(output)
+        if (failures == 0) {
+            Result.success(
+                workDataOf(
+                    KEY_SCANS_BACKED_UP to scansBackedUp,
+                    KEY_CARDS_BACKED_UP to cardsBackedUp,
+                    KEY_FAILURES to failures,
+                )
+            )
+        } else {
+            giveUpOrRetry("post-loop failures=$failures", null)
         }
     }
 
@@ -183,6 +201,10 @@ class DriveBackupWorker(
         const val KEY_CARDS_BACKED_UP = "cards_backed_up"
         const val KEY_FAILURES = "failures"
         private const val TAG = "DriveBackupWorker"
-        private const val MAX_ATTEMPTS = 5
+        // Low on purpose: this used to retry (silently, with no cap at all
+        // for most failure paths) for potentially hours, which was
+        // indistinguishable from "just never syncing." One retry surfaces a
+        // real failure within about the default ~30s backoff instead.
+        private const val MAX_ATTEMPTS = 2
     }
 }
