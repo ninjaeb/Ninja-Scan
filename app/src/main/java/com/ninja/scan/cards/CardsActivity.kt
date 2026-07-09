@@ -274,6 +274,10 @@ private fun CardsScreen(
     var exportMenuOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var tagFilter by remember { mutableStateOf<Long?>(null) }
+    var tagFilterMenuFor by remember { mutableStateOf<Long?>(null) }
+    var creatingTagFilter by remember { mutableStateOf(false) }
+    var editingTagFilter by remember { mutableStateOf<Tag?>(null) }
+    var deletingTagFilter by remember { mutableStateOf<Tag?>(null) }
 
     // Refreshed whenever the card list changes, and when returning from the
     // detail screen (tag edits there don't touch the `cards` Flow itself).
@@ -513,7 +517,7 @@ private fun CardsScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
-            if (allTags.isNotEmpty()) {
+            if (cards.isNotEmpty() || allTags.isNotEmpty()) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -527,11 +531,41 @@ private fun CardsScreen(
                         )
                     }
                     items(allTags, key = { it.id }) { tag ->
-                        LongPressableChip(
-                            label = tag.title,
-                            selected = tagFilter == tag.id,
-                            leadingDot = hexToColor(tag.color),
-                            onClick = { tagFilter = if (tagFilter == tag.id) null else tag.id },
+                        // Long-press a tag chip for rename/delete.
+                        Box {
+                            LongPressableChip(
+                                label = tag.title,
+                                selected = tagFilter == tag.id,
+                                leadingDot = hexToColor(tag.color),
+                                onClick = { tagFilter = if (tagFilter == tag.id) null else tag.id },
+                                onLongClick = { tagFilterMenuFor = tag.id },
+                            )
+                            DropdownMenu(
+                                expanded = tagFilterMenuFor == tag.id,
+                                onDismissRequest = { tagFilterMenuFor = null },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.edit_tag)) },
+                                    onClick = { tagFilterMenuFor = null; editingTagFilter = tag },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.delete_tag)) },
+                                    onClick = { tagFilterMenuFor = null; deletingTagFilter = tag },
+                                )
+                            }
+                        }
+                    }
+                    item {
+                        AssistChip(
+                            onClick = { creatingTagFilter = true },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            label = { Text(stringResource(R.string.create_tag)) },
                         )
                     }
                 }
@@ -629,6 +663,48 @@ private fun CardsScreen(
                 TextButton(onClick = { deleting = null }) {
                     Text(stringResource(R.string.cancel))
                 }
+            },
+        )
+    }
+
+    if (creatingTagFilter) {
+        TagEditorDialog(
+            existing = null,
+            onDismiss = { creatingTagFilter = false },
+            onSave = { title, description, color ->
+                creatingTagFilter = false
+                scope.launch { app.repository.createTag(title, description, color) }
+            },
+        )
+    }
+
+    editingTagFilter?.let { tag ->
+        TagEditorDialog(
+            existing = tag,
+            onDismiss = { editingTagFilter = null },
+            onSave = { title, description, color ->
+                editingTagFilter = null
+                scope.launch {
+                    app.repository.updateTag(tag.copy(title = title, description = description, color = color))
+                }
+            },
+        )
+    }
+
+    deletingTagFilter?.let { tag ->
+        AlertDialog(
+            onDismissRequest = { deletingTagFilter = null },
+            title = { Text(stringResource(R.string.delete_tag_title)) },
+            text = { Text(stringResource(R.string.delete_tag_body, tag.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (tagFilter == tag.id) tagFilter = null
+                    deletingTagFilter = null
+                    scope.launch { app.repository.deleteTag(tag.id) }
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingTagFilter = null }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
