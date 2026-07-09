@@ -68,6 +68,7 @@ import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.DestructiveRed
+import com.ninja.scan.ui.EditAmber
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.EditPage
