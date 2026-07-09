@@ -954,6 +954,7 @@ private fun CardDetailScreen(
                             Icon(
                                 Icons.Filled.Language,
                                 contentDescription = stringResource(R.string.open_website),
+                                tint = WebsiteBlue,
                             )
                         }
                     }
@@ -1047,6 +1048,7 @@ private fun saveToContacts(context: Context, card: BusinessCard, tags: List<Tag>
 private val CallGreen = Color(0xFF34A853)
 private val WhatsAppGreen = Color(0xFF25D366)
 private val MapsRed = Color(0xFFEA4335)
+private val WebsiteBlue = Color(0xFF4285F4)
 
 /** Opens the system dialer pre-filled with the number (no CALL_PHONE permission needed). */
 private fun openDialer(context: Context, phone: String) {
