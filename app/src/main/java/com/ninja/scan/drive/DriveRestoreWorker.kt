@@ -86,9 +86,19 @@ class DriveRestoreWorker(
             setProgress(workDataOf(DriveBackup.KEY_PROGRESS_CURRENT to current, DriveBackup.KEY_PROGRESS_TOTAL to total))
         }
 
-        val cardsRestored = manifest?.cards?.let {
-            app.repository.restoreCards(drive, it, manifest.tags)
-        } ?: 0
+        // An unexpected failure here (e.g. a local DB error) must not also
+        // wipe out the scans already restored above — isolate it the same
+        // way the scan-restore loop isolates per-file failures.
+        val cardsRestored = try {
+            manifest?.cards?.let {
+                app.repository.restoreCards(drive, it, manifest.tags)
+            } ?: 0
+        } catch (e: DriveAuthException) {
+            return@withContext Result.retry()
+        } catch (e: Exception) {
+            failures++
+            0
+        }
 
         if (failures > 0) {
             Result.retry()

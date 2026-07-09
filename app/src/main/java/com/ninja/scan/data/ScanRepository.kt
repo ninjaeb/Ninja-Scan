@@ -184,19 +184,26 @@ class ScanRepository(
             val card = entry.card
             val key = listOf(card.name, card.phone, card.email, card.createdAt.toString())
             if (key in existing) continue
-            val thumbnailPath = card.photoDriveFileId?.let { fileId ->
-                runCatching {
-                    val target = File(cardsDir, "restored_$fileId.jpg")
-                    drive.downloadTo(fileId, target)
-                    target.absolutePath
-                }.getOrNull() // download failure: skip the photo, keep the card record
+            // One bad entry (a stray insert/tag-linking failure) must not
+            // abort every remaining card — each is restored independently,
+            // mirroring how the scan-restore loop isolates per-file failures.
+            try {
+                val thumbnailPath = card.photoDriveFileId?.let { fileId ->
+                    runCatching {
+                        val target = File(cardsDir, "restored_$fileId.jpg")
+                        drive.downloadTo(fileId, target)
+                        target.absolutePath
+                    }.getOrNull() // download failure: skip the photo, keep the card record
+                }
+                val newId = cardDao.insert(card.copy(id = 0, thumbnailPath = thumbnailPath))
+                for (tagTitle in entry.tagTitles) {
+                    val tag = resolveTag(tagTitle)
+                    tagDao.addCardTag(CardTagCrossRef(newId, tag.id))
+                }
+                restored++
+            } catch (e: Exception) {
+                // Skip this card; the rest of the restore continues.
             }
-            val newId = cardDao.insert(card.copy(id = 0, thumbnailPath = thumbnailPath))
-            for (tagTitle in entry.tagTitles) {
-                val tag = resolveTag(tagTitle)
-                tagDao.addCardTag(CardTagCrossRef(newId, tag.id))
-            }
-            restored++
         }
         restored
     }
