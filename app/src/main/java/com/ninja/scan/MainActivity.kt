@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.work.WorkInfo
 import com.ninja.scan.cards.CardsActivity
 import com.ninja.scan.drive.DriveBackup
@@ -64,6 +65,13 @@ class MainActivity : ComponentActivity() {
         viewModel.setDriveBackupState(DriveBackup.isEnabled(this))
         setContent {
             var isDarkTheme by remember { mutableStateOf(ThemePrefs.isDark(this)) }
+            // Cards and Documents are separate Activities; re-read the shared
+            // preference on every resume so a toggle made on one screen is
+            // reflected here after navigating back, not just at creation time.
+            LifecycleResumeEffect(Unit) {
+                isDarkTheme = ThemePrefs.isDark(this@MainActivity)
+                onPauseOrDispose { }
+            }
             DocScannerTheme(darkTheme = isDarkTheme) {
                 val scans by viewModel.scans.collectAsState()
                 val searchQuery by viewModel.searchQuery.collectAsState()

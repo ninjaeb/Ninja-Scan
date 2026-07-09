@@ -93,6 +93,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
 import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
@@ -124,6 +125,13 @@ class CardsActivity : ComponentActivity() {
             savedInstanceState == null && intent.getBooleanExtra(EXTRA_START_SCAN, false)
         setContent {
             var isDarkTheme by remember { mutableStateOf(ThemePrefs.isDark(this)) }
+            // Documents and Cards are separate Activities; re-read the shared
+            // preference on every resume so a toggle made on one screen is
+            // reflected here after navigating back, not just at creation time.
+            LifecycleResumeEffect(Unit) {
+                isDarkTheme = ThemePrefs.isDark(this@CardsActivity)
+                onPauseOrDispose { }
+            }
             DocScannerTheme(darkTheme = isDarkTheme) {
                 CardsScreen(
                     autoStartScan = autoStartScan,
