@@ -70,6 +70,8 @@
     <string name="whatsapp">WhatsApp</string>
     <string name="open_website">Open website</string>
     <string name="open_map">Open in Maps</string>
+    <string name="switch_to_light_theme">Switch to light theme</string>
+    <string name="switch_to_dark_theme">Switch to dark theme</string>
     <string name="field_address">Address</string>
     <string name="save_details_title">Scan saved — name it?</string>
     <string name="search_cards_hint">Search contacts</string>

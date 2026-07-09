@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -109,6 +111,23 @@ fun DriveMenuButton(
                 )
             }
         }
+    }
+}
+
+/**
+ * Sun/moon icon button that switches between light and dark theme, shared
+ * by every top-level screen's top bar. Shows the icon for the mode a tap
+ * would switch *to*, matching common light/dark toggle conventions.
+ */
+@Composable
+fun ThemeToggleButton(isDarkTheme: Boolean, onToggle: () -> Unit) {
+    IconButton(onClick = onToggle) {
+        Icon(
+            if (isDarkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+            contentDescription = stringResource(
+                if (isDarkTheme) R.string.switch_to_light_theme else R.string.switch_to_dark_theme
+            ),
+        )
     }
 }
 

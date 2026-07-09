@@ -94,6 +94,8 @@ fun ScanListScreen(
     snackbarHostState: SnackbarHostState,
     restoreProgress: SyncProgress?,
     backupProgress: SyncProgress?,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
     onConfirmScanDetails: (ScanDocument, String, String?) -> Unit,
     onDismissScanDetails: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -183,6 +185,7 @@ fun ScanListScreen(
                 CenterAlignedTopAppBar(
                     title = { AppTitleWithIcon(stringResource(R.string.app_name)) },
                     actions = {
+                        ThemeToggleButton(isDarkTheme = isDarkTheme, onToggle = onToggleTheme)
                         DriveMenuButton(
                             enabled = driveBackupEnabled,
                             expanded = driveMenuOpen,

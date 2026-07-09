@@ -27,6 +27,7 @@ import com.ninja.scan.ui.ScanListScreen
 import com.ninja.scan.ui.ScanViewModel
 import com.ninja.scan.ui.SyncProgress
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.ShareActions
 import com.ninja.scan.viewer.PdfViewerActivity
 import com.google.android.gms.auth.api.identity.Identity
@@ -62,7 +63,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         viewModel.setDriveBackupState(DriveBackup.isEnabled(this))
         setContent {
-            DocScannerTheme {
+            var isDarkTheme by remember { mutableStateOf(ThemePrefs.isDark(this)) }
+            DocScannerTheme(darkTheme = isDarkTheme) {
                 val scans by viewModel.scans.collectAsState()
                 val searchQuery by viewModel.searchQuery.collectAsState()
                 val folders by viewModel.folders.collectAsState()
@@ -192,6 +194,11 @@ class MainActivity : ComponentActivity() {
                     snackbarHostState = snackbarHostState,
                     restoreProgress = restoreProgress,
                     backupProgress = backupProgress,
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = {
+                        isDarkTheme = !isDarkTheme
+                        ThemePrefs.setDark(this, isDarkTheme)
+                    },
                     onConfirmScanDetails = viewModel::confirmScanDetails,
                     onDismissScanDetails = viewModel::dismissScanDetails,
                     onSearchQueryChange = viewModel::onSearchQueryChange,

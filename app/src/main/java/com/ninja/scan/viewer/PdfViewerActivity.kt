@@ -72,6 +72,7 @@ import com.ninja.scan.editor.PageEditorActivity
 import com.ninja.scan.ui.SaveFormatSheet
 import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.PdfEditor
 import com.ninja.scan.util.ShareActions
@@ -99,7 +100,7 @@ class PdfViewerActivity : ComponentActivity() {
             return
         }
         setContent {
-            DocScannerTheme {
+            DocScannerTheme(darkTheme = ThemePrefs.isDark(this)) {
                 PdfViewerScreen(scanId = scanId, onBack = { finish() })
             }
         }

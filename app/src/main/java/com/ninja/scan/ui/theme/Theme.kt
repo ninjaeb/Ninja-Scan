@@ -1,6 +1,5 @@
 package com.ninja.scan.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -50,7 +49,7 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun DocScannerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean,
     content: @Composable () -> Unit,
 ) {
     // Deliberately not using dynamic (Material You) color: it derives the

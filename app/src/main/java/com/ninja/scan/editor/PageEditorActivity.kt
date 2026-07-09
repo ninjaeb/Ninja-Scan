@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.ImageOptimizer
 import com.ninja.scan.util.PdfEditor
@@ -89,7 +90,7 @@ class PageEditorActivity : ComponentActivity() {
             return
         }
         setContent {
-            DocScannerTheme {
+            DocScannerTheme(darkTheme = ThemePrefs.isDark(this)) {
                 PageEditorScreen(scanId = scanId, onDone = { finish() })
             }
         }

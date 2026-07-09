@@ -102,8 +102,10 @@ import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.DriveSyncProgressBar
 import com.ninja.scan.ui.LongPressableChip
 import com.ninja.scan.ui.SyncProgress
+import com.ninja.scan.ui.ThemeToggleButton
 import com.ninja.scan.ui.brandedNavigationItemColors
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.ThemePrefs
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
@@ -119,8 +121,17 @@ class CardsActivity : ComponentActivity() {
         val autoStartScan =
             savedInstanceState == null && intent.getBooleanExtra(EXTRA_START_SCAN, false)
         setContent {
-            DocScannerTheme {
-                CardsScreen(autoStartScan = autoStartScan, onBack = { finish() })
+            var isDarkTheme by remember { mutableStateOf(ThemePrefs.isDark(this)) }
+            DocScannerTheme(darkTheme = isDarkTheme) {
+                CardsScreen(
+                    autoStartScan = autoStartScan,
+                    onBack = { finish() },
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = {
+                        isDarkTheme = !isDarkTheme
+                        ThemePrefs.setDark(this, isDarkTheme)
+                    },
+                )
             }
         }
     }
@@ -145,7 +156,12 @@ private val cardScannerOptions = GmsDocumentScannerOptions.Builder()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
+private fun CardsScreen(
+    autoStartScan: Boolean,
+    onBack: () -> Unit,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
+) {
     val context = LocalContext.current
     val app = context.applicationContext as DocScannerApp
     val scope = rememberCoroutineScope()
@@ -379,6 +395,7 @@ private fun CardsScreen(autoStartScan: Boolean, onBack: () -> Unit) {
                             )
                         }
                     }
+                    ThemeToggleButton(isDarkTheme = isDarkTheme, onToggle = onToggleTheme)
                     DriveMenuButton(
                         enabled = driveBackupEnabled,
                         expanded = driveMenuOpen,
