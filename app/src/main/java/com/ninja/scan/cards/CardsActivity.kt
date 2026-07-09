@@ -1,5 +1,6 @@
 package com.ninja.scan.cards
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -940,6 +941,7 @@ private fun CardDetailScreen(
                             Icon(
                                 Icons.Filled.Email,
                                 contentDescription = stringResource(R.string.send_email),
+                                tint = EmailAmber,
                             )
                         }
                     }
@@ -1033,11 +1035,24 @@ private fun saveToContacts(context: Context, card: BusinessCard, tags: List<Tag>
         putExtra(ContactsContract.Intents.Insert.PHONE, card.phone)
         putExtra(ContactsContract.Intents.Insert.EMAIL, card.email)
         putExtra(ContactsContract.Intents.Insert.POSTAL, card.address)
-        val notes = listOf(card.website, card.notes, tags.joinToString(", ") { it.title })
+        val notes = listOf(card.notes, tags.joinToString(", ") { it.title })
             .filter { it.isNotBlank() }
             .joinToString("\n")
         if (notes.isNotBlank()) {
             putExtra(ContactsContract.Intents.Insert.NOTES, notes)
+        }
+        // Insert.WEBSITE doesn't exist on the basic extras above; a website
+        // needs its own structured Data row, passed via Insert.DATA.
+        if (card.website.isNotBlank()) {
+            val websiteRow = ContentValues().apply {
+                put(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Website.CONTENT_ITEM_TYPE)
+                put(ContactsContract.CommonDataKinds.Website.URL, card.website)
+                put(ContactsContract.CommonDataKinds.Website.TYPE, ContactsContract.CommonDataKinds.Website.TYPE_WORK)
+            }
+            putParcelableArrayListExtra(
+                ContactsContract.Intents.Insert.DATA,
+                arrayListOf(websiteRow),
+            )
         }
     }
     runCatching { context.startActivity(intent) }
@@ -1049,16 +1064,23 @@ private val CallGreen = Color(0xFF34A853)
 private val WhatsAppGreen = Color(0xFF25D366)
 private val MapsRed = Color(0xFFEA4335)
 private val WebsiteBlue = Color(0xFF4285F4)
+private val EmailAmber = Color(0xFFFBBC05)
+
+/** Strips visual formatting (spaces, dashes, parens) to a dialable "+"-prefixed number. */
+private fun normalizePhone(phone: String): String {
+    val digits = phone.filter { it.isDigit() }
+    return if (phone.trimStart().startsWith("+")) "+$digits" else digits
+}
 
 /** Opens the system dialer pre-filled with the number (no CALL_PHONE permission needed). */
 private fun openDialer(context: Context, phone: String) {
-    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}"))
+    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(normalizePhone(phone))}"))
     runCatching { context.startActivity(intent) }
 }
 
 /** wa.me expects digits only (country code, no "+", spaces, or dashes). */
 private fun openWhatsApp(context: Context, phone: String) {
-    val digits = phone.filter { it.isDigit() }
+    val digits = normalizePhone(phone).removePrefix("+")
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits"))
     runCatching { context.startActivity(intent) }
 }
