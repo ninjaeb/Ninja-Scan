@@ -52,6 +52,7 @@
     <string name="business_cards">Business cards</string>
     <string name="scan_business_card">Scan business card</string>
     <string name="save_to_contacts">Save to phone contacts</string>
+    <string name="contact_tags_label">Tags: %1$s</string>
     <string name="export_contacts">Export contacts</string>
     <string name="export_csv">Export as CSV</string>
     <string name="export_excel">Export as Excel</string>

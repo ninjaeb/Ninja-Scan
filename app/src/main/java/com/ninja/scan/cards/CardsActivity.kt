@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Edit
@@ -1026,6 +1027,27 @@ private fun CardDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        saveToContacts(
+                            context,
+                            card.copy(
+                                name = name.trim(),
+                                company = company.trim(),
+                                jobTitle = jobTitle.trim(),
+                                phone = phone.trim(),
+                                email = email.trim(),
+                                website = website.trim(),
+                                address = address.trim(),
+                                notes = notes.trim(),
+                            ),
+                            cardTags,
+                        )
+                    }) {
+                        Icon(
+                            Icons.Filled.PersonAdd,
+                            contentDescription = stringResource(R.string.save_to_contacts),
+                        )
+                    }
                     TextButton(onClick = {
                         onSave(
                             card.copy(
@@ -1286,8 +1308,9 @@ private fun saveToContacts(context: Context, card: BusinessCard, tags: List<Tag>
         putExtra(ContactsContract.Intents.Insert.PHONE, card.phone)
         putExtra(ContactsContract.Intents.Insert.EMAIL, card.email)
         putExtra(ContactsContract.Intents.Insert.POSTAL, card.address)
-        val notes = listOf(card.notes, tags.joinToString(", ") { it.title })
-            .filter { it.isNotBlank() }
+        val tagsLabel = tags.takeIf { it.isNotEmpty() }
+            ?.let { context.getString(R.string.contact_tags_label, it.joinToString(", ") { tag -> tag.title }) }
+        val notes = listOfNotNull(card.notes.takeIf { it.isNotBlank() }, tagsLabel)
             .joinToString("\n")
         if (notes.isNotBlank()) {
             putExtra(ContactsContract.Intents.Insert.NOTES, notes)
