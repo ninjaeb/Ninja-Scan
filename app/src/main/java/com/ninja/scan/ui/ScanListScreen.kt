@@ -165,7 +165,7 @@ fun ScanListScreen(
     }
 
     Scaffold(
-        // Swipe right-to-left (finger moving left) to jump to Cards, matching
+        // Swipe left-to-right (finger moving right) to jump to Cards, matching
         // the "Cards" bottom-nav tab one screen over. Consumed only past a
         // deliberate threshold so it can't misfire from small drags/taps.
         modifier = Modifier.pointerInput(onOpenCards) {
@@ -174,7 +174,7 @@ fun ScanListScreen(
             detectHorizontalDragGestures(
                 onDragStart = { totalDrag = 0f },
                 onDragEnd = {
-                    if (!selectionActive && totalDrag < -threshold) onOpenCards()
+                    if (!selectionActive && totalDrag > threshold) onOpenCards()
                 },
                 onDragCancel = { totalDrag = 0f },
             ) { change, dragAmount ->
