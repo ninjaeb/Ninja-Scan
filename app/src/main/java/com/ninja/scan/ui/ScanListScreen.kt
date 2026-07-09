@@ -69,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -344,6 +345,7 @@ fun ScanListScreen(
                     items(scans, key = { it.id }) { scan ->
                         ScanRow(
                             scan = scan,
+                            folderColors = folderColors,
                             selectionMode = selectionActive,
                             selected = scan.id in selectedIds,
                             onClick = { onOpen(scan) },
@@ -741,6 +743,7 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 @Composable
 private fun ScanRow(
     scan: ScanDocument,
+    folderColors: Map<String, String>,
     selectionMode: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
@@ -816,6 +819,26 @@ private fun ScanRow(
                             contentDescription = stringResource(R.string.backed_up_to_drive),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+                scan.folder?.let { folder ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(folderColors[folder]?.let(::hexToColor) ?: Color.Gray)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            folder,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
                         )
                     }
                 }
