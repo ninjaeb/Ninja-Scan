@@ -155,11 +155,12 @@ object PdfEditor {
         watermark: String?,
         targetDir: File,
         baseName: String,
+        pageIndices: List<Int>? = null,
     ): List<File> {
         targetDir.mkdirs()
         val files = mutableListOf<File>()
         openRenderer(pdf).use { renderer ->
-            for (index in 0 until renderer.pageCount) {
+            for (index in pageIndices ?: (0 until renderer.pageCount).toList()) {
                 val bitmap = renderPage(renderer, index, MAX_PAGE_DIMENSION_PX) ?: continue
                 if (!watermark.isNullOrBlank()) applyWatermark(bitmap, watermark)
                 val file = File(targetDir, "$baseName-${index + 1}.jpg")

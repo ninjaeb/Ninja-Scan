@@ -460,6 +460,30 @@ class ScanRepository(
             )
         }
 
+    /** Builds a single PDF from just the given (0-based) page indices, in order. */
+    suspend fun preparePagesPdf(scan: ScanDocument, pageIndices: List<Int>): File =
+        withContext(Dispatchers.IO) {
+            val source = File(scan.pdfPath)
+            val target = File(shareDir, "${shareBaseName(scan)}-selected.pdf")
+            val pages = pageIndices.map { EditPage.FromPdf(it) }
+            check(PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
+                "Could not prepare the document"
+            }
+            target
+        }
+
+    /** Renders just the given (0-based) page indices (watermarked if set) as shareable JPEGs. */
+    suspend fun preparePageImages(scan: ScanDocument, pageIndices: List<Int>): List<File> =
+        withContext(Dispatchers.IO) {
+            PdfEditor.renderPagesAsJpegs(
+                File(scan.pdfPath),
+                scan.watermark,
+                shareDir,
+                shareBaseName(scan),
+                pageIndices,
+            )
+        }
+
     /**
      * Saves the scan's pages (watermarked if set) as JPEGs into the device's
      * Pictures/Ninja Scan gallery folder. Returns how many pages were saved.

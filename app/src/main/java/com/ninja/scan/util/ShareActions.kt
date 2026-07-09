@@ -43,6 +43,20 @@ object ShareActions {
         }
     }
 
+    /** Shares just the given (0-based) page indices as one combined PDF. */
+    fun sharePagesPdf(activity: ComponentActivity, scan: ScanDocument, pageIndices: List<Int>) {
+        launchShare(activity, scan) { repository ->
+            listOf(repository.preparePagesPdf(scan, pageIndices)) to "application/pdf"
+        }
+    }
+
+    /** Shares just the given (0-based) page indices, each as its own image. */
+    fun sharePageImages(activity: ComponentActivity, scan: ScanDocument, pageIndices: List<Int>) {
+        launchShare(activity, scan) { repository ->
+            repository.preparePageImages(scan, pageIndices) to "image/jpeg"
+        }
+    }
+
     fun sharePdfs(activity: ComponentActivity, scans: List<ScanDocument>) {
         launchShareMulti(activity, scans) { repository, scan ->
             listOf(repository.preparePdfForSharing(scan)) to "application/pdf"

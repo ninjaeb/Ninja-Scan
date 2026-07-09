@@ -207,3 +207,31 @@ fun SaveFormatSheet(
         Spacer(Modifier.height(24.dp))
     }
 }
+
+/** "How do you want to export these pages?" sheet, for a page subset picked in the viewer. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PagesShareSheet(
+    pageCount: Int,
+    onDismiss: () -> Unit,
+    onPdf: () -> Unit,
+    onImages: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+        ) {
+            Text(
+                if (pageCount == 1) stringResource(R.string.page)
+                else stringResource(R.string.pages, pageCount),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        SheetAction(Icons.Filled.PictureAsPdf, stringResource(R.string.share_as_pdf), onClick = onPdf)
+        SheetAction(Icons.Filled.Image, stringResource(R.string.share_as_images), onClick = onImages)
+        Spacer(Modifier.height(24.dp))
+    }
+}

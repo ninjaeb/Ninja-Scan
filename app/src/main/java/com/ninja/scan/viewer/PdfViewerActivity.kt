@@ -7,28 +7,35 @@ import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.BrandingWatermark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -50,6 +57,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -57,6 +65,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -71,6 +80,7 @@ import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.editor.PageEditorActivity
+import com.ninja.scan.ui.PagesShareSheet
 import com.ninja.scan.ui.SaveFormatSheet
 import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
@@ -131,6 +141,13 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
     var renamingTitle by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Long-press a page thumbnail to pick several pages and export/share
+    // just those, instead of the whole document.
+    val selectedPages = remember { mutableStateListOf<Int>() }
+    val pageSelectionActive = selectedPages.isNotEmpty()
+    var sharingPages by remember { mutableStateOf(false) }
+    BackHandler(enabled = pageSelectionActive) { selectedPages.clear() }
+
     LaunchedEffect(scanId) {
         val loaded = app.repository.getScan(scanId)
         if (loaded == null || !File(loaded.pdfPath).exists()) onBack() else scan = loaded
@@ -166,37 +183,53 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
     val current = scan
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    // Tap the title to rename the document.
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable(enabled = current != null) {
-                            renamingTitle = true
-                        },
-                    ) {
-                        Text(
-                            current?.title.orEmpty(),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (current != null) {
-                            Spacer(Modifier.width(6.dp))
-                            Icon(
-                                Icons.Filled.Edit,
-                                contentDescription = stringResource(R.string.rename),
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+            if (pageSelectionActive) {
+                CenterAlignedTopAppBar(
+                    title = { Text(stringResource(R.string.selected_count, selectedPages.size)) },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedPages.clear() }) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cancel))
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    }
-                },
-            )
+                    },
+                    actions = {
+                        IconButton(onClick = { sharingPages = true }) {
+                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
+                        }
+                    },
+                )
+            } else {
+                CenterAlignedTopAppBar(
+                    title = {
+                        // Tap the title to rename the document.
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable(enabled = current != null) {
+                                renamingTitle = true
+                            },
+                        ) {
+                            Text(
+                                current?.title.orEmpty(),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (current != null) {
+                                Spacer(Modifier.width(6.dp))
+                                Icon(
+                                    Icons.Filled.Edit,
+                                    contentDescription = stringResource(R.string.rename),
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        }
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
@@ -275,7 +308,23 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 items(session.pageCount) { index ->
-                    PdfPage(session = session, index = index, targetWidthPx = widthPx)
+                    PdfPage(
+                        session = session,
+                        index = index,
+                        targetWidthPx = widthPx,
+                        selectionMode = pageSelectionActive,
+                        selected = index in selectedPages,
+                        onClick = {
+                            if (pageSelectionActive) {
+                                if (index in selectedPages) selectedPages.remove(index)
+                                else selectedPages.add(index)
+                            }
+                        },
+                        onLongClick = {
+                            if (index in selectedPages) selectedPages.remove(index)
+                            else selectedPages.add(index)
+                        },
+                    )
                 }
             }
         }
@@ -290,6 +339,24 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
             onLongImage = { sharing = false; ShareActions.shareLongImage(activity, current) },
             onSeparatePdfs = {
                 sharing = false; ShareActions.shareSeparatePdfs(activity, current)
+            },
+        )
+    }
+
+    if (sharingPages && current != null) {
+        val pages = selectedPages.sorted()
+        PagesShareSheet(
+            pageCount = pages.size,
+            onDismiss = { sharingPages = false },
+            onPdf = {
+                sharingPages = false
+                selectedPages.clear()
+                ShareActions.sharePagesPdf(activity, current, pages)
+            },
+            onImages = {
+                sharingPages = false
+                selectedPages.clear()
+                ShareActions.sharePageImages(activity, current, pages)
             },
         )
     }
@@ -414,31 +481,75 @@ private val addScanOptions = GmsDocumentScannerOptions.Builder()
     .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
     .build()
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PdfPage(session: PdfSession, index: Int, targetWidthPx: Int) {
+private fun PdfPage(
+    session: PdfSession,
+    index: Int,
+    targetWidthPx: Int,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     val bitmap by produceState<Bitmap?>(initialValue = null, session, index, targetWidthPx) {
         value = session.renderPage(index, targetWidthPx)
     }
     val currentBitmap = bitmap
-    if (currentBitmap != null) {
-        Image(
-            bitmap = currentBitmap.asImageBitmap(),
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp)
-                .background(Color.White),
-        )
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(session.pageAspectRatio(index))
-                .padding(bottom = 8.dp)
-                .background(Color.White),
-            contentAlignment = Alignment.Center,
-        ) {
-            CircularProgressIndicator()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        if (currentBitmap != null) {
+            Image(
+                bitmap = currentBitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(session.pageAspectRatio(index))
+                    .background(Color.White),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+        if (selectionMode) {
+            if (selected) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.primary
+                        else Color.White.copy(alpha = 0.7f)
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
         }
     }
 }
