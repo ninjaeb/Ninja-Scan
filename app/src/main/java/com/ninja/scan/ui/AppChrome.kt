@@ -129,6 +129,7 @@ fun ThemeToggleButton(isDarkTheme: Boolean, onToggle: () -> Unit) {
             contentDescription = stringResource(
                 if (isDarkTheme) R.string.switch_to_light_theme else R.string.switch_to_dark_theme
             ),
+            tint = if (isDarkTheme) EditAmber else ShareBlue,
         )
     }
 }

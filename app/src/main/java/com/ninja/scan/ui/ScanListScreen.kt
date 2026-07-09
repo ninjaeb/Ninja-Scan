@@ -27,10 +27,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -894,22 +897,33 @@ private fun ScanRow(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.share)) },
+                        leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = ShareBlue) },
                         onClick = { menuOpen = false; onShare() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.rename)) },
+                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = EditAmber) },
                         onClick = { menuOpen = false; onRename() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete)) },
+                        leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = DestructiveRed) },
                         onClick = { menuOpen = false; onDelete() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.save_to_cloud)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.CloudUpload,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
                         onClick = { menuOpen = false; onSaveToCloud() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.move_to_folder)) },
+                        leadingIcon = { Icon(Icons.Filled.Folder, contentDescription = null) },
                         onClick = { menuOpen = false; onMoveToFolder() },
                     )
                 }

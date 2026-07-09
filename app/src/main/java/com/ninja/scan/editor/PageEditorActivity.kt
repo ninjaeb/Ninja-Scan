@@ -158,8 +158,7 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
                         Icon(
                             Icons.Filled.BrandingWatermark,
                             contentDescription = stringResource(R.string.watermark),
-                            tint = if (watermark.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (!saving) EditAmber else LocalContentColor.current,
                         )
                     }
                     IconButton(
@@ -177,7 +176,7 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
                         Icon(
                             Icons.Filled.Add,
                             contentDescription = stringResource(R.string.add_pages),
-                            tint = ActionGreen,
+                            tint = if (!saving) ActionGreen else LocalContentColor.current,
                         )
                     }
                     IconButton(
@@ -211,6 +210,8 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
                         Icon(
                             Icons.Filled.Check,
                             contentDescription = stringResource(R.string.save),
+                            tint = if (!saving && pages.isNotEmpty()) MaterialTheme.colorScheme.primary
+                            else LocalContentColor.current,
                         )
                     }
                 },

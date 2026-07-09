@@ -4,7 +4,7 @@
     <string name="empty_library_title">No scans yet</string>
     <string name="empty_library_body">Tap the scan button to capture a document. Edges are detected and cropped automatically, and the result is optimized for cloud storage.</string>
     <string name="share">Share</string>
-    <string name="save_to_cloud">Save to cloud</string>
+    <string name="save_to_cloud">Save</string>
     <string name="delete">Delete</string>
     <string name="open">Open</string>
     <string name="rename">Rename</string>

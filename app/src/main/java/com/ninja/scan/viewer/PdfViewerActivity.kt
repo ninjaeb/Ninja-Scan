@@ -44,6 +44,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -263,14 +264,26 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                 addScanLauncher.launch(IntentSenderRequest.Builder(sender).build())
                             }
                     },
-                    icon = { Icon(Icons.Filled.AddAPhoto, contentDescription = null, tint = ActionGreen) },
+                    icon = {
+                        Icon(
+                            Icons.Filled.AddAPhoto,
+                            contentDescription = null,
+                            tint = if (current != null) ActionGreen else LocalContentColor.current,
+                        )
+                    },
                     label = { BarLabel(stringResource(R.string.add_scan)) },
                 )
                 NavigationBarItem(
                     selected = false,
                     enabled = current != null,
                     onClick = { sharing = true },
-                    icon = { Icon(Icons.Filled.Share, contentDescription = null, tint = ShareBlue) },
+                    icon = {
+                        Icon(
+                            Icons.Filled.Share,
+                            contentDescription = null,
+                            tint = if (current != null) ShareBlue else LocalContentColor.current,
+                        )
+                    },
                     label = { BarLabel(stringResource(R.string.share)) },
                 )
                 NavigationBarItem(
@@ -281,7 +294,13 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                             context.startActivity(PageEditorActivity.intent(context, it.id))
                         }
                     },
-                    icon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = EditAmber) },
+                    icon = {
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = null,
+                            tint = if (current != null) EditAmber else LocalContentColor.current,
+                        )
+                    },
                     label = { BarLabel(stringResource(R.string.edit)) },
                 )
                 NavigationBarItem(

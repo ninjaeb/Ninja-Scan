@@ -71,6 +71,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -499,7 +500,7 @@ private fun CardsScreen(
                                 Icon(
                                     Icons.Filled.FileDownload,
                                     contentDescription = stringResource(R.string.export_contacts),
-                                    tint = ShareBlue,
+                                    tint = if (cards.isNotEmpty()) ShareBlue else LocalContentColor.current,
                                 )
                             }
                             DropdownMenu(
@@ -945,10 +946,16 @@ private fun CardRow(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.save_to_contacts)) },
+                        leadingIcon = {
+                            Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = ActionGreen)
+                        },
                         onClick = { menuOpen = false; onSaveToContacts() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete)) },
+                        leadingIcon = {
+                            Icon(Icons.Filled.Delete, contentDescription = null, tint = DestructiveRed)
+                        },
                         onClick = { menuOpen = false; onDelete() },
                     )
                 }
