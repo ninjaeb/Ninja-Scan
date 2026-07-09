@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.Box
@@ -95,6 +96,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -425,6 +427,23 @@ private fun CardsScreen(
     }
 
     Scaffold(
+        // Swipe right-to-left (finger moving left) to go back to Documents,
+        // one screen over. Consumed only past a deliberate threshold so it
+        // can't misfire from small drags/taps.
+        modifier = Modifier.pointerInput(onBack) {
+            val threshold = 120.dp.toPx()
+            var totalDrag = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { totalDrag = 0f },
+                onDragEnd = {
+                    if (!cardSelectionActive && totalDrag < -threshold) onBack()
+                },
+                onDragCancel = { totalDrag = 0f },
+            ) { change, dragAmount ->
+                totalDrag += dragAmount
+                change.consume()
+            }
+        },
         topBar = {
             if (cardSelectionActive) {
                 CenterAlignedTopAppBar(

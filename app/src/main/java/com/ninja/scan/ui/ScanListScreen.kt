@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -163,6 +165,23 @@ fun ScanListScreen(
     }
 
     Scaffold(
+        // Swipe left-to-right (finger moving right) to jump to Cards, matching
+        // the "Cards" bottom-nav tab one screen over. Consumed only past a
+        // deliberate threshold so it can't misfire from small drags/taps.
+        modifier = Modifier.pointerInput(onOpenCards) {
+            val threshold = 120.dp.toPx()
+            var totalDrag = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { totalDrag = 0f },
+                onDragEnd = {
+                    if (!selectionActive && totalDrag > threshold) onOpenCards()
+                },
+                onDragCancel = { totalDrag = 0f },
+            ) { change, dragAmount ->
+                totalDrag += dragAmount
+                change.consume()
+            }
+        },
         topBar = {
             if (selectionActive) {
                 CenterAlignedTopAppBar(
