@@ -151,7 +151,11 @@ private fun PageEditorScreen(scanId: Long, onDone: () -> Unit) {
                 title = { Text(title, maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onDone, enabled = !saving) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = if (!saving) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                        )
                     }
                 },
                 actions = {

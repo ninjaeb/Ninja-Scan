@@ -231,14 +231,18 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                     Icons.Filled.Edit,
                                     contentDescription = stringResource(R.string.rename),
                                     modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = EditAmber,
                                 )
                             }
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     },
                 )
@@ -251,7 +255,13 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     selected = false,
                     enabled = current != null,
                     onClick = { editingWatermark = true },
-                    icon = { Icon(Icons.Filled.BrandingWatermark, contentDescription = null) },
+                    icon = {
+                        Icon(
+                            Icons.Filled.BrandingWatermark,
+                            contentDescription = null,
+                            tint = if (current != null) EditAmber else LocalContentColor.current,
+                        )
+                    },
                     label = { BarLabel(stringResource(R.string.watermark)) },
                 )
                 NavigationBarItem(
@@ -307,7 +317,14 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     selected = false,
                     enabled = current != null,
                     onClick = { saving = true },
-                    icon = { Icon(Icons.Filled.CloudUpload, contentDescription = null) },
+                    icon = {
+                        Icon(
+                            Icons.Filled.CloudUpload,
+                            contentDescription = null,
+                            tint = if (current != null) MaterialTheme.colorScheme.primary
+                            else LocalContentColor.current,
+                        )
+                    },
                     label = { BarLabel(stringResource(R.string.save)) },
                 )
             }

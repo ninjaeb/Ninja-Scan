@@ -923,7 +923,7 @@ private fun ScanRow(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.move_to_folder)) },
-                        leadingIcon = { Icon(Icons.Filled.Folder, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Filled.Folder, contentDescription = null, tint = FolderIndigo) },
                         onClick = { menuOpen = false; onMoveToFolder() },
                     )
                 }

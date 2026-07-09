@@ -488,7 +488,11 @@ private fun CardsScreen(
                     title = { AppTitleWithIcon(stringResource(R.string.business_cards)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     },
                     actions = {
@@ -1042,7 +1046,11 @@ private fun CardDetailScreen(
                 title = { Text(name.ifBlank { stringResource(R.string.business_cards) }) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 },
                 actions = {
