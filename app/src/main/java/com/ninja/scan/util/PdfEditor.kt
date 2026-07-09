@@ -179,20 +179,30 @@ object PdfEditor {
      * optionally watermarked. The width targets [LONG_IMAGE_WIDTH_PX] and the
      * total height is capped by down-scaling. Returns the page count drawn.
      */
-    fun writeLongImage(pdf: File, watermark: String?, target: File): Int {
+    fun writeLongImage(
+        pdf: File,
+        watermark: String?,
+        target: File,
+        pageIndices: List<Int>? = null,
+    ): Int {
         openRenderer(pdf).use { renderer ->
-            if (renderer.pageCount == 0) return 0
-            val sizes = (0 until renderer.pageCount).map { index ->
-                renderer.openPage(index).use { it.width to it.height }
-            }.filter { (w, h) -> w > 0 && h > 0 }
-            if (sizes.isEmpty()) return 0
+            val indices = pageIndices ?: (0 until renderer.pageCount).toList()
+            if (indices.isEmpty()) return 0
+            // Pairs each page number with its size so a subset (or any page
+            // dropped by the size filter below) can't desync page number from
+            // position, unlike iterating a plain 0-until-count range.
+            val sized = indices.mapNotNull { index ->
+                val (w, h) = renderer.openPage(index).use { it.width to it.height }
+                if (w > 0 && h > 0) index to (w to h) else null
+            }
+            if (sized.isEmpty()) return 0
 
             var width = LONG_IMAGE_WIDTH_PX
-            var totalHeight = sizes.sumOf { (w, h) -> h * width / w }
+            var totalHeight = sized.sumOf { (_, wh) -> wh.second * width / wh.first }
             if (totalHeight > LONG_IMAGE_MAX_HEIGHT_PX) {
                 width = (width.toLong() * LONG_IMAGE_MAX_HEIGHT_PX / totalHeight)
                     .toInt().coerceAtLeast(200)
-                totalHeight = sizes.sumOf { (w, h) -> h * width / w }
+                totalHeight = sized.sumOf { (_, wh) -> wh.second * width / wh.first }
             }
 
             val sheet = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.RGB_565)
@@ -201,10 +211,10 @@ object PdfEditor {
             val paint = Paint(Paint.FILTER_BITMAP_FLAG)
             var y = 0
             var drawn = 0
-            for (index in sizes.indices) {
-                val (pageWidth, pageHeight) = sizes[index]
+            for ((pageIndex, size) in sized) {
+                val (pageWidth, pageHeight) = size
                 val scaledHeight = (pageHeight * width / pageWidth).coerceAtLeast(1)
-                val bitmap = renderer.openPage(index).use { page ->
+                val bitmap = renderer.openPage(pageIndex).use { page ->
                     val b = Bitmap.createBitmap(width, scaledHeight, Bitmap.Config.ARGB_8888)
                     b.eraseColor(Color.WHITE)
                     page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)

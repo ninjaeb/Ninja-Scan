@@ -113,6 +113,8 @@ import com.ninja.scan.drive.DriveBackupWorker
 import com.ninja.scan.ui.AppTitleWithIcon
 import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.DriveSyncProgressBar
+import com.ninja.scan.ui.HintPrefs
+import com.ninja.scan.ui.LongPressHint
 import com.ninja.scan.ui.LongPressableChip
 import com.ninja.scan.ui.SyncProgress
 import com.ninja.scan.ui.ThemeToggleButton
@@ -164,6 +166,8 @@ class CardsActivity : ComponentActivity() {
                 .putExtra(EXTRA_START_SCAN, startScan)
     }
 }
+
+private const val HINT_KEY_CARDS = "cards"
 
 // FULL mode: better crop, shadow/stain cleanup, and auto-enhance produce a
 // sharper image and noticeably better OCR field extraction.
@@ -311,6 +315,9 @@ private fun CardsScreen(
     val cardSelectionActive = selectedCardIds.isNotEmpty()
     var deletingCards by remember { mutableStateOf<List<BusinessCard>?>(null) }
     BackHandler(enabled = cardSelectionActive) { selectedCardIds.clear() }
+    var showLongPressHint by remember {
+        mutableStateOf(!HintPrefs.isDismissed(context, HINT_KEY_CARDS))
+    }
     var exportMenuOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var tagFilter by remember { mutableStateOf<Long?>(null) }
@@ -575,6 +582,15 @@ private fun CardsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            if (showLongPressHint && !cardSelectionActive && cards.isNotEmpty()) {
+                LongPressHint(
+                    text = stringResource(R.string.hint_long_press_cards),
+                    onDismiss = {
+                        showLongPressHint = false
+                        HintPrefs.dismiss(context, HINT_KEY_CARDS)
+                    },
                 )
             }
             if (cards.isNotEmpty() || allTags.isNotEmpty()) {

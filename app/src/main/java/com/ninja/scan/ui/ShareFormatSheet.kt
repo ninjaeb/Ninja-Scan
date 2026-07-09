@@ -208,7 +208,10 @@ fun SaveFormatSheet(
     }
 }
 
-/** "How do you want to export these pages?" sheet, for a page subset picked in the viewer. */
+/**
+ * Same format choices as [ShareFormatSheet], for a page subset picked in the
+ * viewer instead of a whole document.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PagesShareSheet(
@@ -216,22 +219,30 @@ fun PagesShareSheet(
     onDismiss: () -> Unit,
     onPdf: () -> Unit,
     onImages: () -> Unit,
+    onLongImage: () -> Unit,
+    onSeparatePdfs: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-        ) {
-            Text(
-                if (pageCount == 1) stringResource(R.string.page)
-                else stringResource(R.string.pages, pageCount),
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-        HorizontalDivider(Modifier.padding(vertical = 4.dp))
-        SheetAction(Icons.Filled.PictureAsPdf, stringResource(R.string.share_as_pdf), onClick = onPdf)
-        SheetAction(Icons.Filled.Image, stringResource(R.string.share_as_images), onClick = onImages)
-        Spacer(Modifier.height(24.dp))
+    ShareFormatSheetBody(
+        header = { PagesSheetHeader(pageCount) },
+        onDismiss = onDismiss,
+        onPdf = onPdf,
+        onImages = onImages,
+        onLongImage = onLongImage,
+        onSeparatePdfs = onSeparatePdfs,
+    )
+}
+
+@Composable
+private fun PagesSheetHeader(pageCount: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+    ) {
+        Text(
+            if (pageCount == 1) stringResource(R.string.page)
+            else stringResource(R.string.pages, pageCount),
+            style = MaterialTheme.typography.titleMedium,
+        )
     }
 }

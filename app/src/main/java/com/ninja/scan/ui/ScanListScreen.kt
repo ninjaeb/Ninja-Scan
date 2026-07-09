@@ -82,6 +82,8 @@ import android.text.format.Formatter
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
 
+private const val HINT_KEY_DOCUMENTS = "documents"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanListScreen(
@@ -154,6 +156,11 @@ fun ScanListScreen(
     var multiSharingScans by remember { mutableStateOf<List<ScanDocument>?>(null) }
     var deletingScans by remember { mutableStateOf<List<ScanDocument>?>(null) }
     BackHandler(enabled = selectionActive) { selectedIds.clear() }
+
+    val context = LocalContext.current
+    var showLongPressHint by remember {
+        mutableStateOf(!HintPrefs.isDismissed(context, HINT_KEY_DOCUMENTS))
+    }
 
     Scaffold(
         topBar = {
@@ -261,6 +268,15 @@ fun ScanListScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            if (showLongPressHint && !selectionActive && scans.isNotEmpty()) {
+                LongPressHint(
+                    text = stringResource(R.string.hint_long_press_documents),
+                    onDismiss = {
+                        showLongPressHint = false
+                        HintPrefs.dismiss(context, HINT_KEY_DOCUMENTS)
+                    },
                 )
             }
             if (scans.isNotEmpty() || folders.isNotEmpty() || folderFilter != null) {

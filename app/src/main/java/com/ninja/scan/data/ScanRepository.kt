@@ -430,6 +430,13 @@ class ScanRepository(
         return "$sanitized-scan-with-Ninja-Scan-App"
     }
 
+    /** PDF shares/exports are branded as a filename prefix instead of a suffix. */
+    private fun pdfShareBaseName(scan: ScanDocument): String {
+        val sanitized =
+            scan.title.replace(Regex("[^A-Za-z0-9 ._-]"), "_").ifBlank { "scan-${scan.id}" }
+        return "By-Ninja-Scan-App-$sanitized"
+    }
+
     /**
      * Returns the PDF to hand to other apps: a named copy of the stored file
      * (watermarked when set) so shared/exported files carry a recognizable
@@ -437,7 +444,7 @@ class ScanRepository(
      */
     suspend fun preparePdfForSharing(scan: ScanDocument): File = withContext(Dispatchers.IO) {
         val source = File(scan.pdfPath)
-        val target = File(shareDir, "${shareBaseName(scan)}.pdf")
+        val target = File(shareDir, "${pdfShareBaseName(scan)}.pdf")
         val watermark = scan.watermark?.takeIf { it.isNotBlank() }
         if (watermark != null) {
             check(PdfEditor.writeWatermarkedCopy(context, source, watermark, target) > 0) {
@@ -464,7 +471,7 @@ class ScanRepository(
     suspend fun preparePagesPdf(scan: ScanDocument, pageIndices: List<Int>): File =
         withContext(Dispatchers.IO) {
             val source = File(scan.pdfPath)
-            val target = File(shareDir, "${shareBaseName(scan)}-selected.pdf")
+            val target = File(shareDir, "${pdfShareBaseName(scan)}-selected.pdf")
             val pages = pageIndices.map { EditPage.FromPdf(it) }
             check(PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
                 "Could not prepare the document"
@@ -540,12 +547,37 @@ class ScanRepository(
         target
     }
 
+    /** Stitches just the given (0-based) page indices into one tall shareable JPEG. */
+    suspend fun preparePagesLongImage(scan: ScanDocument, pageIndices: List<Int>): File =
+        withContext(Dispatchers.IO) {
+            val target = File(shareDir, "${shareBaseName(scan)}-selected-long.jpg")
+            check(
+                PdfEditor.writeLongImage(File(scan.pdfPath), scan.watermark, target, pageIndices) > 0
+            ) { "Could not prepare the document" }
+            target
+        }
+
     /** Exports every page as its own single-page PDF (watermarked if set). */
     suspend fun prepareSeparatePdfs(scan: ScanDocument): List<File> =
         withContext(Dispatchers.IO) {
             val source = File(scan.pdfPath)
             (0 until PdfEditor.pageCount(source)).mapNotNull { index ->
-                val target = File(shareDir, "${shareBaseName(scan)}-p${index + 1}.pdf")
+                val target = File(shareDir, "${pdfShareBaseName(scan)}-p${index + 1}.pdf")
+                val pages = listOf<EditPage>(EditPage.FromPdf(index))
+                if (PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
+                    target
+                } else {
+                    null
+                }
+            }
+        }
+
+    /** Exports just the given (0-based) page indices, each as its own single-page PDF. */
+    suspend fun preparePagesSeparatePdfs(scan: ScanDocument, pageIndices: List<Int>): List<File> =
+        withContext(Dispatchers.IO) {
+            val source = File(scan.pdfPath)
+            pageIndices.mapNotNull { index ->
+                val target = File(shareDir, "${pdfShareBaseName(scan)}-p${index + 1}.pdf")
                 val pages = listOf<EditPage>(EditPage.FromPdf(index))
                 if (PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
                     target

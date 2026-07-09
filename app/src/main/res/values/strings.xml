@@ -77,6 +77,10 @@
     <string name="send_email">Send email</string>
     <string name="switch_to_light_theme">Switch to light theme</string>
     <string name="switch_to_dark_theme">Switch to dark theme</string>
+    <string name="dismiss_hint">Dismiss</string>
+    <string name="hint_long_press_documents">Long-press a document to select multiple for sharing or deleting</string>
+    <string name="hint_long_press_cards">Long-press a card to select multiple for deleting</string>
+    <string name="hint_long_press_pages">Long-press a page to select multiple for exporting</string>
     <string name="field_address">Address</string>
     <string name="save_details_title">Scan saved — name it?</string>
     <string name="search_cards_hint">Search contacts</string>

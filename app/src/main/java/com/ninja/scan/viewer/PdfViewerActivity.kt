@@ -79,6 +79,8 @@ import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.editor.PageEditorActivity
+import com.ninja.scan.ui.HintPrefs
+import com.ninja.scan.ui.LongPressHint
 import com.ninja.scan.ui.PagesShareSheet
 import com.ninja.scan.ui.SaveFormatSheet
 import com.ninja.scan.ui.ShareFormatSheet
@@ -146,6 +148,9 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
     val pageSelectionActive = selectedPages.isNotEmpty()
     var sharingPages by remember { mutableStateOf(false) }
     BackHandler(enabled = pageSelectionActive) { selectedPages.clear() }
+    var showLongPressHint by remember {
+        mutableStateOf(!HintPrefs.isDismissed(context, HINT_KEY_PAGES))
+    }
 
     LaunchedEffect(scanId) {
         val loaded = app.repository.getScan(scanId)
@@ -306,6 +311,17 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     .padding(padding)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
+                if (showLongPressHint && !pageSelectionActive && session.pageCount > 1) {
+                    item {
+                        LongPressHint(
+                            text = stringResource(R.string.hint_long_press_pages),
+                            onDismiss = {
+                                showLongPressHint = false
+                                HintPrefs.dismiss(context, HINT_KEY_PAGES)
+                            },
+                        )
+                    }
+                }
                 items(session.pageCount) { index ->
                     PdfPage(
                         session = session,
@@ -356,6 +372,16 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 sharingPages = false
                 selectedPages.clear()
                 ShareActions.sharePageImages(activity, current, pages)
+            },
+            onLongImage = {
+                sharingPages = false
+                selectedPages.clear()
+                ShareActions.sharePagesLongImage(activity, current, pages)
+            },
+            onSeparatePdfs = {
+                sharingPages = false
+                selectedPages.clear()
+                ShareActions.sharePagesSeparatePdfs(activity, current, pages)
             },
         )
     }
@@ -472,6 +498,8 @@ private fun BarLabel(text: String) {
         style = MaterialTheme.typography.labelSmall,
     )
 }
+
+private const val HINT_KEY_PAGES = "pages"
 
 private val addScanOptions = GmsDocumentScannerOptions.Builder()
     .setGalleryImportAllowed(true)
