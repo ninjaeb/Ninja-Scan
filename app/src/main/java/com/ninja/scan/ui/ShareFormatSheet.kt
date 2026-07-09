@@ -95,12 +95,28 @@ private fun ShareFormatSheetBody(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         header()
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
-        SheetAction(Icons.Filled.PictureAsPdf, stringResource(R.string.share_as_pdf), onClick = onPdf)
-        SheetAction(Icons.Filled.Image, stringResource(R.string.share_as_images), onClick = onImages)
-        SheetAction(Icons.Filled.Photo, stringResource(R.string.share_as_long_image), onClick = onLongImage)
+        SheetAction(
+            Icons.Filled.PictureAsPdf,
+            stringResource(R.string.share_as_pdf),
+            iconTint = DestructiveRed,
+            onClick = onPdf,
+        )
+        SheetAction(
+            Icons.Filled.Image,
+            stringResource(R.string.share_as_images),
+            iconTint = ShareBlue,
+            onClick = onImages,
+        )
+        SheetAction(
+            Icons.Filled.Photo,
+            stringResource(R.string.share_as_long_image),
+            iconTint = EditAmber,
+            onClick = onLongImage,
+        )
         SheetAction(
             Icons.AutoMirrored.Filled.ViewList,
             stringResource(R.string.export_separate_pdfs),
+            iconTint = ActionGreen,
             onClick = onSeparatePdfs,
         )
         Spacer(Modifier.height(24.dp))
@@ -174,7 +190,7 @@ private fun MultiScanSheetHeader(scans: List<ScanDocument>) {
 internal fun SheetAction(
     icon: ImageVector,
     label: String,
-    tint: Color = MaterialTheme.colorScheme.onSurface,
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     onClick: () -> Unit,
 ) {
     Row(
@@ -184,9 +200,9 @@ internal fun SheetAction(
             .padding(horizontal = 24.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = tint)
+        Icon(icon, contentDescription = null, tint = iconTint)
         Spacer(Modifier.width(16.dp))
-        Text(label, style = MaterialTheme.typography.bodyLarge, color = tint)
+        Text(label, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -202,8 +218,18 @@ fun SaveFormatSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         ScanSheetHeader(scan)
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
-        SheetAction(Icons.Filled.PictureAsPdf, stringResource(R.string.save_as_pdf), onClick = onPdf)
-        SheetAction(Icons.Filled.Image, stringResource(R.string.save_as_images), onClick = onImages)
+        SheetAction(
+            Icons.Filled.PictureAsPdf,
+            stringResource(R.string.save_as_pdf),
+            iconTint = DestructiveRed,
+            onClick = onPdf,
+        )
+        SheetAction(
+            Icons.Filled.Image,
+            stringResource(R.string.save_as_images),
+            iconTint = ShareBlue,
+            onClick = onImages,
+        )
         Spacer(Modifier.height(24.dp))
     }
 }

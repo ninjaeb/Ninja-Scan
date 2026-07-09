@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -79,10 +80,13 @@ import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.editor.PageEditorActivity
+import com.ninja.scan.ui.ActionGreen
+import com.ninja.scan.ui.EditAmber
 import com.ninja.scan.ui.HintPrefs
 import com.ninja.scan.ui.LongPressHint
 import com.ninja.scan.ui.PagesShareSheet
 import com.ninja.scan.ui.SaveFormatSheet
+import com.ninja.scan.ui.ShareBlue
 import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.ui.theme.ThemePrefs
@@ -197,7 +201,11 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     },
                     actions = {
                         IconButton(onClick = { sharingPages = true }) {
-                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
+                            Icon(
+                                Icons.Filled.Share,
+                                contentDescription = stringResource(R.string.share),
+                                tint = ShareBlue,
+                            )
                         }
                     },
                 )
@@ -255,14 +263,14 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                 addScanLauncher.launch(IntentSenderRequest.Builder(sender).build())
                             }
                     },
-                    icon = { Icon(Icons.Filled.AddAPhoto, contentDescription = null) },
+                    icon = { Icon(Icons.Filled.AddAPhoto, contentDescription = null, tint = ActionGreen) },
                     label = { BarLabel(stringResource(R.string.add_scan)) },
                 )
                 NavigationBarItem(
                     selected = false,
                     enabled = current != null,
                     onClick = { sharing = true },
-                    icon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                    icon = { Icon(Icons.Filled.Share, contentDescription = null, tint = ShareBlue) },
                     label = { BarLabel(stringResource(R.string.share)) },
                 )
                 NavigationBarItem(
@@ -273,7 +281,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                             context.startActivity(PageEditorActivity.intent(context, it.id))
                         }
                     },
-                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                    icon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = EditAmber) },
                     label = { BarLabel(stringResource(R.string.edit)) },
                 )
                 NavigationBarItem(
@@ -413,14 +421,22 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
             onDismissRequest = { editingWatermark = false },
             title = { Text(stringResource(R.string.watermark)) },
             text = {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.watermark_hint)) },
-                    modifier = Modifier.focusRequester(focusRequester),
-                )
-                LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                Column {
+                    Text(
+                        stringResource(R.string.watermark_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        singleLine = true,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .focusRequester(focusRequester),
+                    )
+                    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                }
             },
             confirmButton = {
                 Row {

@@ -113,14 +113,19 @@ import com.ninja.scan.data.BusinessCard
 import com.ninja.scan.data.Tag
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveBackupWorker
+import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.AppTitleWithIcon
+import com.ninja.scan.ui.DestructiveRed
 import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.DriveSyncProgressBar
+import com.ninja.scan.ui.EditAmber
 import com.ninja.scan.ui.HintPrefs
 import com.ninja.scan.ui.LongPressHint
 import com.ninja.scan.ui.LongPressableChip
+import com.ninja.scan.ui.ShareBlue
 import com.ninja.scan.ui.SyncProgress
 import com.ninja.scan.ui.ThemeToggleButton
+import com.ninja.scan.ui.WhatsAppGreen
 import com.ninja.scan.ui.brandedNavigationItemColors
 import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.ui.theme.ThemePrefs
@@ -469,7 +474,11 @@ private fun CardsScreen(
                                 deletingCards = cards.filter { it.id in selectedCardIds }
                             },
                         ) {
-                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = DestructiveRed,
+                            )
                         }
                     },
                 )
@@ -490,6 +499,7 @@ private fun CardsScreen(
                                 Icon(
                                     Icons.Filled.FileDownload,
                                     contentDescription = stringResource(R.string.export_contacts),
+                                    tint = ShareBlue,
                                 )
                             }
                             DropdownMenu(
@@ -668,6 +678,7 @@ private fun CardsScreen(
                                     Icons.Filled.Add,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
+                                    tint = ActionGreen,
                                 )
                             },
                             label = { Text(stringResource(R.string.create_tag)) },
@@ -1047,6 +1058,7 @@ private fun CardDetailScreen(
                         Icon(
                             Icons.Filled.PersonAdd,
                             contentDescription = stringResource(R.string.save_to_contacts),
+                            tint = ActionGreen,
                         )
                     }
                     TextButton(onClick = {
@@ -1107,6 +1119,7 @@ private fun CardDetailScreen(
                                 Icons.Filled.Add,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
+                                tint = ActionGreen,
                             )
                         },
                         label = { Text(stringResource(R.string.add_tag)) },
@@ -1133,6 +1146,7 @@ private fun CardDetailScreen(
                                                 Icons.Filled.Edit,
                                                 contentDescription = stringResource(R.string.edit_tag),
                                                 modifier = Modifier.size(16.dp),
+                                                tint = EditAmber,
                                             )
                                         }
                                         IconButton(
@@ -1143,6 +1157,7 @@ private fun CardDetailScreen(
                                                 Icons.Filled.Delete,
                                                 contentDescription = stringResource(R.string.delete_tag),
                                                 modifier = Modifier.size(16.dp),
+                                                tint = DestructiveRed,
                                             )
                                         }
                                     }
@@ -1152,7 +1167,7 @@ private fun CardDetailScreen(
                         }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.create_tag)) },
-                            leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = ActionGreen) },
                             onClick = { tagMenuOpen = false; creatingTag = true },
                         )
                     }
@@ -1192,7 +1207,7 @@ private fun CardDetailScreen(
                                 Icon(
                                     Icons.Filled.Call,
                                     contentDescription = stringResource(R.string.call),
-                                    tint = CallGreen,
+                                    tint = ActionGreen,
                                 )
                             }
                             IconButton(onClick = { openWhatsApp(context, phone) }) {
@@ -1215,7 +1230,7 @@ private fun CardDetailScreen(
                             Icon(
                                 Icons.Filled.Email,
                                 contentDescription = stringResource(R.string.send_email),
-                                tint = EmailAmber,
+                                tint = EditAmber,
                             )
                         }
                     }
@@ -1230,7 +1245,7 @@ private fun CardDetailScreen(
                             Icon(
                                 Icons.Filled.Language,
                                 contentDescription = stringResource(R.string.open_website),
-                                tint = WebsiteBlue,
+                                tint = ShareBlue,
                             )
                         }
                     }
@@ -1244,7 +1259,7 @@ private fun CardDetailScreen(
                             Icon(
                                 Icons.Filled.Map,
                                 contentDescription = stringResource(R.string.open_map),
-                                tint = MapsRed,
+                                tint = DestructiveRed,
                             )
                         }
                     }
@@ -1332,14 +1347,6 @@ private fun saveToContacts(context: Context, card: BusinessCard, tags: List<Tag>
     }
     runCatching { context.startActivity(intent) }
 }
-
-// Brand colors for the contact action icons, so each is recognizable at a
-// glance rather than all reading as the same neutral icon tint.
-private val CallGreen = Color(0xFF34A853)
-private val WhatsAppGreen = Color(0xFF25D366)
-private val MapsRed = Color(0xFFEA4335)
-private val WebsiteBlue = Color(0xFF4285F4)
-private val EmailAmber = Color(0xFFFBBC05)
 
 /** Strips visual formatting (spaces, dashes, parens) to a dialable "+"-prefixed number. */
 private fun normalizePhone(phone: String): String {

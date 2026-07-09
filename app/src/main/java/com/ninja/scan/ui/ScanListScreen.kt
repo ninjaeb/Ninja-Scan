@@ -198,14 +198,22 @@ fun ScanListScreen(
                                 multiSharingScans = scans.filter { it.id in selectedIds }
                             },
                         ) {
-                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
+                            Icon(
+                                Icons.Filled.Share,
+                                contentDescription = stringResource(R.string.share),
+                                tint = ShareBlue,
+                            )
                         }
                         IconButton(
                             onClick = {
                                 deletingScans = scans.filter { it.id in selectedIds }
                             },
                         ) {
-                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = DestructiveRed,
+                            )
                         }
                     },
                 )
