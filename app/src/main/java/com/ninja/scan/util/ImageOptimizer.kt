@@ -48,6 +48,14 @@ object ImageOptimizer {
     private const val ID_CARD_CORNER_RADIUS_MM = 3.18f
     private const val PX_PER_MM_AT_300_DPI = 300f / 25.4f
 
+    // The card box as a fraction of the full page's width/height (assuming
+    // the common landscape-held capture) — not private, so PdfEditor's
+    // watermark can target the same small area the card actually occupies
+    // instead of the whole half-page allocation around it, regardless of
+    // what pixel size the page happens to be rendered at.
+    val ID_CARD_WIDTH_FRACTION = ID_CARD_LONG_MM * PX_PER_MM_AT_300_DPI / ID_CARD_PAGE_WIDTH_PX
+    val ID_CARD_HEIGHT_FRACTION = ID_CARD_SHORT_MM * PX_PER_MM_AT_300_DPI / ID_CARD_PAGE_HEIGHT_PX
+
     /**
      * Builds an optimized multi-page PDF from the given page image URIs.
      * Returns the number of pages written.

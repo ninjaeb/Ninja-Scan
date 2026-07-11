@@ -277,7 +277,9 @@ object PdfEditor {
     /**
      * An ID card scan's one page holds two card-sized regions (front on top,
      * back below — the same layout ImageOptimizer.writeIdCardPdf lays out),
-     * so the watermark is stamped once per region, sized to that region,
+     * so the watermark is stamped once per region, sized and positioned to
+     * the actual card image — not the much larger half-page area around it
+     * (the card only fills a fraction of that, at true physical size) —
      * instead of once diagonally across the whole mostly-blank page.
      */
     private fun drawIdCardWatermark(canvas: Canvas, width: Int, height: Int, text: String) {
@@ -286,8 +288,17 @@ object PdfEditor {
         val gap = (height * ImageOptimizer.ID_CARD_GAP_RATIO).toInt()
         val usableWidth = width - marginX * 2
         val halfHeight = (height - marginY * 2 - gap) / 2
-        drawWatermarkInRegion(canvas, marginX, marginY, usableWidth, halfHeight, text)
-        drawWatermarkInRegion(canvas, marginX, marginY + halfHeight + gap, usableWidth, halfHeight, text)
+
+        // The true card size, centered within each half — same box
+        // ImageOptimizer.drawAtCardSize fits the card image into.
+        val cardWidth = (width * ImageOptimizer.ID_CARD_WIDTH_FRACTION).toInt().coerceAtMost(usableWidth)
+        val cardHeight = (height * ImageOptimizer.ID_CARD_HEIGHT_FRACTION).toInt().coerceAtMost(halfHeight)
+        val cardX = marginX + (usableWidth - cardWidth) / 2
+        val frontCardY = marginY + (halfHeight - cardHeight) / 2
+        val backCardY = marginY + halfHeight + gap + (halfHeight - cardHeight) / 2
+
+        drawWatermarkInRegion(canvas, cardX, frontCardY, cardWidth, cardHeight, text)
+        drawWatermarkInRegion(canvas, cardX, backCardY, cardWidth, cardHeight, text)
     }
 
     /** Draws [text] as a diagonal watermark centered within the given region. */
