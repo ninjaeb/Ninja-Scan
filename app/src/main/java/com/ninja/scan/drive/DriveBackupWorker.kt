@@ -166,6 +166,7 @@ class DriveBackupWorker(
                 watermark = scan.watermark,
                 watermarkBaked = false,
                 ocrText = scan.ocrText,
+                isIdCard = scan.isIdCard,
             )
         }
         val cards = app.repository.getAllCards().map { card ->

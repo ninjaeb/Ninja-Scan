@@ -79,7 +79,9 @@ object PdfEditor {
     /**
      * Writes a new PDF assembled from [pages] (source-PDF pages and/or new
      * images), applying per-page rotation and an optional diagonal text
-     * [watermark] across every page. Returns the number of pages written.
+     * [watermark] across every page. [isIdCard] targets the watermark at the
+     * front/back card regions instead of the whole page — see [applyWatermark].
+     * Returns the number of pages written.
      */
     fun rebuildPdf(
         context: Context,
@@ -87,6 +89,7 @@ object PdfEditor {
         pages: List<EditPage>,
         watermark: String?,
         target: File,
+        isIdCard: Boolean = false,
     ): Int {
         val document = PdfDocument()
         val paint = Paint(Paint.FILTER_BITMAP_FLAG)
@@ -109,7 +112,12 @@ object PdfEditor {
                     page.canvas.drawColor(Color.WHITE)
                     page.canvas.drawBitmap(bitmap, 0f, 0f, paint)
                     if (!watermark.isNullOrBlank()) {
-                        drawWatermark(page.canvas, bitmap.width, bitmap.height, watermark.trim())
+                        val text = watermark.trim()
+                        if (isIdCard) {
+                            drawIdCardWatermark(page.canvas, bitmap.width, bitmap.height, text)
+                        } else {
+                            drawWatermark(page.canvas, bitmap.width, bitmap.height, text)
+                        }
                     }
                     document.finishPage(page)
                     bitmap.recycle()
@@ -124,9 +132,20 @@ object PdfEditor {
         return pageNumber
     }
 
-    /** Stamps the diagonal watermark directly onto a mutable [bitmap]. */
-    fun applyWatermark(bitmap: Bitmap, text: String) {
-        drawWatermark(Canvas(bitmap), bitmap.width, bitmap.height, text.trim())
+    /**
+     * Stamps the diagonal watermark directly onto a mutable [bitmap]. For a
+     * regular document this is one watermark spanning the whole page; for an
+     * ID card scan ([isIdCard], see ScanRepository.saveIdCardScan) that would
+     * put one giant watermark across a page that's mostly blank margin, so
+     * instead two smaller watermarks are stamped directly over the front and
+     * back card regions.
+     */
+    fun applyWatermark(bitmap: Bitmap, text: String, isIdCard: Boolean = false) {
+        if (isIdCard) {
+            drawIdCardWatermark(Canvas(bitmap), bitmap.width, bitmap.height, text.trim())
+        } else {
+            drawWatermark(Canvas(bitmap), bitmap.width, bitmap.height, text.trim())
+        }
     }
 
     /**
@@ -138,12 +157,14 @@ object PdfEditor {
         source: File,
         watermark: String,
         target: File,
+        isIdCard: Boolean = false,
     ): Int = rebuildPdf(
         context,
         source,
         List(pageCount(source)) { EditPage.FromPdf(it) },
         watermark,
         target,
+        isIdCard,
     )
 
     /**
@@ -156,13 +177,14 @@ object PdfEditor {
         targetDir: File,
         baseName: String,
         pageIndices: List<Int>? = null,
+        isIdCard: Boolean = false,
     ): List<File> {
         targetDir.mkdirs()
         val files = mutableListOf<File>()
         openRenderer(pdf).use { renderer ->
             for (index in pageIndices ?: (0 until renderer.pageCount).toList()) {
                 val bitmap = renderPage(renderer, index, MAX_PAGE_DIMENSION_PX) ?: continue
-                if (!watermark.isNullOrBlank()) applyWatermark(bitmap, watermark)
+                if (!watermark.isNullOrBlank()) applyWatermark(bitmap, watermark, isIdCard)
                 val file = File(targetDir, "$baseName-${index + 1}.jpg")
                 FileOutputStream(file).use {
                     bitmap.compress(Bitmap.CompressFormat.JPEG, SHARE_JPEG_QUALITY, it)
@@ -184,6 +206,7 @@ object PdfEditor {
         watermark: String?,
         target: File,
         pageIndices: List<Int>? = null,
+        isIdCard: Boolean = false,
     ): Int {
         openRenderer(pdf).use { renderer ->
             val indices = pageIndices ?: (0 until renderer.pageCount).toList()
@@ -220,7 +243,7 @@ object PdfEditor {
                     page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                     b
                 }
-                if (!watermark.isNullOrBlank()) applyWatermark(bitmap, watermark)
+                if (!watermark.isNullOrBlank()) applyWatermark(bitmap, watermark, isIdCard)
                 canvas.drawBitmap(bitmap, 0f, y.toFloat(), paint)
                 bitmap.recycle()
                 y += scaledHeight
@@ -248,13 +271,42 @@ object PdfEditor {
         }.getOrDefault(false)
 
     private fun drawWatermark(canvas: Canvas, width: Int, height: Int, text: String) {
+        drawWatermarkInRegion(canvas, 0, 0, width, height, text)
+    }
+
+    /**
+     * An ID card scan's one page holds two card-sized regions (front on top,
+     * back below — the same layout ImageOptimizer.writeIdCardPdf lays out),
+     * so the watermark is stamped once per region, sized to that region,
+     * instead of once diagonally across the whole mostly-blank page.
+     */
+    private fun drawIdCardWatermark(canvas: Canvas, width: Int, height: Int, text: String) {
+        val marginX = (width * ImageOptimizer.ID_CARD_MARGIN_RATIO).toInt()
+        val marginY = (height * ImageOptimizer.ID_CARD_MARGIN_RATIO).toInt()
+        val gap = (height * ImageOptimizer.ID_CARD_GAP_RATIO).toInt()
+        val usableWidth = width - marginX * 2
+        val halfHeight = (height - marginY * 2 - gap) / 2
+        drawWatermarkInRegion(canvas, marginX, marginY, usableWidth, halfHeight, text)
+        drawWatermarkInRegion(canvas, marginX, marginY + halfHeight + gap, usableWidth, halfHeight, text)
+    }
+
+    /** Draws [text] as a diagonal watermark centered within the given region. */
+    private fun drawWatermarkInRegion(
+        canvas: Canvas,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        text: String,
+    ) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(70, 120, 120, 120)
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        // The text sits on a -35° line through the page center; the longest
-        // line that stays fully on the page is bounded by both dimensions.
+        // The text sits on a -35° line through the region's center; the
+        // longest line that stays fully within the region is bounded by
+        // both dimensions.
         val angle = Math.toRadians(35.0)
         val maxLineWidth =
             (minOf(width / Math.cos(angle), height / Math.sin(angle)) * 0.9).toFloat()
@@ -266,10 +318,12 @@ object PdfEditor {
         if (paint.measureText(text) > maxLineWidth) {
             paint.textSize = paint.textSize * maxLineWidth / paint.measureText(text)
         }
+        val centerX = x + width / 2f
+        val centerY = y + height / 2f
         canvas.save()
-        canvas.rotate(-35f, width / 2f, height / 2f)
+        canvas.rotate(-35f, centerX, centerY)
         val baselineOffset = (paint.descent() + paint.ascent()) / 2f
-        canvas.drawText(text, width / 2f, height / 2f - baselineOffset, paint)
+        canvas.drawText(text, centerX, centerY - baselineOffset, paint)
         canvas.restore()
     }
 

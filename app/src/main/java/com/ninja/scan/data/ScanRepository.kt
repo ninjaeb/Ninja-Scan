@@ -142,6 +142,7 @@ class ScanRepository(
             folder = entry?.folder,
             watermark = if (entry?.watermarkBaked == true) null else entry?.watermark,
             originalsDir = null,
+            isIdCard = entry?.isIdCard ?: false,
         )
         dao.insert(scan)
         true
@@ -447,9 +448,9 @@ class ScanRepository(
         val target = File(shareDir, "${pdfShareBaseName(scan)}.pdf")
         val watermark = scan.watermark?.takeIf { it.isNotBlank() }
         if (watermark != null) {
-            check(PdfEditor.writeWatermarkedCopy(context, source, watermark, target) > 0) {
-                "Could not prepare the document"
-            }
+            check(
+                PdfEditor.writeWatermarkedCopy(context, source, watermark, target, scan.isIdCard) > 0
+            ) { "Could not prepare the document" }
         } else {
             source.copyTo(target, overwrite = true)
         }
@@ -464,6 +465,7 @@ class ScanRepository(
                 scan.watermark,
                 shareDir,
                 shareBaseName(scan),
+                isIdCard = scan.isIdCard,
             )
         }
 
@@ -473,9 +475,9 @@ class ScanRepository(
             val source = File(scan.pdfPath)
             val target = File(shareDir, "${pdfShareBaseName(scan)}-selected.pdf")
             val pages = pageIndices.map { EditPage.FromPdf(it) }
-            check(PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
-                "Could not prepare the document"
-            }
+            check(
+                PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target, scan.isIdCard) > 0
+            ) { "Could not prepare the document" }
             target
         }
 
@@ -488,6 +490,7 @@ class ScanRepository(
                 shareDir,
                 shareBaseName(scan),
                 pageIndices,
+                scan.isIdCard,
             )
         }
 
@@ -541,9 +544,11 @@ class ScanRepository(
     /** Stitches all pages into one tall shareable JPEG ("long image"). */
     suspend fun prepareLongImage(scan: ScanDocument): File = withContext(Dispatchers.IO) {
         val target = File(shareDir, "${shareBaseName(scan)}-long.jpg")
-        check(PdfEditor.writeLongImage(File(scan.pdfPath), scan.watermark, target) > 0) {
-            "Could not prepare the document"
-        }
+        check(
+            PdfEditor.writeLongImage(
+                File(scan.pdfPath), scan.watermark, target, isIdCard = scan.isIdCard,
+            ) > 0
+        ) { "Could not prepare the document" }
         target
     }
 
@@ -552,7 +557,9 @@ class ScanRepository(
         withContext(Dispatchers.IO) {
             val target = File(shareDir, "${shareBaseName(scan)}-selected-long.jpg")
             check(
-                PdfEditor.writeLongImage(File(scan.pdfPath), scan.watermark, target, pageIndices) > 0
+                PdfEditor.writeLongImage(
+                    File(scan.pdfPath), scan.watermark, target, pageIndices, scan.isIdCard,
+                ) > 0
             ) { "Could not prepare the document" }
             target
         }
@@ -564,7 +571,7 @@ class ScanRepository(
             (0 until PdfEditor.pageCount(source)).mapNotNull { index ->
                 val target = File(shareDir, "${pdfShareBaseName(scan)}-p${index + 1}.pdf")
                 val pages = listOf<EditPage>(EditPage.FromPdf(index))
-                if (PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
+                if (PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target, scan.isIdCard) > 0) {
                     target
                 } else {
                     null
@@ -579,7 +586,7 @@ class ScanRepository(
             pageIndices.mapNotNull { index ->
                 val target = File(shareDir, "${pdfShareBaseName(scan)}-p${index + 1}.pdf")
                 val pages = listOf<EditPage>(EditPage.FromPdf(index))
-                if (PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target) > 0) {
+                if (PdfEditor.rebuildPdf(context, source, pages, scan.watermark, target, scan.isIdCard) > 0) {
                     target
                 } else {
                     null
@@ -809,6 +816,7 @@ class ScanRepository(
                 sizeBytes = pdfFile.length(),
                 ocrText = recognizeText(pageUris),
                 originalsDir = originalsDir.absolutePath,
+                isIdCard = true,
             )
             val saved = scan.copy(id = dao.insert(scan))
             enqueueBackupIfEnabled()

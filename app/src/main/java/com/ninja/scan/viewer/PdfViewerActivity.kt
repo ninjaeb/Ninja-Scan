@@ -341,7 +341,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
             }
         } else {
             val session = remember(current.pdfPath, current.watermark, current.pageCount) {
-                PdfSession(File(current.pdfPath), current.watermark)
+                PdfSession(File(current.pdfPath), current.watermark, current.isIdCard)
             }
             DisposableEffect(session) {
                 onDispose { session.close() }
@@ -637,7 +637,7 @@ private fun PdfPage(
  * Wraps PdfRenderer, which allows only one open page at a time — all
  * rendering is serialized behind a mutex and moved off the main thread.
  */
-private class PdfSession(file: File, private val watermark: String?) {
+private class PdfSession(file: File, private val watermark: String?, private val isIdCard: Boolean) {
 
     private val descriptor =
         ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
@@ -665,7 +665,7 @@ private class PdfSession(file: File, private val watermark: String?) {
                         bitmap.eraseColor(android.graphics.Color.WHITE)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         if (!watermark.isNullOrBlank()) {
-                            PdfEditor.applyWatermark(bitmap, watermark)
+                            PdfEditor.applyWatermark(bitmap, watermark, isIdCard)
                         }
                         bitmap
                     }

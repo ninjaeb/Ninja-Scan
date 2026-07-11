@@ -25,6 +25,8 @@ internal object DriveManifest {
         /** True for legacy uploads that had the watermark baked into pages. */
         val watermarkBaked: Boolean,
         val ocrText: String,
+        /** True for a front+back ID card scan — see ScanDocument.isIdCard. */
+        val isIdCard: Boolean = false,
     )
 
     data class CardEntry(val key: String, val card: BusinessCard, val tagTitles: List<String> = emptyList())
@@ -57,6 +59,7 @@ internal object DriveManifest {
                     .put("watermark", entry.watermark ?: JSONObject.NULL)
                     .put("watermarkBaked", entry.watermarkBaked)
                     .put("ocrText", entry.ocrText)
+                    .put("isIdCard", entry.isIdCard)
             )
         }
         root.put("scans", scans)
@@ -111,6 +114,7 @@ internal object DriveManifest {
                     watermark = scan.optStringOrNull("watermark"),
                     watermarkBaked = scan.optBoolean("watermarkBaked", false),
                     ocrText = scan.optString("ocrText"),
+                    isIdCard = scan.optBoolean("isIdCard", false),
                 )
             )
         }

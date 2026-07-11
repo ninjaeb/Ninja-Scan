@@ -34,4 +34,11 @@ data class ScanDocument(
      * without quality loss. Null for scans saved before this existed.
      */
     val originalsDir: String? = null,
+    /**
+     * True for a front+back ID card scan (see ScanRepository.saveIdCardScan):
+     * the one PDF page holds two card-sized regions rather than a normal
+     * full-page document, which changes how a watermark should be placed
+     * (see PdfEditor's isIdCard parameter).
+     */
+    val isIdCard: Boolean = false,
 )

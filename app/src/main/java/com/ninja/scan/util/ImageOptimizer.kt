@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
@@ -31,15 +32,20 @@ object ImageOptimizer {
     // sized to whatever the source image's own aspect ratio is.
     private const val ID_CARD_PAGE_WIDTH_PX = 2480
     private const val ID_CARD_PAGE_HEIGHT_PX = 3508
-    private const val ID_CARD_MARGIN_RATIO = 0.06f
-    private const val ID_CARD_GAP_RATIO = 0.03f
+
+    // Not private: PdfEditor's ID-card watermark placement mirrors this same
+    // front/back layout, so both stay derived from one source of truth.
+    const val ID_CARD_MARGIN_RATIO = 0.06f
+    const val ID_CARD_GAP_RATIO = 0.03f
 
     // ISO/IEC 7810 ID-1 format (standard ID/credit-card size): 85.60 x
-    // 53.98mm. Each side is rendered at this true physical size — not
-    // stretched to fill the available half of the page — so a printed copy
-    // matches a real card's dimensions rather than an arbitrarily blown-up one.
+    // 53.98mm, 2.88-3.18mm corner radius. Each side is rendered at this true
+    // physical size and corner rounding — not stretched to fill the
+    // available half of the page — so a printed copy matches a real card's
+    // look and dimensions rather than an arbitrarily blown-up rectangle.
     private const val ID_CARD_LONG_MM = 85.60f
     private const val ID_CARD_SHORT_MM = 53.98f
+    private const val ID_CARD_CORNER_RADIUS_MM = 3.18f
     private const val PX_PER_MM_AT_300_DPI = 300f / 25.4f
 
     /**
@@ -128,9 +134,12 @@ object ImageOptimizer {
     /**
      * Draws [bitmap] at true ID-card size — [cardLongPx] x [cardShortPx], or
      * transposed to match [bitmap]'s own orientation — centered within the
-     * region [x],[y],[boxW],[boxH]. Fits within that card-size target
-     * (preserving aspect ratio) rather than stretching to it exactly, in case
-     * the scanner's auto-crop didn't land precisely on the ID-1 ratio.
+     * region [x],[y],[boxW],[boxH], clipped to a rounded rectangle matching
+     * a real card's corner radius. The image is never rotated: whichever way
+     * it was captured is how it's drawn, only the target box is transposed
+     * to fit that orientation. Fits within the card-size target (preserving
+     * aspect ratio) rather than stretching to it exactly, in case the
+     * scanner's auto-crop didn't land precisely on the ID-1 ratio.
      */
     private fun drawAtCardSize(
         canvas: Canvas,
@@ -150,7 +159,15 @@ object ImageOptimizer {
         val drawHeight = bitmap.height * scale
         val left = x + (boxW - drawWidth) / 2f
         val top = y + (boxH - drawHeight) / 2f
-        canvas.drawBitmap(bitmap, null, RectF(left, top, left + drawWidth, top + drawHeight), paint)
+        val destRect = RectF(left, top, left + drawWidth, top + drawHeight)
+
+        val cornerRadiusPx = ID_CARD_CORNER_RADIUS_MM * PX_PER_MM_AT_300_DPI
+        canvas.save()
+        canvas.clipPath(
+            Path().apply { addRoundRect(destRect, cornerRadiusPx, cornerRadiusPx, Path.Direction.CW) }
+        )
+        canvas.drawBitmap(bitmap, null, destRect, paint)
+        canvas.restore()
     }
 
     /** Decodes [uri] bounded to [maxDimension] on its longest side. */
