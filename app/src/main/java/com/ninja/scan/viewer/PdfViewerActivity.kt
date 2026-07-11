@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -83,6 +84,7 @@ import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.editor.PageEditorActivity
 import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.EditAmber
+import com.ninja.scan.ui.FolderIndigo
 import com.ninja.scan.ui.HintPrefs
 import com.ninja.scan.ui.LongPressHint
 import com.ninja.scan.ui.PagesShareSheet
@@ -93,6 +95,7 @@ import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.PdfEditor
+import com.ninja.scan.util.PrintActions
 import com.ninja.scan.util.ShareActions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
@@ -106,7 +109,7 @@ import java.io.File
 
 /**
  * Displays a scanned PDF in-app with a bottom action bar: Add watermark /
- * Add Scan / Share (format sheet) / Edit pages / Save (PDF or images).
+ * Add Scan / Share (format sheet) / Edit pages / Print / Save (PDF or images).
  */
 class PdfViewerActivity : ComponentActivity() {
 
@@ -312,6 +315,19 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                         )
                     },
                     label = { BarLabel(stringResource(R.string.edit)) },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    enabled = current != null,
+                    onClick = { current?.let { PrintActions.printPdf(activity, it) } },
+                    icon = {
+                        Icon(
+                            Icons.Filled.Print,
+                            contentDescription = null,
+                            tint = if (current != null) FolderIndigo else LocalContentColor.current,
+                        )
+                    },
+                    label = { BarLabel(stringResource(R.string.print)) },
                 )
                 NavigationBarItem(
                     selected = false,
@@ -539,7 +555,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
     }
 }
 
-/** Single-line bottom-bar label that never wraps ("Watermark" fits a 5-item bar). */
+/** Single-line bottom-bar label that never wraps ("Watermark" fits a 6-item bar). */
 @Composable
 private fun BarLabel(text: String) {
     Text(
