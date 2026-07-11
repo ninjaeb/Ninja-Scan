@@ -52,6 +52,10 @@
     <string name="business_cards">Business cards</string>
     <string name="scan_business_card">Scan business card</string>
     <string name="scan_id_card">Scan ID card</string>
+    <string name="import_pdf">Import PDF</string>
+    <string name="import_images">Import images</string>
+    <string name="import_photo">Import photo</string>
+    <string name="add_to_library">Add to library</string>
     <string name="save_to_contacts">Save to phone contacts</string>
     <string name="contact_tags_label">Tags: %1$s</string>
     <string name="export_contacts">Export contacts</string>

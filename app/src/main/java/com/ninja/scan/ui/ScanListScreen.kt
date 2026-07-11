@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
@@ -117,6 +116,8 @@ fun ScanListScreen(
     onScanCardClick: () -> Unit,
     onScanClick: () -> Unit,
     onScanIdCardClick: () -> Unit,
+    onImportPdfClick: () -> Unit,
+    onImportImagesClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
     onSharePdf: (ScanDocument) -> Unit,
     onShareImages: (ScanDocument) -> Unit,
@@ -166,6 +167,8 @@ fun ScanListScreen(
     var multiSharingScans by remember { mutableStateOf<List<ScanDocument>?>(null) }
     var deletingScans by remember { mutableStateOf<List<ScanDocument>?>(null) }
     BackHandler(enabled = selectionActive) { selectedIds.clear() }
+
+    var showAddSheet by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     var showLongPressHint by remember {
@@ -261,33 +264,16 @@ fun ScanListScreen(
             }
         },
         floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                // All three scan actions share the same brand color; only
-                // their stacking order signals which is primary.
-                ExtendedFloatingActionButton(
-                    onClick = onScanClick,
-                    icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
-                    text = { Text(stringResource(R.string.scan_document)) },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                )
-                Spacer(Modifier.height(12.dp))
-                ExtendedFloatingActionButton(
-                    onClick = onScanCardClick,
-                    icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
-                    text = { Text(stringResource(R.string.scan_business_card)) },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                )
-                Spacer(Modifier.height(12.dp))
-                ExtendedFloatingActionButton(
-                    onClick = onScanIdCardClick,
-                    icon = { Icon(Icons.Filled.CreditCard, contentDescription = null) },
-                    text = { Text(stringResource(R.string.scan_id_card)) },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
+            // One entry point for every way to add to the library — scanning
+            // (document/card/ID) or importing an existing PDF/images —
+            // rather than an ever-growing stack of single-purpose buttons.
+            ExtendedFloatingActionButton(
+                onClick = { showAddSheet = true },
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text(stringResource(R.string.add_to_library)) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            )
         },
     ) { padding ->
         val searching = searchQuery.isNotBlank()
@@ -393,11 +379,11 @@ fun ScanListScreen(
                 scans.isEmpty() -> EmptyLibrary()
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    // Bottom padding must clear the three stacked FABs (56dp
-                    // each + 12dp spacer between = 192dp) plus Scaffold's own
-                    // margin around them, or the last row hides behind them.
+                    // Bottom padding must clear the single FAB (56dp) plus
+                    // Scaffold's own margin around it, or the last row hides
+                    // behind it.
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 240.dp
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 104.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -664,6 +650,17 @@ fun ScanListScreen(
                     Text(stringResource(R.string.cancel))
                 }
             },
+        )
+    }
+
+    if (showAddSheet) {
+        AddContentSheet(
+            onDismiss = { showAddSheet = false },
+            onScanDocument = { showAddSheet = false; onScanClick() },
+            onScanBusinessCard = { showAddSheet = false; onScanCardClick() },
+            onScanIdCard = { showAddSheet = false; onScanIdCardClick() },
+            onImportPdf = { showAddSheet = false; onImportPdfClick() },
+            onImportImages = { showAddSheet = false; onImportImagesClick() },
         )
     }
 }

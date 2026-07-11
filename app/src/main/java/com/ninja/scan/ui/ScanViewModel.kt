@@ -1,5 +1,6 @@
 package com.ninja.scan.ui
 
+import android.net.Uri
 import android.text.format.Formatter
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -133,6 +134,34 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
         if (result == null) return
         viewModelScope.launch {
             runCatching { repository.saveIdCardScan(result) }
+                .onSuccess { scan ->
+                    _events.emit(
+                        ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
+                    )
+                    _justSaved.value = scan
+                }
+                .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }
+        }
+    }
+
+    fun onImportPdf(uri: Uri?, app: DocScannerApp) {
+        if (uri == null) return
+        viewModelScope.launch {
+            runCatching { repository.importPdf(uri) }
+                .onSuccess { scan ->
+                    _events.emit(
+                        ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
+                    )
+                    _justSaved.value = scan
+                }
+                .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }
+        }
+    }
+
+    fun onImportImages(uris: List<Uri>, app: DocScannerApp) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { repository.saveImportedImages(uris) }
                 .onSuccess { scan ->
                     _events.emit(
                         ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))

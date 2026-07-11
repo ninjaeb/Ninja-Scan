@@ -824,6 +824,102 @@ class ScanRepository(
         }
 
     /**
+     * Imports an existing PDF picked from device storage as-is: copied into
+     * the library unchanged (no re-optimization, since it wasn't captured by
+     * the scanner), with a thumbnail and OCR text generated so it's
+     * searchable and browsable like any other scan.
+     */
+    suspend fun importPdf(uri: Uri): ScanDocument = withContext(Dispatchers.IO) {
+        val timestamp = System.currentTimeMillis()
+        val baseName = "import_$timestamp"
+        val pdfFile = File(scansDir, "$baseName.pdf")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            pdfFile.outputStream().use { input.copyTo(it) }
+        } ?: error("Could not read the selected PDF")
+
+        val pageCount = PdfEditor.pageCount(pdfFile)
+        if (pageCount <= 0) {
+            pdfFile.delete()
+        }
+        check(pageCount > 0) { "That file isn't a valid PDF" }
+
+        val thumbFile = File(scansDir, "$baseName.thumb.jpg")
+        val hasThumb = PdfEditor.writeThumbnail(pdfFile, thumbFile)
+
+        val scan = ScanDocument(
+            title = displayNameOf(uri)?.removeSuffix(".pdf")
+                ?: "Imported ${SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date(timestamp))}",
+            createdAt = timestamp,
+            pageCount = pageCount,
+            pdfPath = pdfFile.absolutePath,
+            thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
+            sizeBytes = pdfFile.length(),
+            ocrText = recognizeTextFromPdf(pdfFile),
+            originalsDir = null,
+        )
+        val saved = scan.copy(id = dao.insert(scan))
+        enqueueBackupIfEnabled()
+        saved
+    }
+
+    /**
+     * Builds a scan directly from picked gallery images — the same
+     * optimize-and-assemble pipeline the camera scanner's pages go through,
+     * just skipping the live capture (no perspective crop is applied, since
+     * these aren't fresh photos of a document edge).
+     */
+    suspend fun saveImportedImages(uris: List<Uri>): ScanDocument = withContext(Dispatchers.IO) {
+        require(uris.isNotEmpty()) { "No images selected" }
+        val timestamp = System.currentTimeMillis()
+        val name = "Scan ${
+            SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date(timestamp))
+        }"
+        val baseName = "import_$timestamp"
+
+        val pdfFile = File(scansDir, "$baseName.pdf")
+        val pageCount = ImageOptimizer.writeOptimizedPdf(context, uris, pdfFile)
+        check(pageCount > 0) { "Could not decode any selected image" }
+
+        val thumbFile = File(scansDir, "$baseName.thumb.jpg")
+        val hasThumb = ImageOptimizer.writeThumbnail(context, uris.first(), thumbFile)
+
+        // Keep the untouched originals so pages can be re-enhanced or
+        // re-edited later without quality loss, same as camera-scanned pages.
+        val originalsDir = File(scansDir, "originals/$baseName").apply { mkdirs() }
+        uris.forEachIndexed { index, uri ->
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    File(originalsDir, pageFileName(index)).outputStream()
+                        .use { input.copyTo(it) }
+                }
+            }
+        }
+
+        val scan = ScanDocument(
+            title = name,
+            createdAt = timestamp,
+            pageCount = pageCount,
+            pdfPath = pdfFile.absolutePath,
+            thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
+            sizeBytes = pdfFile.length(),
+            ocrText = recognizeText(uris),
+            originalsDir = originalsDir.absolutePath,
+        )
+        val saved = scan.copy(id = dao.insert(scan))
+        enqueueBackupIfEnabled()
+        saved
+    }
+
+    /** Reads the display name of a content [uri] (e.g. the original file name), if available. */
+    private fun displayNameOf(uri: Uri): String? =
+        runCatching {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+            }
+        }.getOrNull()
+
+    /**
      * Runs on-device text recognition over every page so scans are full-text
      * searchable. Best-effort: pages that fail to process contribute nothing.
      */

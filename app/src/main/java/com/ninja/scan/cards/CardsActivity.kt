@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
@@ -361,6 +362,19 @@ private fun CardsScreen(
         searchFiltered.filter { card -> tagsByCard[card.id].orEmpty().any { it.id == id } }
     } ?: searchFiltered
 
+    val handleCardImage: (Uri) -> Unit = { imageUri ->
+        parsing = true
+        scope.launch {
+            draft = runCatching { app.repository.parseCardImage(imageUri) }.getOrNull()
+            parsing = false
+            if (draft == null) {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.card_scan_failed)
+                )
+            }
+        }
+    }
+
     val scannerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { activityResult ->
@@ -368,19 +382,14 @@ private fun CardsScreen(
             .fromActivityResultIntent(activityResult.data)
             ?.pages.orEmpty()
             .firstOrNull()?.imageUri
-        if (imageUri != null) {
-            parsing = true
-            scope.launch {
-                draft = runCatching { app.repository.parseCardImage(imageUri) }.getOrNull()
-                parsing = false
-                if (draft == null) {
-                    snackbarHostState.showSnackbar(
-                        context.getString(R.string.card_scan_failed)
-                    )
-                }
-            }
-        }
+        if (imageUri != null) handleCardImage(imageUri)
     }
+
+    // Lets the user pick an existing photo of a card instead of a fresh
+    // live capture — e.g. one already sitting in their gallery.
+    val importImageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) handleCardImage(uri) }
 
     val csvLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv")
@@ -583,13 +592,23 @@ private fun CardsScreen(
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = launchCardScanner,
-                icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
-                text = { Text(stringResource(R.string.scan_business_card)) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                ExtendedFloatingActionButton(
+                    onClick = launchCardScanner,
+                    icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
+                    text = { Text(stringResource(R.string.scan_business_card)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                )
+                Spacer(Modifier.height(12.dp))
+                ExtendedFloatingActionButton(
+                    onClick = { importImageLauncher.launch("image/*") },
+                    icon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                    text = { Text(stringResource(R.string.import_photo)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -739,11 +758,11 @@ private fun CardsScreen(
 
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    // Bottom padding must clear the single FAB (56dp) plus
-                    // Scaffold's own margin around it, or the last row hides
-                    // behind it.
+                    // Bottom padding must clear the two stacked FABs (56dp
+                    // each + 12dp spacer between = 124dp) plus Scaffold's own
+                    // margin around them, or the last row hides behind them.
                     contentPadding = PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 112.dp
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 180.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {

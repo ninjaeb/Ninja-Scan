@@ -133,6 +133,14 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.CreateDocument("application/pdf")
                 ) { uri -> viewModel.onExportDestination(uri) }
 
+                val importPdfLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.GetContent()
+                ) { uri -> viewModel.onImportPdf(uri, application as DocScannerApp) }
+
+                val importImagesLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.GetMultipleContents()
+                ) { uris -> viewModel.onImportImages(uris, application as DocScannerApp) }
+
                 LaunchedEffect(Unit) {
                     viewModel.events.collect { event ->
                         if (event is ScanEvent.DriveBackupEnabled && scans.isEmpty()) {
@@ -319,6 +327,8 @@ class MainActivity : ComponentActivity() {
                                 viewModel.onScanError(e.message ?: "scanner unavailable")
                             }
                     },
+                    onImportPdfClick = { importPdfLauncher.launch("application/pdf") },
+                    onImportImagesClick = { importImagesLauncher.launch("image/*") },
                     onOpen = { scan ->
                         startActivity(PdfViewerActivity.intent(this, scan.id))
                     },
