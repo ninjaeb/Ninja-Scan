@@ -29,6 +29,7 @@
     <string name="drive_backup_done">Backed up %1$d documents and %2$d cards</string>
     <string name="drive_backup_incomplete">Backup incomplete — %1$d item(s) couldn\'t sync</string>
     <string name="backed_up_to_drive">Backed up to Google Drive</string>
+    <string name="backup_pending">Waiting to back up to Google Drive</string>
     <string name="edit_pages">Edit pages</string>
     <string name="add_pages">Add pages</string>
     <string name="save">Save</string>

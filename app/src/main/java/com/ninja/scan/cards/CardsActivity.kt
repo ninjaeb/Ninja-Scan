@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Delete
@@ -780,6 +781,7 @@ private fun CardsScreen(
                         CardRow(
                             card = card,
                             tags = cardTags,
+                            driveBackupEnabled = driveBackupEnabled,
                             selectionMode = cardSelectionActive,
                             selected = card.id in selectedCardIds,
                             onOpen = { draft = card },
@@ -890,6 +892,7 @@ private fun CardsScreen(
 private fun CardRow(
     card: BusinessCard,
     tags: List<Tag>,
+    driveBackupEnabled: Boolean,
     selectionMode: Boolean,
     selected: Boolean,
     onOpen: () -> Unit,
@@ -948,7 +951,12 @@ private fun CardRow(
                 val subtitle = listOf(card.company, card.phone, card.email)
                     .filter { it.isNotBlank() }
                     .joinToString(" · ")
-                if (subtitle.isNotBlank() || card.photoDriveFileId != null) {
+                // A photo backed up already shows solid+tinted; one still
+                // queued to upload shows a muted outline instead of nothing,
+                // so "no icon" always means backup is off, never "unknown".
+                val synced = card.photoDriveFileId != null
+                val pending = !synced && driveBackupEnabled && card.thumbnailPath != null
+                if (subtitle.isNotBlank() || synced || pending) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (subtitle.isNotBlank()) {
                             Text(
@@ -958,13 +966,16 @@ private fun CardRow(
                                 maxLines = 2,
                             )
                         }
-                        if (card.photoDriveFileId != null) {
+                        if (synced || pending) {
                             Spacer(Modifier.width(4.dp))
                             Icon(
-                                Icons.Filled.CloudDone,
-                                contentDescription = stringResource(R.string.backed_up_to_drive),
+                                if (synced) Icons.Filled.CloudDone else Icons.Filled.CloudQueue,
+                                contentDescription = stringResource(
+                                    if (synced) R.string.backed_up_to_drive else R.string.backup_pending
+                                ),
                                 modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = if (synced) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
