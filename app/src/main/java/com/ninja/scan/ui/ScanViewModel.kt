@@ -129,6 +129,20 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
         }
     }
 
+    fun onIdCardScanResult(result: GmsDocumentScanningResult?, app: DocScannerApp) {
+        if (result == null) return
+        viewModelScope.launch {
+            runCatching { repository.saveIdCardScan(result) }
+                .onSuccess { scan ->
+                    _events.emit(
+                        ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
+                    )
+                    _justSaved.value = scan
+                }
+                .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }
+        }
+    }
+
     fun dismissScanDetails() {
         _justSaved.value = null
     }

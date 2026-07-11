@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
@@ -115,6 +116,7 @@ fun ScanListScreen(
     onOpenCards: () -> Unit,
     onScanCardClick: () -> Unit,
     onScanClick: () -> Unit,
+    onScanIdCardClick: () -> Unit,
     onOpen: (ScanDocument) -> Unit,
     onSharePdf: (ScanDocument) -> Unit,
     onShareImages: (ScanDocument) -> Unit,
@@ -260,8 +262,8 @@ fun ScanListScreen(
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                // Both scan actions share the same brand color; only their
-                // stacking order signals which is primary.
+                // All three scan actions share the same brand color; only
+                // their stacking order signals which is primary.
                 ExtendedFloatingActionButton(
                     onClick = onScanClick,
                     icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
@@ -274,6 +276,14 @@ fun ScanListScreen(
                     onClick = onScanCardClick,
                     icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
                     text = { Text(stringResource(R.string.scan_business_card)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                )
+                Spacer(Modifier.height(12.dp))
+                ExtendedFloatingActionButton(
+                    onClick = onScanIdCardClick,
+                    icon = { Icon(Icons.Filled.CreditCard, contentDescription = null) },
+                    text = { Text(stringResource(R.string.scan_id_card)) },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 )
@@ -383,11 +393,11 @@ fun ScanListScreen(
                 scans.isEmpty() -> EmptyLibrary()
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    // Bottom padding must clear the two stacked FABs (56dp
-                    // each + 12dp spacer between = 124dp) plus Scaffold's own
+                    // Bottom padding must clear the three stacked FABs (56dp
+                    // each + 12dp spacer between = 192dp) plus Scaffold's own
                     // margin around them, or the last row hides behind them.
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 172.dp
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 240.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {

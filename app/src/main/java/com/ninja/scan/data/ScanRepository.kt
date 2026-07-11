@@ -763,6 +763,59 @@ class ScanRepository(
         }
 
     /**
+     * Persists an ID card scan: front and back captures are composited onto
+     * one printable A4 page (front on top, back below) instead of one PDF
+     * page per side, matching how a physical ID copy is usually printed and
+     * submitted. A single-sided capture (back cancelled) still saves fine.
+     */
+    suspend fun saveIdCardScan(result: GmsDocumentScanningResult): ScanDocument =
+        withContext(Dispatchers.IO) {
+            val timestamp = System.currentTimeMillis()
+            val name = "ID card ${
+                SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date(timestamp))
+            }"
+            val baseName = "idcard_$timestamp"
+
+            val pageUris = result.pages.orEmpty().map { it.imageUri }
+            require(pageUris.isNotEmpty()) { "Scanner returned no pages" }
+            val frontUri = pageUris[0]
+            val backUri = pageUris.getOrNull(1)
+
+            val pdfFile = File(scansDir, "$baseName.pdf")
+            val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, pdfFile)
+            check(wrote) { "Could not decode the scanned ID card" }
+
+            val thumbFile = File(scansDir, "$baseName.thumb.jpg")
+            val hasThumb = ImageOptimizer.writeThumbnail(context, frontUri, thumbFile)
+
+            // Keep the untouched front/back captures so they can be re-scanned
+            // or re-composited later without quality loss.
+            val originalsDir = File(scansDir, "originals/$baseName").apply { mkdirs() }
+            pageUris.forEachIndexed { index, uri ->
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        File(originalsDir, pageFileName(index)).outputStream()
+                            .use { input.copyTo(it) }
+                    }
+                }
+            }
+
+            val scan = ScanDocument(
+                title = name,
+                createdAt = timestamp,
+                pageCount = 1,
+                pdfPath = pdfFile.absolutePath,
+                thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
+                sizeBytes = pdfFile.length(),
+                ocrText = recognizeText(pageUris),
+                originalsDir = originalsDir.absolutePath,
+            )
+            val saved = scan.copy(id = dao.insert(scan))
+            enqueueBackupIfEnabled()
+            saved
+        }
+
+    /**
      * Runs on-device text recognition over every page so scans are full-text
      * searchable. Best-effort: pages that fail to process contribute nothing.
      */

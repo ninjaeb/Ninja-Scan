@@ -51,6 +51,7 @@
     <string name="to_cloud">To cloud</string>
     <string name="business_cards">Business cards</string>
     <string name="scan_business_card">Scan business card</string>
+    <string name="scan_id_card">Scan ID card</string>
     <string name="save_to_contacts">Save to phone contacts</string>
     <string name="contact_tags_label">Tags: %1$s</string>
     <string name="export_contacts">Export contacts</string>

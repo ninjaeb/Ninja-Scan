@@ -61,6 +61,17 @@ class MainActivity : ComponentActivity() {
         .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
         .build()
 
+    /**
+     * Capped at 2 pages (front, then back) — the pair is composited onto one
+     * printable page ourselves, so there's no need for the scanner's own PDF.
+     */
+    private val idCardScannerOptions = GmsDocumentScannerOptions.Builder()
+        .setGalleryImportAllowed(true)
+        .setPageLimit(2)
+        .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+        .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+        .build()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewModel.setDriveBackupState(DriveBackup.isEnabled(this))
@@ -108,6 +119,14 @@ class MainActivity : ComponentActivity() {
                     val result =
                         GmsDocumentScanningResult.fromActivityResultIntent(activityResult.data)
                     viewModel.onScanResult(result, application as DocScannerApp)
+                }
+
+                val idCardScannerLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartIntentSenderForResult()
+                ) { activityResult ->
+                    val result =
+                        GmsDocumentScanningResult.fromActivityResultIntent(activityResult.data)
+                    viewModel.onIdCardScanResult(result, application as DocScannerApp)
                 }
 
                 val exportLauncher = rememberLauncherForActivityResult(
@@ -281,6 +300,18 @@ class MainActivity : ComponentActivity() {
                             .getStartScanIntent(this)
                             .addOnSuccessListener { intentSender ->
                                 scannerLauncher.launch(
+                                    IntentSenderRequest.Builder(intentSender).build()
+                                )
+                            }
+                            .addOnFailureListener { e ->
+                                viewModel.onScanError(e.message ?: "scanner unavailable")
+                            }
+                    },
+                    onScanIdCardClick = {
+                        GmsDocumentScanning.getClient(idCardScannerOptions)
+                            .getStartScanIntent(this)
+                            .addOnSuccessListener { intentSender ->
+                                idCardScannerLauncher.launch(
                                     IntentSenderRequest.Builder(intentSender).build()
                                 )
                             }
