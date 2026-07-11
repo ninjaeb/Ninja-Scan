@@ -34,6 +34,14 @@ object ImageOptimizer {
     private const val ID_CARD_MARGIN_RATIO = 0.06f
     private const val ID_CARD_GAP_RATIO = 0.03f
 
+    // ISO/IEC 7810 ID-1 format (standard ID/credit-card size): 85.60 x
+    // 53.98mm. Each side is rendered at this true physical size — not
+    // stretched to fill the available half of the page — so a printed copy
+    // matches a real card's dimensions rather than an arbitrarily blown-up one.
+    private const val ID_CARD_LONG_MM = 85.60f
+    private const val ID_CARD_SHORT_MM = 53.98f
+    private const val PX_PER_MM_AT_300_DPI = 300f / 25.4f
+
     /**
      * Builds an optimized multi-page PDF from the given page image URIs.
      * Returns the number of pages written.
@@ -66,11 +74,11 @@ object ImageOptimizer {
 
     /**
      * Builds a single-page A4 PDF with an ID card's front and back stacked on
-     * one page (front on top, back below), each scaled to fit its half while
-     * preserving aspect ratio — the layout most forms expect for a printable
-     * ID copy, rather than one full page per side. [backUri] is optional so
-     * a single-sided capture still produces a valid page. Returns whether at
-     * least one side was decoded.
+     * one page (front on top, back below), each rendered at true ID-1 card
+     * size (~85.6 x 54mm) and centered in its half — a printed copy comes out
+     * life-size instead of blown up to fill the page. [backUri] is optional
+     * so a single-sided capture still produces a valid page. Returns whether
+     * at least one side was decoded.
      */
     fun writeIdCardPdf(context: Context, frontUri: Uri, backUri: Uri?, target: File): Boolean {
         val front = decodeBounded(context, frontUri, MAX_PAGE_DIMENSION_PX)
@@ -92,13 +100,20 @@ object ImageOptimizer {
             val gap = (ID_CARD_PAGE_HEIGHT_PX * ID_CARD_GAP_RATIO).toInt()
             val usableWidth = ID_CARD_PAGE_WIDTH_PX - marginX * 2
             val halfHeight = (ID_CARD_PAGE_HEIGHT_PX - marginY * 2 - gap) / 2
+            val cardLongPx = (ID_CARD_LONG_MM * PX_PER_MM_AT_300_DPI).toInt()
+            val cardShortPx = (ID_CARD_SHORT_MM * PX_PER_MM_AT_300_DPI).toInt()
 
             front?.let {
-                drawFitted(canvas, it, paint, marginX, marginY, usableWidth, halfHeight)
+                drawAtCardSize(
+                    canvas, it, paint, marginX, marginY, usableWidth, halfHeight, cardLongPx, cardShortPx,
+                )
                 it.recycle()
             }
             back?.let {
-                drawFitted(canvas, it, paint, marginX, marginY + halfHeight + gap, usableWidth, halfHeight)
+                drawAtCardSize(
+                    canvas, it, paint, marginX, marginY + halfHeight + gap, usableWidth, halfHeight,
+                    cardLongPx, cardShortPx,
+                )
                 it.recycle()
             }
 
@@ -110,21 +125,31 @@ object ImageOptimizer {
         return true
     }
 
-    /** Draws [bitmap] scaled to fit (preserving aspect ratio) and centered within the given box. */
-    private fun drawFitted(
+    /**
+     * Draws [bitmap] at true ID-card size — [cardLongPx] x [cardShortPx], or
+     * transposed to match [bitmap]'s own orientation — centered within the
+     * region [x],[y],[boxW],[boxH]. Fits within that card-size target
+     * (preserving aspect ratio) rather than stretching to it exactly, in case
+     * the scanner's auto-crop didn't land precisely on the ID-1 ratio.
+     */
+    private fun drawAtCardSize(
         canvas: Canvas,
         bitmap: Bitmap,
         paint: Paint,
         x: Int,
         y: Int,
-        w: Int,
-        h: Int,
+        boxW: Int,
+        boxH: Int,
+        cardLongPx: Int,
+        cardShortPx: Int,
     ) {
-        val scale = minOf(w.toFloat() / bitmap.width, h.toFloat() / bitmap.height)
+        val (targetW, targetH) =
+            if (bitmap.width >= bitmap.height) cardLongPx to cardShortPx else cardShortPx to cardLongPx
+        val scale = minOf(targetW.toFloat() / bitmap.width, targetH.toFloat() / bitmap.height)
         val drawWidth = bitmap.width * scale
         val drawHeight = bitmap.height * scale
-        val left = x + (w - drawWidth) / 2f
-        val top = y + (h - drawHeight) / 2f
+        val left = x + (boxW - drawWidth) / 2f
+        val top = y + (boxH - drawHeight) / 2f
         canvas.drawBitmap(bitmap, null, RectF(left, top, left + drawWidth, top + drawHeight), paint)
     }
 
