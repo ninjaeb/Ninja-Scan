@@ -94,6 +94,14 @@
     <string name="field_notes">Notes</string>
     <string name="nav_documents">Documents</string>
     <string name="nav_cards">Cards</string>
+    <string name="nav_about">About</string>
+    <string name="about">About Ninja Scan</string>
+    <string name="about_intro">Ninja Scan turns your phone into a fast, free document scanner. Capture documents, ID cards, and business cards, then share, print, or back everything up to Google Drive — no ads, no watermark, no subscription.</string>
+    <string name="share_app">Share Ninja Scan</string>
+    <string name="share_app_message">Scan documents and business cards for free with Ninja Scan — no ads, no watermark, no subscription. Get it here: https://share2.io/ninja-scan</string>
+    <string name="join_community">Join our WhatsApp community</string>
+    <string name="visit_website">Visit our website</string>
+    <string name="whats_new">What\'s new</string>
     <string name="save_details_folder">Folder</string>
     <string name="skip">Skip</string>
     <string name="edit_failed">Could not save changes: %1$s</string>
@@ -139,4 +147,12 @@
     <string name="delete_tag_title">Delete tag?</string>
     <string name="delete_tag_body">“%1$s” will be removed from all cards it\'s applied to.</string>
     <string name="create">Create</string>
+    <string-array name="changelog_items">
+        <item>Print documents straight from the viewer</item>
+        <item>Import existing PDFs and photos into your library</item>
+        <item>Scan ID cards with front and back on one page</item>
+        <item>Tag and organize your business card contacts</item>
+        <item>Back up and restore your library with Google Drive</item>
+        <item>Organize documents into folders</item>
+    </string-array>
 </resources>

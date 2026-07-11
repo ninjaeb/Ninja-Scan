@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
@@ -111,6 +112,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
 import com.ninja.scan.DocScannerApp
 import com.ninja.scan.R
+import com.ninja.scan.about.AboutActivity
 import com.ninja.scan.data.BusinessCard
 import com.ninja.scan.data.Tag
 import com.ninja.scan.drive.DriveBackup
@@ -587,6 +589,13 @@ private fun CardsScreen(
                     onClick = {},
                     icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_cards)) },
+                    colors = brandedNavigationItemColors(),
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { context.startActivity(AboutActivity.intent(context)) },
+                    icon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_about)) },
                     colors = brandedNavigationItemColors(),
                 )
             }

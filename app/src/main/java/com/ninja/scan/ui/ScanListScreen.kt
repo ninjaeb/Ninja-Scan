@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -113,6 +114,7 @@ fun ScanListScreen(
     onFolderFilterChange: (String?) -> Unit,
     onToggleDriveBackup: () -> Unit,
     onOpenCards: () -> Unit,
+    onOpenAbout: () -> Unit,
     onScanCardClick: () -> Unit,
     onScanClick: () -> Unit,
     onScanIdCardClick: () -> Unit,
@@ -259,6 +261,13 @@ fun ScanListScreen(
                     onClick = onOpenCards,
                     icon = { Icon(Icons.Filled.ContactPage, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_cards)) },
+                    colors = brandedNavigationItemColors(),
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onOpenAbout,
+                    icon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_about)) },
                     colors = brandedNavigationItemColors(),
                 )
             }

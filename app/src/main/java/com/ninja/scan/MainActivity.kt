@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.work.WorkInfo
+import com.ninja.scan.about.AboutActivity
 import com.ninja.scan.cards.CardsActivity
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveBackupWorker
@@ -273,6 +274,7 @@ class MainActivity : ComponentActivity() {
                         @Suppress("DEPRECATION")
                         overridePendingTransition(R.anim.slide_in_from_left, R.anim.slide_out_to_right)
                     },
+                    onOpenAbout = { startActivity(AboutActivity.intent(this)) },
                     onScanCardClick = {
                         startActivity(CardsActivity.intent(this, startScan = true))
                     },
