@@ -77,6 +77,8 @@ fun DriveMenuButton(
     onToggle: () -> Unit,
     onRestore: () -> Unit,
     onBackupNow: () -> Unit,
+    hasRecoveryKey: Boolean = false,
+    onViewRecoveryKey: () -> Unit = {},
 ) {
     Box {
         IconButton(onClick = { onExpandedChange(true) }) {
@@ -110,6 +112,12 @@ fun DriveMenuButton(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.drive_backup_now)) },
                     onClick = { onExpandedChange(false); onBackupNow() },
+                )
+            }
+            if (hasRecoveryKey) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.view_recovery_key)) },
+                    onClick = { onExpandedChange(false); onViewRecoveryKey() },
                 )
             }
         }

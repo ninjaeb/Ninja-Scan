@@ -122,6 +122,7 @@ import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.AppTitleWithIcon
 import com.ninja.scan.ui.BackupRecoveryKeyDialog
 import com.ninja.scan.ui.BackupRecoveryMode
+import com.ninja.scan.ui.ViewRecoveryKeyDialog
 import com.ninja.scan.ui.DestructiveRed
 import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.DriveSyncProgressBar
@@ -223,6 +224,7 @@ private fun CardsScreen(
     // have cached yet — see BackupRecoveryKeyDialog below.
     var recoveryKeyPrompt by remember { mutableStateOf<BackupRecoveryMode?>(null) }
     var pendingDriveToken by remember { mutableStateOf<String?>(null) }
+    var viewingRecoveryKey by remember { mutableStateOf(false) }
     var restoreProgress by remember { mutableStateOf<SyncProgress?>(null) }
     var backupProgress by remember { mutableStateOf<SyncProgress?>(null) }
 
@@ -595,6 +597,8 @@ private fun CardsScreen(
                                     )
                                 }
                             },
+                            hasRecoveryKey = DriveBackup.hasLocalKey(context),
+                            onViewRecoveryKey = { viewingRecoveryKey = true },
                         )
                     },
                 )
@@ -926,6 +930,12 @@ private fun CardsScreen(
                 performPendingDriveAction()
             },
         )
+    }
+
+    if (viewingRecoveryKey) {
+        DriveBackup.currentRecoveryKey(context)?.let { code ->
+            ViewRecoveryKeyDialog(code = code, onDismiss = { viewingRecoveryKey = false })
+        } ?: run { viewingRecoveryKey = false }
     }
 }
 

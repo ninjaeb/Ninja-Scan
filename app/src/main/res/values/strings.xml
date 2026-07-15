@@ -37,6 +37,9 @@
     <string name="enter_recovery_key_hint">Your Google Drive backup is encrypted. Enter the recovery key shown when backup was first turned on to unlock it on this device.</string>
     <string name="recovery_key_field">Recovery key</string>
     <string name="incorrect_recovery_key">That recovery key doesn\'t match this backup</string>
+    <string name="recovery_key_title">Recovery key</string>
+    <string name="recovery_key_view_hint">This is the key that encrypts your Google Drive backup. Save a copy anywhere you\'ll be able to find it later — if it\'s lost, your backups can\'t be decrypted.</string>
+    <string name="view_recovery_key">View recovery key</string>
     <string name="copy">Copy</string>
     <string name="paste">Paste</string>
     <string name="done">Done</string>

@@ -235,6 +235,15 @@ object DriveBackup {
         return runCatching { unwrapKey(Base64.getDecoder().decode(wrapped)) }.getOrNull()
     }
 
+    /**
+     * Re-derives the display form of this device's cached key — e.g. for a
+     * "View recovery key" menu item, so losing the one-time display at
+     * generation time doesn't mean losing the code for good as long as this
+     * same device/install still has it cached. Null if none is cached.
+     */
+    fun currentRecoveryKey(context: Context): String? =
+        loadLocalKey(context)?.let { BackupCrypto.encodeRecoveryKey(it) }
+
     private fun saveLocalKey(context: Context, raw: ByteArray) {
         prefs(context).edit {
             putString(KEY_BACKUP_KEY_WRAPPED, Base64.getEncoder().encodeToString(wrapKey(raw)))

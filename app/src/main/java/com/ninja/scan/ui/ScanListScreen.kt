@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
+import com.ninja.scan.drive.DriveBackup
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.ui.platform.LocalContext
@@ -173,6 +174,7 @@ fun ScanListScreen(
     var showAddSheet by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    var viewingRecoveryKey by remember { mutableStateOf(false) }
     var showLongPressHint by remember {
         mutableStateOf(!HintPrefs.isDismissed(context, HINT_KEY_DOCUMENTS))
     }
@@ -241,6 +243,8 @@ fun ScanListScreen(
                             onToggle = onToggleDriveBackup,
                             onRestore = onRestoreFromDrive,
                             onBackupNow = onBackupNowDrive,
+                            hasRecoveryKey = DriveBackup.hasLocalKey(context),
+                            onViewRecoveryKey = { viewingRecoveryKey = true },
                         )
                     },
                 )
@@ -671,6 +675,12 @@ fun ScanListScreen(
             onImportPdf = { showAddSheet = false; onImportPdfClick() },
             onImportImages = { showAddSheet = false; onImportImagesClick() },
         )
+    }
+
+    if (viewingRecoveryKey) {
+        DriveBackup.currentRecoveryKey(context)?.let { code ->
+            ViewRecoveryKeyDialog(code = code, onDismiss = { viewingRecoveryKey = false })
+        } ?: run { viewingRecoveryKey = false }
     }
 }
 
