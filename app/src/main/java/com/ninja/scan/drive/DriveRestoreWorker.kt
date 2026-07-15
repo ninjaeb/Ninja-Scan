@@ -16,6 +16,9 @@ import java.io.File
  * not already present (matched by Drive file id) plus the business cards and
  * folder list from the manifest. Idempotent — running it twice restores
  * nothing new — so WorkManager retries after partial failures are safe.
+ * Encrypted content (see BackupCrypto) is decrypted with the key set up or
+ * unlocked in the UI before this worker was enqueued; legacy plaintext
+ * backups from before encryption existed still restore unchanged.
  */
 class DriveRestoreWorker(
     context: Context,
@@ -40,12 +43,23 @@ class DriveRestoreWorker(
             return@withContext Result.retry()
         } ?: return@withContext Result.success(workDataOf(KEY_SCANS to 0, KEY_CARDS to 0))
 
+        // Set up (or unlocked) from the UI before restore is ever enqueued;
+        // null here just means every file turns out to be legacy plaintext
+        // from before encryption existed, which still restores fine below.
+        val localKey = DriveBackup.loadLocalKey(applicationContext)
+
         val manifest = try {
             drive.findFile(DriveManifest.FILE_NAME, folderId)?.let { manifestId ->
                 val temp = File.createTempFile("manifest", ".json", applicationContext.cacheDir)
                 try {
                     drive.downloadTo(manifestId, temp)
-                    DriveManifest.decode(temp.readBytes())
+                    val bytes = temp.readBytes()
+                    val decoded = if (BackupCrypto.isEncrypted(bytes)) {
+                        localKey?.let { BackupCrypto.decryptBytes(bytes, it) }
+                    } else {
+                        bytes
+                    }
+                    decoded?.let(DriveManifest::decode)
                 } finally {
                     temp.delete()
                 }
@@ -53,7 +67,7 @@ class DriveRestoreWorker(
         } catch (e: DriveAuthException) {
             return@withContext Result.retry()
         } catch (e: Exception) {
-            null // Absent/corrupt manifest: PDFs still restore with fallbacks.
+            null // Absent/corrupt/undecryptable manifest: PDFs still restore with fallbacks.
         }
 
         manifest?.folders?.forEach { app.repository.addFolder(it) }
@@ -73,7 +87,7 @@ class DriveRestoreWorker(
         for (file in children) {
             if (file.mimeType == "application/pdf" && file.id !in known) {
                 try {
-                    if (app.repository.restoreScanFromDrive(drive, file, entries[file.id])) {
+                    if (app.repository.restoreScanFromDrive(drive, file, entries[file.id], localKey)) {
                         restored++
                     }
                 } catch (e: DriveAuthException) {
@@ -91,7 +105,7 @@ class DriveRestoreWorker(
         // way the scan-restore loop isolates per-file failures.
         val cardsRestored = try {
             manifest?.cards?.let {
-                app.repository.restoreCards(drive, it, manifest.tags)
+                app.repository.restoreCards(drive, it, manifest.tags, localKey)
             } ?: 0
         } catch (e: DriveAuthException) {
             return@withContext Result.retry()

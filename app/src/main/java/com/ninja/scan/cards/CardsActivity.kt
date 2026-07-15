@@ -120,6 +120,8 @@ import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveBackupWorker
 import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.AppTitleWithIcon
+import com.ninja.scan.ui.BackupPasswordDialog
+import com.ninja.scan.ui.BackupPasswordMode
 import com.ninja.scan.ui.DestructiveRed
 import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.DriveSyncProgressBar
@@ -217,6 +219,10 @@ private fun CardsScreen(
     var driveBackupEnabled by remember { mutableStateOf(DriveBackup.isEnabled(context)) }
     // What to do once Drive consent is granted: enable backup, or restore.
     var pendingDriveRestore by remember { mutableStateOf(false) }
+    // Set when backup/restore needs a password this device doesn't have a
+    // key for yet — see BackupPasswordDialog below.
+    var passwordPrompt by remember { mutableStateOf<BackupPasswordMode?>(null) }
+    var pendingDriveToken by remember { mutableStateOf<String?>(null) }
     var restoreProgress by remember { mutableStateOf<SyncProgress?>(null) }
     var backupProgress by remember { mutableStateOf<SyncProgress?>(null) }
 
@@ -289,15 +295,34 @@ private fun CardsScreen(
         }
     }
 
+    // Runs the pending action once a usable key is confirmed, or routes to
+    // the password dialog (new setup vs. unlocking one set up elsewhere)
+    // when this device doesn't have one cached yet.
+    fun handleDriveAuthorized(token: String) {
+        scope.launch {
+            when (DriveBackup.resolveKeyRequirement(context, token)) {
+                DriveBackup.KeyRequirement.Ready -> performPendingDriveAction()
+                DriveBackup.KeyRequirement.NeedsSetup -> {
+                    pendingDriveToken = token
+                    passwordPrompt = BackupPasswordMode.SETUP
+                }
+                DriveBackup.KeyRequirement.NeedsUnlock -> {
+                    pendingDriveToken = token
+                    passwordPrompt = BackupPasswordMode.UNLOCK
+                }
+            }
+        }
+    }
+
     val driveConsentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { activityResult ->
-        val granted = runCatching {
+        val token = runCatching {
             Identity.getAuthorizationClient(context)
                 .getAuthorizationResultFromIntent(activityResult.data)
-        }.isSuccess
-        if (granted) {
-            performPendingDriveAction()
+        }.getOrNull()?.accessToken
+        if (token != null) {
+            handleDriveAuthorized(token)
         } else {
             scope.launch {
                 snackbarHostState.showSnackbar(
@@ -315,7 +340,7 @@ private fun CardsScreen(
                     IntentSenderRequest.Builder(pendingIntent.intentSender).build()
                 )
             },
-            onGranted = { performPendingDriveAction() },
+            onGranted = { token -> handleDriveAuthorized(token) },
             onFailure = { message ->
                 scope.launch {
                     snackbarHostState.showSnackbar(
@@ -882,6 +907,29 @@ private fun CardsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deletingTagFilter = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+
+    passwordPrompt?.let { mode ->
+        BackupPasswordDialog(
+            mode = mode,
+            onDismiss = { passwordPrompt = null; pendingDriveToken = null },
+            onSubmit = { password ->
+                val token = pendingDriveToken
+                if (token == null) {
+                    false
+                } else if (mode == BackupPasswordMode.SETUP) {
+                    DriveBackup.setupPassword(context, password)
+                    true
+                } else {
+                    DriveBackup.unlockWithPassword(context, token, password)
+                }
+            },
+            onSuccess = {
+                passwordPrompt = null
+                pendingDriveToken = null
+                performPendingDriveAction()
             },
         )
     }

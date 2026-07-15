@@ -19,12 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkInfo
 import com.ninja.scan.about.AboutActivity
 import com.ninja.scan.cards.CardsActivity
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveBackupWorker
 import com.ninja.scan.drive.DriveRestoreWorker
+import com.ninja.scan.ui.BackupPasswordDialog
+import com.ninja.scan.ui.BackupPasswordMode
 import com.ninja.scan.ui.ScanEvent
 import com.ninja.scan.ui.ScanListScreen
 import com.ninja.scan.ui.ScanViewModel
@@ -37,6 +40,7 @@ import com.google.android.gms.auth.api.identity.Identity
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -46,6 +50,27 @@ class MainActivity : ComponentActivity() {
     private var pendingDriveAction = DriveAction.ENABLE_BACKUP
 
     private enum class DriveAction { ENABLE_BACKUP, RESTORE }
+
+    /** Set from within setContent so class-level auth callbacks can show the password dialog. */
+    private var onNeedsPasswordPrompt: ((BackupPasswordMode, String) -> Unit)? = null
+
+    /**
+     * Runs once Drive authorization succeeds (silently or after consent):
+     * proceeds straight to [performPendingDriveAction] if this device
+     * already has a usable backup key, otherwise routes to the password
+     * dialog to set one up or unlock one set up elsewhere.
+     */
+    private fun handleDriveAuthorized(token: String) {
+        lifecycleScope.launch {
+            when (DriveBackup.resolveKeyRequirement(this@MainActivity, token)) {
+                DriveBackup.KeyRequirement.Ready -> performPendingDriveAction()
+                DriveBackup.KeyRequirement.NeedsSetup ->
+                    onNeedsPasswordPrompt?.invoke(BackupPasswordMode.SETUP, token)
+                DriveBackup.KeyRequirement.NeedsUnlock ->
+                    onNeedsPasswordPrompt?.invoke(BackupPasswordMode.UNLOCK, token)
+            }
+        }
+    }
 
     /**
      * Full scanner experience: live edge detection with auto-capture,
@@ -103,15 +128,22 @@ class MainActivity : ComponentActivity() {
                 val driveConsentLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.StartIntentSenderForResult()
                 ) { activityResult ->
-                    val granted = runCatching {
+                    val token = runCatching {
                         Identity.getAuthorizationClient(this)
                             .getAuthorizationResultFromIntent(activityResult.data)
-                    }.isSuccess
-                    if (granted) {
-                        performPendingDriveAction()
+                    }.getOrNull()?.accessToken
+                    if (token != null) {
+                        handleDriveAuthorized(token)
                     } else {
                         viewModel.emitEvent(ScanEvent.DriveBackupFailed("consent not granted"))
                     }
+                }
+
+                var passwordPrompt by remember { mutableStateOf<BackupPasswordMode?>(null) }
+                var pendingDriveToken by remember { mutableStateOf<String?>(null) }
+                onNeedsPasswordPrompt = { mode, token ->
+                    pendingDriveToken = token
+                    passwordPrompt = mode
                 }
 
                 val scannerLauncher = rememberLauncherForActivityResult(
@@ -375,6 +407,29 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
+
+                passwordPrompt?.let { mode ->
+                    BackupPasswordDialog(
+                        mode = mode,
+                        onDismiss = { passwordPrompt = null; pendingDriveToken = null },
+                        onSubmit = { password ->
+                            val token = pendingDriveToken
+                            when {
+                                token == null -> false
+                                mode == BackupPasswordMode.SETUP -> {
+                                    DriveBackup.setupPassword(this@MainActivity, password)
+                                    true
+                                }
+                                else -> DriveBackup.unlockWithPassword(this@MainActivity, token, password)
+                            }
+                        },
+                        onSuccess = {
+                            passwordPrompt = null
+                            pendingDriveToken = null
+                            performPendingDriveAction()
+                        },
+                    )
+                }
             }
         }
     }
@@ -382,8 +437,8 @@ class MainActivity : ComponentActivity() {
     /**
      * Requests the drive.file scope for whichever action was just requested
      * ([pendingDriveAction]). If Google needs user consent (first time),
-     * [onNeedsConsent] launches the returned system dialog; otherwise the
-     * pending action runs immediately with the silently granted authorization.
+     * [onNeedsConsent] launches the returned system dialog; otherwise
+     * [handleDriveAuthorized] runs with the silently granted access token.
      */
     private fun requestDriveAuthorization(
         onNeedsConsent: (android.app.PendingIntent) -> Unit,
@@ -391,7 +446,7 @@ class MainActivity : ComponentActivity() {
         DriveBackup.requestAuthorization(
             context = this,
             onNeedsConsent = onNeedsConsent,
-            onGranted = { performPendingDriveAction() },
+            onGranted = { token -> handleDriveAuthorized(token) },
             onFailure = { message -> viewModel.emitEvent(ScanEvent.DriveBackupFailed(message)) },
         )
     }

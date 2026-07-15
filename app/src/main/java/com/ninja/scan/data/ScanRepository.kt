@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
+import com.ninja.scan.drive.BackupCrypto
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveFile
 import com.ninja.scan.drive.DriveManifest
@@ -117,11 +118,19 @@ class ScanRepository(
         drive: DriveRestClient,
         file: DriveFile,
         entry: DriveManifest.ScanEntry?,
+        localKey: ByteArray?,
     ): Boolean = withContext(Dispatchers.IO) {
         // Deterministic name: a retried restore simply overwrites a partial
         // download instead of duplicating it.
         val pdf = File(scansDir, "restored_${file.id}.pdf")
         drive.downloadTo(file.id, pdf)
+        if (BackupCrypto.fileIsEncrypted(pdf)) {
+            val key = localKey ?: run { pdf.delete(); return@withContext false }
+            val decrypted = File(scansDir, "restored_${file.id}.decrypting.pdf")
+            BackupCrypto.decryptFile(pdf, decrypted, key)
+            decrypted.copyTo(pdf, overwrite = true)
+            decrypted.delete()
+        }
         if (PdfEditor.pageCount(pdf) == 0) {
             pdf.delete()
             return@withContext false
@@ -157,6 +166,7 @@ class ScanRepository(
         drive: DriveRestClient,
         entries: List<DriveManifest.CardEntry>,
         catalogTags: List<DriveManifest.TagEntry> = emptyList(),
+        localKey: ByteArray? = null,
     ): Int = withContext(Dispatchers.IO) {
         val existing = cardDao.getAll()
             .map { listOf(it.name, it.phone, it.email, it.createdAt.toString()) }
@@ -193,8 +203,15 @@ class ScanRepository(
                     runCatching {
                         val target = File(cardsDir, "restored_$fileId.jpg")
                         drive.downloadTo(fileId, target)
+                        if (BackupCrypto.fileIsEncrypted(target)) {
+                            val photoKey = localKey ?: error("photo is encrypted but no backup key is set up")
+                            val decrypted = File(cardsDir, "restored_$fileId.decrypting.jpg")
+                            BackupCrypto.decryptFile(target, decrypted, photoKey)
+                            decrypted.copyTo(target, overwrite = true)
+                            decrypted.delete()
+                        }
                         target.absolutePath
-                    }.getOrNull() // download failure: skip the photo, keep the card record
+                    }.getOrNull() // download/decrypt failure: skip the photo, keep the card record
                 }
                 val newId = cardDao.insert(card.copy(id = 0, thumbnailPath = thumbnailPath))
                 for (tagTitle in entry.tagTitles) {

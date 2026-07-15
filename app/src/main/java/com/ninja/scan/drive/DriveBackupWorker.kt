@@ -18,6 +18,9 @@ import java.io.File
  * the library manifest (scan metadata + business cards + folder list) so a
  * later restore can rebuild the library losslessly. The clean stored PDF is
  * uploaded — watermarks stay editable metadata and are re-applied in-app.
+ * Every PDF, card photo, and the manifest are AES-256-GCM encrypted (see
+ * BackupCrypto/DriveBackup) with a key derived from a password set up in the
+ * UI, so Drive itself never sees plaintext content.
  * Runs only when backup is enabled and authorization was previously granted
  * in the UI; anything transient (network, 5xx) retries with backoff.
  */
@@ -67,6 +70,16 @@ class DriveBackupWorker(
             return@withContext Result.failure()
         }
 
+        // The backup password is set up (or unlocked) from the UI before
+        // enabling backup or restoring, so this should already be cached by
+        // the time a worker runs. If it's ever missing — e.g. this periodic
+        // pass firing before that UI flow ever completed — there's nothing
+        // safe to encrypt with, so stop here rather than upload in plaintext
+        // or retry forever; the still-gray pending icons on Documents/Cards
+        // are what nudges the user back to the UI flow that sets it up.
+        val localKey = DriveBackup.loadLocalKey(applicationContext)
+            ?: return@withContext Result.failure()
+
         val drive = DriveRestClient(token)
         val folderId = try {
             drive.resolveFolder(applicationContext)
@@ -77,6 +90,13 @@ class DriveBackupWorker(
             drive.resolveSubfolder(applicationContext, folderId, "cards")
         } catch (e: Exception) {
             return@withContext giveUpOrRetry("resolveSubfolder(cards)", e)
+        }
+        try {
+            DriveBackup.ensureEncryptionMetadataUploaded(applicationContext, drive, folderId)
+        } catch (e: DriveAuthException) {
+            return@withContext giveUpOrRetry("uploadEncryptionMetadata (auth)", e)
+        } catch (e: Exception) {
+            return@withContext giveUpOrRetry("uploadEncryptionMetadata", e)
         }
 
         // Replaced copies (page edits, watermark changes) are deleted so the
@@ -97,9 +117,19 @@ class DriveBackupWorker(
             val pdf = File(scan.pdfPath)
             if (pdf.exists()) {
                 try {
-                    val fileId = drive.uploadPdf(pdf, "${scan.title}.pdf", folderId)
-                    app.repository.markBackedUp(scan.id, fileId)
-                    scansBackedUp++
+                    val encrypted = File.createTempFile("upload", ".enc", applicationContext.cacheDir)
+                    try {
+                        BackupCrypto.encryptFile(pdf, encrypted, localKey)
+                        // mimeType stays "application/pdf" even though the body is now
+                        // opaque ciphertext: restore filters children by this mimeType to
+                        // find scan files (see DriveRestoreWorker), and BackupCrypto's own
+                        // magic header — not this label — is what gates decryption.
+                        val fileId = drive.uploadPdf(encrypted, "${scan.title}.pdf", folderId)
+                        app.repository.markBackedUp(scan.id, fileId)
+                        scansBackedUp++
+                    } finally {
+                        encrypted.delete()
+                    }
                 } catch (e: DriveAuthException) {
                     return@withContext giveUpOrRetry("upload scan ${scan.id} (auth)", e)
                 } catch (e: Exception) {
@@ -115,10 +145,16 @@ class DriveBackupWorker(
             val photo = card.thumbnailPath?.let(::File)
             if (photo != null && photo.exists()) {
                 try {
-                    val fileId =
-                        drive.uploadFile(photo, "card-${card.id}.jpg", cardsFolderId, "image/jpeg")
-                    app.repository.markCardPhotoBackedUp(card.id, fileId)
-                    cardsBackedUp++
+                    val encrypted = File.createTempFile("upload", ".enc", applicationContext.cacheDir)
+                    try {
+                        BackupCrypto.encryptFile(photo, encrypted, localKey)
+                        val fileId =
+                            drive.uploadFile(encrypted, "card-${card.id}.jpg", cardsFolderId, "image/jpeg")
+                        app.repository.markCardPhotoBackedUp(card.id, fileId)
+                        cardsBackedUp++
+                    } finally {
+                        encrypted.delete()
+                    }
                 } catch (e: DriveAuthException) {
                     return@withContext giveUpOrRetry("upload card ${card.id} (auth)", e)
                 } catch (e: Exception) {
@@ -133,7 +169,7 @@ class DriveBackupWorker(
         // The manifest always mirrors the current library, even when there
         // was nothing new to upload (e.g. a card edit or folder rename).
         try {
-            uploadManifest(app, drive, folderId)
+            uploadManifest(app, drive, folderId, localKey)
         } catch (e: Exception) {
             return@withContext giveUpOrRetry("uploadManifest", e)
         }
@@ -155,6 +191,7 @@ class DriveBackupWorker(
         app: DocScannerApp,
         drive: DriveRestClient,
         folderId: String,
+        localKey: ByteArray,
     ) {
         val scans = app.repository.getBackedUpScans().map { scan ->
             DriveManifest.ScanEntry(
@@ -177,7 +214,7 @@ class DriveBackupWorker(
             DriveManifest.TagEntry(title = tag.title, description = tag.description, color = tag.color)
         }
         val content = DriveManifest.Content(scans, cards, app.repository.getFolderNames(), tags)
-        val bytes = DriveManifest.encode(content, System.currentTimeMillis())
+        val bytes = BackupCrypto.encryptBytes(DriveManifest.encode(content, System.currentTimeMillis()), localKey)
 
         val existing = DriveBackup.cachedManifestId(applicationContext)
             ?: drive.findFile(DriveManifest.FILE_NAME, folderId)

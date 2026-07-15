@@ -30,6 +30,17 @@
     <string name="drive_backup_incomplete">Backup incomplete — %1$d item(s) couldn\'t sync</string>
     <string name="backed_up_to_drive">Backed up to Google Drive</string>
     <string name="backup_pending">Waiting to back up to Google Drive</string>
+    <string name="set_backup_password_title">Set a backup password</string>
+    <string name="set_backup_password_hint">This password encrypts everything backed up to Google Drive. It\'s never sent anywhere and can\'t be recovered — write it down somewhere safe. If you forget it, your backups can\'t be decrypted.</string>
+    <string name="enter_backup_password_title">Enter your backup password</string>
+    <string name="enter_backup_password_hint">Your Google Drive backup is encrypted. Enter the password you set when backup was first turned on to unlock it on this device.</string>
+    <string name="backup_password_field">Password</string>
+    <string name="confirm_backup_password_field">Confirm password</string>
+    <string name="incorrect_backup_password">Incorrect password</string>
+    <string name="backup_password_too_short">Use at least 8 characters</string>
+    <string name="backup_passwords_dont_match">Passwords don\'t match</string>
+    <string name="backup_password_setup_failed">Couldn\'t set up encryption — try again</string>
+    <string name="unlock">Unlock</string>
     <string name="edit_pages">Edit pages</string>
     <string name="add_pages">Add pages</string>
     <string name="save">Save</string>
