@@ -5,16 +5,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -88,30 +88,34 @@ fun ViewRecoveryKeyDialog(code: String, onDismiss: () -> Unit) {
     )
 }
 
-/** The code itself, selectable, with Copy and Share actions. */
+/** The code in a read-only text box, with one-tap Copy and "email to myself" actions. */
 @Composable
 private fun RecoveryCodeRow(code: String) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        SelectionContainer(modifier = Modifier.weight(1f)) {
-            Text(code.chunked(4).joinToString("-"), fontFamily = FontFamily.Monospace)
-        }
+    Row(verticalAlignment = Alignment.Top) {
+        OutlinedTextField(
+            value = code.chunked(4).joinToString("-"),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.recovery_key_field)) },
+            textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.weight(1f),
+        )
         IconButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
             Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy))
         }
         IconButton(
             onClick = {
-                val send = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
+                val email = Intent(Intent.ACTION_SEND).apply {
+                    type = "message/rfc822"
+                    putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.recovery_key_title))
                     putExtra(Intent.EXTRA_TEXT, code)
                 }
-                context.startActivity(
-                    Intent.createChooser(send, context.getString(R.string.recovery_key_title))
-                )
+                runCatching { context.startActivity(email) }
             },
         ) {
-            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
+            Icon(Icons.Filled.Email, contentDescription = stringResource(R.string.email_recovery_key))
         }
     }
 }
