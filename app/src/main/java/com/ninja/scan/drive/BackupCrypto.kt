@@ -1,20 +1,22 @@
 package com.ninja.scan.drive
 
-import java.io.File
 import java.security.SecureRandom
+import java.io.File
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.CipherInputStream
 import javax.crypto.CipherOutputStream
-import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * AES-256-GCM encryption for Drive backup content, with the key derived from
- * a user-chosen backup password (PBKDF2) rather than stored anywhere in
- * plaintext — see [DriveBackup] for where the derived key itself is cached
- * on-device (wrapped by Android Keystore) and how the password is checked.
+ * AES-256-GCM encryption for Drive backup content, keyed by a randomly
+ * generated 256-bit recovery key rather than a user-chosen password — there's
+ * nothing to guess offline, and nothing to forget the wording of, but the
+ * key itself must be saved somewhere by the user (a password manager, a
+ * written-down copy) since — same as a password — losing it means the
+ * backup can never be decrypted again. See [DriveBackup] for where the key
+ * is cached on-device (wrapped by Android Keystore) and verified.
  *
  * Every encrypted blob/file starts with a 4-byte magic header, so decrypt
  * can tell an already-encrypted file apart from a plaintext one uploaded
@@ -23,9 +25,7 @@ import javax.crypto.spec.SecretKeySpec
  */
 object BackupCrypto {
 
-    const val PBKDF2_ITERATIONS = 210_000
-    const val SALT_BYTES = 16
-    private const val KEY_BITS = 256
+    const val KEY_BYTES = 32 // 256 bits
     private const val ALGORITHM = "AES"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val GCM_TAG_BITS = 128
@@ -35,23 +35,23 @@ object BackupCrypto {
     private val MAGIC = byteArrayOf('N'.code.toByte(), 'J'.code.toByte(), 'S'.code.toByte(), 1)
     private val VERIFIER_PLAINTEXT = "ninja-scan-backup-check".toByteArray(Charsets.UTF_8)
 
-    fun randomSalt(): ByteArray = ByteArray(SALT_BYTES).also { SecureRandom().nextBytes(it) }
+    /** A fresh, uniformly random 256-bit key — nothing derived, nothing guessable. */
+    fun generateKey(): ByteArray = ByteArray(KEY_BYTES).also { SecureRandom().nextBytes(it) }
 
-    /** Derives a 256-bit AES key from a backup password; never stored itself. */
-    fun deriveKey(password: CharArray, salt: ByteArray, iterations: Int = PBKDF2_ITERATIONS): ByteArray {
-        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val spec = PBEKeySpec(password, salt, iterations, KEY_BITS)
-        return try {
-            factory.generateSecret(spec).encoded
-        } finally {
-            spec.clearPassword()
-        }
-    }
+    /** The one-time recovery code shown to the user, encoding [key] for display/copy. */
+    fun encodeRecoveryKey(key: ByteArray): String =
+        Base64.getUrlEncoder().withoutPadding().encodeToString(key)
 
-    /** Encrypts a known constant, so a password can be checked without touching real data. */
+    /** Parses a recovery code back into key bytes, or null if it's not a valid one. */
+    fun decodeRecoveryKey(code: String): ByteArray? = runCatching {
+        val trimmed = code.trim().filterNot { it.isWhitespace() }
+        Base64.getUrlDecoder().decode(trimmed).takeIf { it.size == KEY_BYTES }
+    }.getOrNull()
+
+    /** Encrypts a known constant, so a recovery key can be checked without touching real data. */
     fun verifier(keyBytes: ByteArray): ByteArray = encryptBytes(VERIFIER_PLAINTEXT, keyBytes)
 
-    fun verifyPassword(keyBytes: ByteArray, verifierBytes: ByteArray): Boolean =
+    fun verifyKey(keyBytes: ByteArray, verifierBytes: ByteArray): Boolean =
         runCatching { decryptBytes(verifierBytes, keyBytes).contentEquals(VERIFIER_PLAINTEXT) }
             .getOrDefault(false)
 

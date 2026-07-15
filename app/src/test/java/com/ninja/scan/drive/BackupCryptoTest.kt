@@ -2,6 +2,7 @@ package com.ninja.scan.drive
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -10,7 +11,7 @@ class BackupCryptoTest {
 
     @Test
     fun `bytes round-trip through encrypt and decrypt`() {
-        val key = BackupCrypto.deriveKey("hunter2".toCharArray(), BackupCrypto.randomSalt())
+        val key = BackupCrypto.generateKey()
         val plaintext = "the quick brown fox".toByteArray()
 
         val encrypted = BackupCrypto.encryptBytes(plaintext, key)
@@ -21,23 +22,40 @@ class BackupCryptoTest {
 
     @Test
     fun `decrypt fails with the wrong key`() {
-        val salt = BackupCrypto.randomSalt()
-        val key = BackupCrypto.deriveKey("correct-password".toCharArray(), salt)
-        val wrongKey = BackupCrypto.deriveKey("wrong-password".toCharArray(), salt)
+        val key = BackupCrypto.generateKey()
+        val wrongKey = BackupCrypto.generateKey()
         val encrypted = BackupCrypto.encryptBytes("secret".toByteArray(), key)
 
         assertFalse(runCatching { BackupCrypto.decryptBytes(encrypted, wrongKey) }.isSuccess)
     }
 
     @Test
-    fun `verifier confirms the correct password and rejects a wrong one`() {
-        val salt = BackupCrypto.randomSalt()
-        val key = BackupCrypto.deriveKey("my-backup-password".toCharArray(), salt)
-        val wrongKey = BackupCrypto.deriveKey("not-my-password".toCharArray(), salt)
+    fun `verifier confirms the correct key and rejects a wrong one`() {
+        val key = BackupCrypto.generateKey()
+        val wrongKey = BackupCrypto.generateKey()
         val verifier = BackupCrypto.verifier(key)
 
-        assertTrue(BackupCrypto.verifyPassword(key, verifier))
-        assertFalse(BackupCrypto.verifyPassword(wrongKey, verifier))
+        assertTrue(BackupCrypto.verifyKey(key, verifier))
+        assertFalse(BackupCrypto.verifyKey(wrongKey, verifier))
+    }
+
+    @Test
+    fun `recovery code round-trips back to the same key`() {
+        val key = BackupCrypto.generateKey()
+
+        val code = BackupCrypto.encodeRecoveryKey(key)
+        val decoded = BackupCrypto.decodeRecoveryKey(code)
+
+        assertTrue(key.contentEquals(decoded))
+    }
+
+    @Test
+    fun `a mistyped or garbage recovery code is rejected instead of decoding to junk`() {
+        assertNull(BackupCrypto.decodeRecoveryKey("not a real recovery code"))
+        assertNull(BackupCrypto.decodeRecoveryKey(""))
+        // One char short of a valid 32-byte key, still base64url-decodable.
+        val tooShort = BackupCrypto.encodeRecoveryKey(BackupCrypto.generateKey()).dropLast(4)
+        assertNull(BackupCrypto.decodeRecoveryKey(tooShort))
     }
 
     @Test
@@ -48,7 +66,7 @@ class BackupCryptoTest {
 
     @Test
     fun `files round-trip through encrypt and decrypt`() {
-        val key = BackupCrypto.deriveKey("file-password".toCharArray(), BackupCrypto.randomSalt())
+        val key = BackupCrypto.generateKey()
         val source = File.createTempFile("plain", ".pdf")
         val encrypted = File.createTempFile("enc", ".bin")
         val decrypted = File.createTempFile("dec", ".pdf")
@@ -71,7 +89,7 @@ class BackupCryptoTest {
 
     @Test
     fun `decrypting a plaintext file is rejected instead of returning garbage`() {
-        val key = BackupCrypto.deriveKey("password".toCharArray(), BackupCrypto.randomSalt())
+        val key = BackupCrypto.generateKey()
         val plain = File.createTempFile("plain", ".pdf")
         val out = File.createTempFile("out", ".pdf")
         try {

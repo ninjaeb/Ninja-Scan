@@ -26,8 +26,8 @@ import com.ninja.scan.cards.CardsActivity
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveBackupWorker
 import com.ninja.scan.drive.DriveRestoreWorker
-import com.ninja.scan.ui.BackupPasswordDialog
-import com.ninja.scan.ui.BackupPasswordMode
+import com.ninja.scan.ui.BackupRecoveryKeyDialog
+import com.ninja.scan.ui.BackupRecoveryMode
 import com.ninja.scan.ui.ScanEvent
 import com.ninja.scan.ui.ScanListScreen
 import com.ninja.scan.ui.ScanViewModel
@@ -51,23 +51,23 @@ class MainActivity : ComponentActivity() {
 
     private enum class DriveAction { ENABLE_BACKUP, RESTORE }
 
-    /** Set from within setContent so class-level auth callbacks can show the password dialog. */
-    private var onNeedsPasswordPrompt: ((BackupPasswordMode, String) -> Unit)? = null
+    /** Set from within setContent so class-level auth callbacks can show the recovery-key dialog. */
+    private var onNeedsRecoveryKeyPrompt: ((BackupRecoveryMode, String) -> Unit)? = null
 
     /**
      * Runs once Drive authorization succeeds (silently or after consent):
      * proceeds straight to [performPendingDriveAction] if this device
-     * already has a usable backup key, otherwise routes to the password
-     * dialog to set one up or unlock one set up elsewhere.
+     * already has a usable backup key, otherwise routes to the
+     * recovery-key dialog to generate one or enter one from elsewhere.
      */
     private fun handleDriveAuthorized(token: String) {
         lifecycleScope.launch {
             when (DriveBackup.resolveKeyRequirement(this@MainActivity, token)) {
                 DriveBackup.KeyRequirement.Ready -> performPendingDriveAction()
                 DriveBackup.KeyRequirement.NeedsSetup ->
-                    onNeedsPasswordPrompt?.invoke(BackupPasswordMode.SETUP, token)
+                    onNeedsRecoveryKeyPrompt?.invoke(BackupRecoveryMode.GENERATE, token)
                 DriveBackup.KeyRequirement.NeedsUnlock ->
-                    onNeedsPasswordPrompt?.invoke(BackupPasswordMode.UNLOCK, token)
+                    onNeedsRecoveryKeyPrompt?.invoke(BackupRecoveryMode.ENTER, token)
             }
         }
     }
@@ -139,11 +139,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                var passwordPrompt by remember { mutableStateOf<BackupPasswordMode?>(null) }
+                var recoveryKeyPrompt by remember { mutableStateOf<BackupRecoveryMode?>(null) }
                 var pendingDriveToken by remember { mutableStateOf<String?>(null) }
-                onNeedsPasswordPrompt = { mode, token ->
+                onNeedsRecoveryKeyPrompt = { mode, token ->
                     pendingDriveToken = token
-                    passwordPrompt = mode
+                    recoveryKeyPrompt = mode
                 }
 
                 val scannerLauncher = rememberLauncherForActivityResult(
@@ -408,23 +408,17 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                passwordPrompt?.let { mode ->
-                    BackupPasswordDialog(
+                recoveryKeyPrompt?.let { mode ->
+                    BackupRecoveryKeyDialog(
                         mode = mode,
-                        onDismiss = { passwordPrompt = null; pendingDriveToken = null },
-                        onSubmit = { password ->
+                        onDismiss = { recoveryKeyPrompt = null; pendingDriveToken = null },
+                        onGenerate = { DriveBackup.generateRecoveryKey(this@MainActivity) },
+                        onEnter = { code ->
                             val token = pendingDriveToken
-                            when {
-                                token == null -> false
-                                mode == BackupPasswordMode.SETUP -> {
-                                    DriveBackup.setupPassword(this@MainActivity, password)
-                                    true
-                                }
-                                else -> DriveBackup.unlockWithPassword(this@MainActivity, token, password)
-                            }
+                            token != null && DriveBackup.unlockWithRecoveryKey(this@MainActivity, token, code)
                         },
                         onSuccess = {
-                            passwordPrompt = null
+                            recoveryKeyPrompt = null
                             pendingDriveToken = null
                             performPendingDriveAction()
                         },

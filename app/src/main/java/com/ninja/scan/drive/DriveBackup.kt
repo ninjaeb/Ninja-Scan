@@ -40,18 +40,18 @@ object DriveBackup {
     const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
     const val FOLDER_NAME = "Ninja Scan"
 
-    /** Small JSON file in the backup folder carrying the PBKDF2 salt and a
-     * password verifier — never the key itself — so a different device can
-     * re-derive the same key from the same password to unlock a restore. */
+    /** Small JSON file in the backup folder carrying a verifier for the
+     * recovery key — never the key itself — so a different device can tell
+     * a pasted-in recovery code is the right one before trusting it. */
     const val ENCRYPTION_FILE_NAME = "ninja-scan-encryption.json"
 
     /** What's needed before backup/restore can proceed on this device. */
     sealed class KeyRequirement {
         /** A usable key is already cached locally. */
         object Ready : KeyRequirement()
-        /** No key locally and none set up anywhere yet — ask for a new password. */
+        /** No key locally and none generated anywhere yet — generate a new one. */
         object NeedsSetup : KeyRequirement()
-        /** A password was set up on another device — ask for it to unlock here. */
+        /** A recovery key was generated on another device — ask for it to unlock here. */
         object NeedsUnlock : KeyRequirement()
     }
 
@@ -218,36 +218,33 @@ object DriveBackup {
 
     // --- Backup encryption key -------------------------------------------
     //
-    // The AES key that encrypts everything uploaded is derived from a user
-    // password (see BackupCrypto) and never uploaded itself. What IS cached
-    // here, once derived, is the raw key bytes — wrapped by an
-    // Android-Keystore key that can't leave this device, so a plaintext key
-    // is never sitting in SharedPreferences. The salt/verifier needed to
-    // re-derive the same key from the same password on another device live
-    // in Drive as ENCRYPTION_FILE_NAME instead, since they aren't secret on
-    // their own (a verifier is useless without the password).
+    // The AES key that encrypts everything uploaded is a random 256-bit
+    // value (see BackupCrypto.generateKey) — nothing derived from anything
+    // the user chose, so nothing offline-guessable. What's cached here is
+    // the raw key bytes, wrapped by an Android-Keystore key that can't
+    // leave this device, so a plaintext key is never sitting in
+    // SharedPreferences. A verifier (an encrypted known value, useless
+    // without the key) lives in Drive as ENCRYPTION_FILE_NAME so a pasted-in
+    // recovery code can be checked before trusting it.
 
     fun hasLocalKey(context: Context): Boolean = prefs(context).contains(KEY_BACKUP_KEY_WRAPPED)
 
-    /** The cached raw AES key, or null if this device hasn't set up/unlocked one yet. */
+    /** The cached raw AES key, or null if this device hasn't generated/entered one yet. */
     fun loadLocalKey(context: Context): ByteArray? {
         val wrapped = prefs(context).getString(KEY_BACKUP_KEY_WRAPPED, null) ?: return null
         return runCatching { unwrapKey(Base64.getDecoder().decode(wrapped)) }.getOrNull()
     }
 
-    private fun saveLocalKey(context: Context, raw: ByteArray, salt: ByteArray, verifier: ByteArray) {
-        val encoder = Base64.getEncoder()
+    private fun saveLocalKey(context: Context, raw: ByteArray) {
         prefs(context).edit {
-            putString(KEY_BACKUP_KEY_WRAPPED, encoder.encodeToString(wrapKey(raw)))
-            putString(KEY_BACKUP_SALT, encoder.encodeToString(salt))
-            putString(KEY_BACKUP_VERIFIER, encoder.encodeToString(verifier))
+            putString(KEY_BACKUP_KEY_WRAPPED, Base64.getEncoder().encodeToString(wrapKey(raw)))
         }
     }
 
     /**
      * Checks whether this device already has a usable key, and if not,
-     * whether a password was already set up (on this or another device) by
-     * looking for [ENCRYPTION_FILE_NAME] in the backup folder.
+     * whether a recovery key was already generated (on this or another
+     * device) by looking for [ENCRYPTION_FILE_NAME] in the backup folder.
      */
     suspend fun resolveKeyRequirement(context: Context, token: String): KeyRequirement =
         withContext(Dispatchers.IO) {
@@ -259,37 +256,37 @@ object DriveBackup {
             if (exists) KeyRequirement.NeedsUnlock else KeyRequirement.NeedsSetup
         }
 
-    /** First-time setup: derives a new key from [password] and caches it locally. */
-    suspend fun setupPassword(context: Context, password: CharArray): Unit =
-        withContext(Dispatchers.Default) {
-            val salt = BackupCrypto.randomSalt()
-            val key = BackupCrypto.deriveKey(password, salt)
-            val verifier = BackupCrypto.verifier(key)
-            saveLocalKey(context, key, salt, verifier)
-        }
+    /**
+     * First-time setup: generates a new random key, caches it locally, and
+     * returns the one-time recovery code to show the user — this is the
+     * only copy of it anywhere; losing it means the backup can't be
+     * decrypted again, same as the app never storing it either.
+     */
+    fun generateRecoveryKey(context: Context): String {
+        val key = BackupCrypto.generateKey()
+        saveLocalKey(context, key)
+        return BackupCrypto.encodeRecoveryKey(key)
+    }
 
     /**
-     * Downloads the salt/verifier another device already set up, re-derives
-     * the key from [password], and caches it locally if it matches — this is
-     * how a fresh install/new device unlocks an existing encrypted backup.
-     * Returns false on a wrong password; throws on a network/Drive failure.
+     * Downloads the verifier another device already generated, checks
+     * [recoveryCode] against it, and caches the key locally if it matches —
+     * this is how a fresh install/new device unlocks an existing encrypted
+     * backup. Returns false for a wrong/malformed code; throws on a
+     * network/Drive failure.
      */
-    suspend fun unlockWithPassword(context: Context, token: String, password: CharArray): Boolean =
+    suspend fun unlockWithRecoveryKey(context: Context, token: String, recoveryCode: String): Boolean =
         withContext(Dispatchers.IO) {
+            val key = BackupCrypto.decodeRecoveryKey(recoveryCode) ?: return@withContext false
             val drive = DriveRestClient(token)
             val folderId = drive.resolveFolder(context)
             val fileId = drive.findFile(ENCRYPTION_FILE_NAME, folderId) ?: return@withContext false
             val temp = File.createTempFile("ninja-scan-encryption", ".json", context.cacheDir)
             try {
                 drive.downloadTo(fileId, temp)
-                val json = JSONObject(temp.readText())
-                val decoder = Base64.getDecoder()
-                val salt = decoder.decode(json.getString("salt"))
-                val verifier = decoder.decode(json.getString("verifier"))
-                val iterations = json.optInt("iterations", BackupCrypto.PBKDF2_ITERATIONS)
-                val key = withContext(Dispatchers.Default) { BackupCrypto.deriveKey(password, salt, iterations) }
-                if (!BackupCrypto.verifyPassword(key, verifier)) return@withContext false
-                saveLocalKey(context, key, salt, verifier)
+                val verifier = Base64.getDecoder().decode(JSONObject(temp.readText()).getString("verifier"))
+                if (!BackupCrypto.verifyKey(key, verifier)) return@withContext false
+                saveLocalKey(context, key)
                 true
             } finally {
                 temp.delete()
@@ -297,25 +294,21 @@ object DriveBackup {
         }
 
     /**
-     * Uploads this device's salt/verifier to Drive if no such file exists
+     * Uploads this device's key verifier to Drive if no such file exists
      * yet, so a future restore-on-another-device can offer the unlock
      * prompt. Called from the backup worker once a local key is in hand.
      */
     internal fun ensureEncryptionMetadataUploaded(context: Context, drive: DriveRestClient, folderId: String) {
         if (drive.findFile(ENCRYPTION_FILE_NAME, folderId) != null) return
-        // Already base64 — saveLocalKey encoded them before caching locally.
-        val salt = prefs(context).getString(KEY_BACKUP_SALT, null) ?: return
-        val verifier = prefs(context).getString(KEY_BACKUP_VERIFIER, null) ?: return
-        val json = JSONObject()
-            .put("salt", salt)
-            .put("verifier", verifier)
-            .put("iterations", BackupCrypto.PBKDF2_ITERATIONS)
+        val key = loadLocalKey(context) ?: return
+        val verifier = Base64.getEncoder().encodeToString(BackupCrypto.verifier(key))
+        val json = JSONObject().put("verifier", verifier)
         drive.uploadJson(ENCRYPTION_FILE_NAME, folderId, json.toString().toByteArray(Charsets.UTF_8), null)
     }
 
     // Android-Keystore AES key that wraps the real backup key at rest, so a
     // plaintext key is never sitting in SharedPreferences even though the
-    // key itself came from a user password rather than the Keystore.
+    // key itself is a random value rather than Keystore-generated.
     private const val KEYSTORE_ALIAS = "ninja_scan_backup_key_wrap"
 
     private fun keystoreWrappingKey(): SecretKey {
@@ -351,8 +344,6 @@ object DriveBackup {
     }
 
     private const val KEY_BACKUP_KEY_WRAPPED = "backup_key_wrapped"
-    private const val KEY_BACKUP_SALT = "backup_key_salt"
-    private const val KEY_BACKUP_VERIFIER = "backup_key_verifier"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

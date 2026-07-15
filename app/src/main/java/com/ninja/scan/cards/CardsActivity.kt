@@ -120,8 +120,8 @@ import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.drive.DriveBackupWorker
 import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.AppTitleWithIcon
-import com.ninja.scan.ui.BackupPasswordDialog
-import com.ninja.scan.ui.BackupPasswordMode
+import com.ninja.scan.ui.BackupRecoveryKeyDialog
+import com.ninja.scan.ui.BackupRecoveryMode
 import com.ninja.scan.ui.DestructiveRed
 import com.ninja.scan.ui.DriveMenuButton
 import com.ninja.scan.ui.DriveSyncProgressBar
@@ -219,9 +219,9 @@ private fun CardsScreen(
     var driveBackupEnabled by remember { mutableStateOf(DriveBackup.isEnabled(context)) }
     // What to do once Drive consent is granted: enable backup, or restore.
     var pendingDriveRestore by remember { mutableStateOf(false) }
-    // Set when backup/restore needs a password this device doesn't have a
-    // key for yet — see BackupPasswordDialog below.
-    var passwordPrompt by remember { mutableStateOf<BackupPasswordMode?>(null) }
+    // Set when backup/restore needs an encryption key this device doesn't
+    // have cached yet — see BackupRecoveryKeyDialog below.
+    var recoveryKeyPrompt by remember { mutableStateOf<BackupRecoveryMode?>(null) }
     var pendingDriveToken by remember { mutableStateOf<String?>(null) }
     var restoreProgress by remember { mutableStateOf<SyncProgress?>(null) }
     var backupProgress by remember { mutableStateOf<SyncProgress?>(null) }
@@ -296,7 +296,7 @@ private fun CardsScreen(
     }
 
     // Runs the pending action once a usable key is confirmed, or routes to
-    // the password dialog (new setup vs. unlocking one set up elsewhere)
+    // the recovery-key dialog (generate new vs. enter one from elsewhere)
     // when this device doesn't have one cached yet.
     fun handleDriveAuthorized(token: String) {
         scope.launch {
@@ -304,11 +304,11 @@ private fun CardsScreen(
                 DriveBackup.KeyRequirement.Ready -> performPendingDriveAction()
                 DriveBackup.KeyRequirement.NeedsSetup -> {
                     pendingDriveToken = token
-                    passwordPrompt = BackupPasswordMode.SETUP
+                    recoveryKeyPrompt = BackupRecoveryMode.GENERATE
                 }
                 DriveBackup.KeyRequirement.NeedsUnlock -> {
                     pendingDriveToken = token
-                    passwordPrompt = BackupPasswordMode.UNLOCK
+                    recoveryKeyPrompt = BackupRecoveryMode.ENTER
                 }
             }
         }
@@ -911,23 +911,17 @@ private fun CardsScreen(
         )
     }
 
-    passwordPrompt?.let { mode ->
-        BackupPasswordDialog(
+    recoveryKeyPrompt?.let { mode ->
+        BackupRecoveryKeyDialog(
             mode = mode,
-            onDismiss = { passwordPrompt = null; pendingDriveToken = null },
-            onSubmit = { password ->
+            onDismiss = { recoveryKeyPrompt = null; pendingDriveToken = null },
+            onGenerate = { DriveBackup.generateRecoveryKey(context) },
+            onEnter = { code ->
                 val token = pendingDriveToken
-                if (token == null) {
-                    false
-                } else if (mode == BackupPasswordMode.SETUP) {
-                    DriveBackup.setupPassword(context, password)
-                    true
-                } else {
-                    DriveBackup.unlockWithPassword(context, token, password)
-                }
+                token != null && DriveBackup.unlockWithRecoveryKey(context, token, code)
             },
             onSuccess = {
-                passwordPrompt = null
+                recoveryKeyPrompt = null
                 pendingDriveToken = null
                 performPendingDriveAction()
             },
