@@ -301,7 +301,7 @@ object DriveBackup {
      * yet, so a future restore-on-another-device can offer the unlock
      * prompt. Called from the backup worker once a local key is in hand.
      */
-    fun ensureEncryptionMetadataUploaded(context: Context, drive: DriveRestClient, folderId: String) {
+    internal fun ensureEncryptionMetadataUploaded(context: Context, drive: DriveRestClient, folderId: String) {
         if (drive.findFile(ENCRYPTION_FILE_NAME, folderId) != null) return
         // Already base64 — saveLocalKey encoded them before caching locally.
         val salt = prefs(context).getString(KEY_BACKUP_SALT, null) ?: return
