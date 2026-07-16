@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1244,6 +1245,11 @@ private fun CardDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // A plain Row doesn't consume window insets the way M3's
+                    // NavigationBar does — without this, edge-to-edge
+                    // (enforced on Android 15) draws the buttons behind the
+                    // system navigation bar.
+                    .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -1253,7 +1259,7 @@ private fun CardDetailScreen(
                 ) {
                     Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = ActionGreen)
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.save_to_contacts))
+                    Text(stringResource(R.string.add_to_contacts), maxLines = 1)
                 }
                 Button(
                     onClick = {

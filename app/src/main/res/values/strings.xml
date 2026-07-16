@@ -76,6 +76,7 @@
     <string name="import_photo">Import photo</string>
     <string name="add_to_library">Add to library</string>
     <string name="save_to_contacts">Save to phone contacts</string>
+    <string name="add_to_contacts">Add to contacts</string>
     <string name="contact_tags_label">Tags: %1$s</string>
     <string name="export_contacts">Export contacts</string>
     <string name="export_csv">Export as CSV</string>
