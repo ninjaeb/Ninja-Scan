@@ -89,14 +89,23 @@ fun ViewRecoveryKeyDialog(code: String, onDismiss: () -> Unit) {
     )
 }
 
+// The key itself is base64url-encoded, whose alphabet already includes '-'
+// and '_' — so grouping it for readability with '-' as the separator can
+// collide with a real '-' in the key (producing a confusing "--"), and
+// visually diverges from the raw code used for decoding. A space can never
+// appear in the real key, so it's an unambiguous separator; decoding already
+// strips all whitespace, so it round-trips cleanly.
+private fun groupedRecoveryKey(code: String): String = code.chunked(4).joinToString(" ")
+
 /** The code in a read-only text box, with Copy and Share actions below it. */
 @Composable
 private fun RecoveryCodeRow(code: String) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val grouped = groupedRecoveryKey(code)
     Column {
         OutlinedTextField(
-            value = code.chunked(4).joinToString("-"),
+            value = grouped,
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.recovery_key_field)) },
@@ -104,7 +113,7 @@ private fun RecoveryCodeRow(code: String) {
             modifier = Modifier.fillMaxWidth(),
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
+            IconButton(onClick = { clipboard.setText(AnnotatedString(grouped)) }) {
                 Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy))
             }
             IconButton(
@@ -112,10 +121,12 @@ private fun RecoveryCodeRow(code: String) {
                     // Generic text share, not an email-typed intent — so any
                     // app on the share sheet (Gmail, WhatsApp, Messages, Notes,
                     // etc.) can actually handle it, not just email clients.
+                    // Shares the same grouped text shown in the box above, so
+                    // what's shared always matches what the user just saw.
                     val send = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.recovery_key_title))
-                        putExtra(Intent.EXTRA_TEXT, code)
+                        putExtra(Intent.EXTRA_TEXT, grouped)
                     }
                     val chooser = Intent.createChooser(send, context.getString(R.string.share_recovery_key))
                     runCatching { context.startActivity(chooser) }
