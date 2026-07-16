@@ -1,18 +1,18 @@
-# Release notes — since versionCode 9
+# Release notes — versionCode 10 (versionName 1.2)
 
 Covers every change on `claude/android-camera-scanner-ni4bo7` since the last
 version bump (`da43187`, "Bump versionCode to 9 for the next Play Console
-upload"). versionCode is still 9 / versionName 1.1 — no new version bump is
-included here, since this batch hasn't been uploaded to Play Console yet.
+upload").
 
 ## Play Store "What's new" (short version)
 
 - Google Drive backups are now encrypted with a private recovery key only you hold
 - Unlock Ninja Scan with your fingerprint or face
+- Combine a card's front and back pages into one ID-card-formatted page, right from the document viewer
 - Add tags to a business card straight from its menu
 - Business card editor: Save and Save to contacts now also at the bottom of the screen
+- Fixed the Documents tab in About/Cards sometimes landing on the wrong screen
 - Fixed business cards not showing their Drive backup status
-- Fixed a silent backup failure when Drive backup was on but never fully set up
 
 ## Full changelog
 
@@ -30,6 +30,11 @@ included here, since this batch hasn't been uploaded to Play Console yet.
   (skipped automatically otherwise). It only asks once per app launch — not
   again just from switching apps or backgrounding mid-session — and can be
   turned off from a new toggle in the About screen.
+- **Combine into an ID card**: open any document, long-press to select two
+  pages (a card's front and back scanned as separate pages), and a new
+  action splices them into one ID-card-formatted page — front on top, back
+  below, each at true card size with rounded corners — right in place of
+  those two pages. Every other page of the document is kept untouched.
 - **Add tag from the card list**: a business card's "⋮" menu gained an
   "Add tag" option, so tags can be applied without opening the full card
   editor.
@@ -38,6 +43,9 @@ included here, since this batch hasn't been uploaded to Play Console yet.
 - The business card editor's Save and Save-to-contacts actions are now also
   available as full-width buttons at the bottom of the screen, in addition
   to (not instead of) the existing header icon/button.
+- The document viewer's Save button is gone — Save as PDF/images are now
+  extra options at the bottom of the Share sheet, so Share is the one place
+  to get a document out of the app in any form.
 - Recovery-key dialogs (view/generate/enter) now use the full screen width
   instead of Material's narrower default, since the long code reads better
   with more room.
@@ -49,6 +57,8 @@ included here, since this batch hasn't been uploaded to Play Console yet.
   recovery key yet.
 
 ### Bug fixes
+- Fixed the About and Cards screens' "Documents" tab sometimes landing back
+  on whichever screen you'd come from instead of Documents itself.
 - Fixed backup silently doing nothing — including new folders never
   syncing — when Drive backup was already on but no recovery key had been
   set up on that device. This is now surfaced as a clear message instead of
@@ -58,3 +68,5 @@ included here, since this batch hasn't been uploaded to Play Console yet.
 - Fixed the recovery key's Share/Copy text occasionally looking different
   from what was shown on screen (a real character in the key could collide
   with the cosmetic grouping separator).
+- Fixed ID card scans/combines showing a raw, sharp-cornered photo in the
+  Documents list preview instead of the actual rounded card layout.

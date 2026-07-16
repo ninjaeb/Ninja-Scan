@@ -174,9 +174,10 @@
     <string-array name="changelog_items">
         <item>Google Drive backups are now encrypted with a private recovery key only you hold</item>
         <item>Unlock Ninja Scan with your fingerprint or face</item>
+        <item>Combine a card\'s front and back pages into one ID card, right from the document viewer</item>
         <item>Add tags to a business card straight from its menu</item>
         <item>Business card editor: Save and Save to contacts now also at the bottom of the screen</item>
+        <item>Fixed the Documents tab in About/Cards sometimes landing on the wrong screen</item>
         <item>Fixed business cards not showing their Drive backup status</item>
-        <item>Fixed a silent backup failure when Drive backup was on but never fully set up</item>
     </string-array>
 </resources>
