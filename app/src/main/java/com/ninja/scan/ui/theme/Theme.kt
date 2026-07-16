@@ -1,10 +1,14 @@
 package com.ninja.scan.ui.theme
 
+import android.app.Activity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 // Same navy + crimson palette as the launcher icon and the website/store
 // listing (docs/index.html's --mask/--accent), so the app itself carries
@@ -56,5 +60,21 @@ fun DocScannerTheme(
     // palette from the user's wallpaper on API 31+, which would override
     // this branding on most current devices.
     val colorScheme = if (darkTheme) DarkColors else LightColors
+
+    // The Activity theme (themes.xml) is a single fixed Material.Light, not
+    // a DayNight theme, so the system status/navigation bar icons never
+    // otherwise adapt to this in-app light/dark toggle — they default to
+    // permanently light-colored, which is invisible against the light
+    // theme's light-colored bars and only happens to show up in dark mode.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
+        }
+    }
+
     MaterialTheme(colorScheme = colorScheme, content = content)
 }
