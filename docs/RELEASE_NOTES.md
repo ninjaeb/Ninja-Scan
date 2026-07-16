@@ -1,40 +1,60 @@
-# Release notes — since versionCode 8
+# Release notes — since versionCode 9
 
 Covers every change on `claude/android-camera-scanner-ni4bo7` since the last
-version bump (`19adffd`, "Bump versionCode to 8 for the next Play Console
-upload"). versionCode is still 8 / versionName 1.1 — no new version bump is
+version bump (`da43187`, "Bump versionCode to 9 for the next Play Console
+upload"). versionCode is still 9 / versionName 1.1 — no new version bump is
 included here, since this batch hasn't been uploaded to Play Console yet.
 
 ## Play Store "What's new" (short version)
 
-- Scan ID cards — front and back, true size, rounded corners
-- Print documents straight from the viewer
-- Import an existing PDF, or photos, into your library instead of only scanning
-- New About screen: share the app, join our WhatsApp community, visit our website
-- Business cards now show clearly whether they're backed up to Google Drive or still waiting
+- Google Drive backups are now encrypted with a private recovery key only you hold
+- Unlock Ninja Scan with your fingerprint or face
+- Add tags to a business card straight from its menu
+- Business card editor: Save and Save to contacts now also at the bottom of the screen
+- Fixed business cards not showing their Drive backup status
+- Fixed a silent backup failure when Drive backup was on but never fully set up
 
 ## Full changelog
 
 ### New features
-- **ID card scanning**: scan the front and back of an ID card onto a single
-  printable page, rendered at true physical card size (ISO/IEC 7810) with
-  rounded corners, and with watermarks sized to the card itself instead of
-  the whole page.
-- **Import PDF/images**: add an existing PDF or photos straight into
-  Documents, or a photo into Business Cards, instead of only camera-scanning.
-  Documents gained a single "Add to library" button covering every way to
-  add something (scan or import).
-- **Print**: a Print button in the document viewer sends the document to
-  Android's native print dialog.
-- **About screen**: a new third tab with a short app intro, a button to
-  share Ninja Scan via any app, a link to join the WhatsApp community, and
-  a link to the website, plus a short changelog.
+- **Encrypted Drive backups**: every scan, business card photo, and manifest
+  uploaded to Google Drive is now encrypted (AES-256-GCM) before it leaves
+  the device. There's no password to remember — a random recovery key is
+  generated on first setup instead, shown once with one-tap Copy and Share,
+  and re-viewable anytime from the Drive menu ("View recovery key") as long
+  as this device still has it cached. If the key is ever lost with no saved
+  copy, that backup can't be decrypted again — nobody, including us, holds
+  a spare copy.
+- **Biometric app lock**: Ninja Scan now asks for a fingerprint or face
+  unlock when it opens, on any device that already has biometrics set up
+  (skipped automatically otherwise). It only asks once per app launch — not
+  again just from switching apps or backgrounding mid-session — and can be
+  turned off from a new toggle in the About screen.
+- **Add tag from the card list**: a business card's "⋮" menu gained an
+  "Add tag" option, so tags can be applied without opening the full card
+  editor.
 
 ### Improvements
-- Business card rows now show a muted "pending" cloud icon while Drive
-  backup is on but that card's photo hasn't synced yet, instead of showing
-  nothing at all — so "no icon" no longer means "not sure if it's synced".
+- The business card editor's Save and Save-to-contacts actions are now also
+  available as full-width buttons at the bottom of the screen, in addition
+  to (not instead of) the existing header icon/button.
+- Recovery-key dialogs (view/generate/enter) now use the full screen width
+  instead of Material's narrower default, since the long code reads better
+  with more room.
+- The recovery key's Copy and Share buttons now sit below the code box
+  instead of beside it, and sharing uses a generic chooser so it reliably
+  works with WhatsApp, email, or any other app — not just email clients.
+- The Drive menu gained a one-tap "Finish backup setup" item, shown whenever
+  backup is turned on but this device hasn't generated or entered a
+  recovery key yet.
 
 ### Bug fixes
-- Fixed the ID card watermark rendering far larger than the card itself,
-  spilling into the blank margin around it.
+- Fixed backup silently doing nothing — including new folders never
+  syncing — when Drive backup was already on but no recovery key had been
+  set up on that device. This is now surfaced as a clear message instead of
+  failing invisibly.
+- Fixed business cards with a long, two-line company/address subtitle
+  hiding their Drive sync (cloud) icon entirely.
+- Fixed the recovery key's Share/Copy text occasionally looking different
+  from what was shown on screen (a real character in the key could collide
+  with the cosmetic grouping separator).

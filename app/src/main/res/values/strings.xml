@@ -171,11 +171,11 @@
     <string name="delete_tag_body">“%1$s” will be removed from all cards it\'s applied to.</string>
     <string name="create">Create</string>
     <string-array name="changelog_items">
-        <item>Print documents straight from the viewer</item>
-        <item>Import existing PDFs and photos into your library</item>
-        <item>Scan ID cards with front and back on one page</item>
-        <item>Tag and organize your business card contacts</item>
-        <item>Back up and restore your library with Google Drive</item>
-        <item>Organize documents into folders</item>
+        <item>Google Drive backups are now encrypted with a private recovery key only you hold</item>
+        <item>Unlock Ninja Scan with your fingerprint or face</item>
+        <item>Add tags to a business card straight from its menu</item>
+        <item>Business card editor: Save and Save to contacts now also at the bottom of the screen</item>
+        <item>Fixed business cards not showing their Drive backup status</item>
+        <item>Fixed a silent backup failure when Drive backup was on but never fully set up</item>
     </string-array>
 </resources>
