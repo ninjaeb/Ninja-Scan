@@ -70,15 +70,17 @@ class DriveBackupWorker(
             return@withContext Result.failure()
         }
 
-        // The backup password is set up (or unlocked) from the UI before
-        // enabling backup or restoring, so this should already be cached by
-        // the time a worker runs. If it's ever missing — e.g. this periodic
-        // pass firing before that UI flow ever completed — there's nothing
-        // safe to encrypt with, so stop here rather than upload in plaintext
-        // or retry forever; the still-gray pending icons on Documents/Cards
-        // are what nudges the user back to the UI flow that sets it up.
+        // The recovery key is generated/entered from the UI before enabling
+        // backup or restoring, so this should already be cached by the time
+        // a worker runs. If it's ever missing — e.g. this periodic pass
+        // firing before that UI flow ever completed, or an existing install
+        // that enabled backup before encryption existed — there's nothing
+        // safe to encrypt with, so stop here rather than upload in
+        // plaintext or retry forever. KEY_NEEDS_RECOVERY_KEY lets the UI
+        // tell this apart from a transient failure and prompt accordingly,
+        // instead of failing silently with no visible reason.
         val localKey = DriveBackup.loadLocalKey(applicationContext)
-            ?: return@withContext Result.failure()
+            ?: return@withContext Result.failure(workDataOf(KEY_NEEDS_RECOVERY_KEY to true))
 
         val drive = DriveRestClient(token)
         val folderId = try {
@@ -238,6 +240,7 @@ class DriveBackupWorker(
         const val KEY_SCANS_BACKED_UP = "scans_backed_up"
         const val KEY_CARDS_BACKED_UP = "cards_backed_up"
         const val KEY_FAILURES = "failures"
+        const val KEY_NEEDS_RECOVERY_KEY = "needs_recovery_key"
         private const val TAG = "DriveBackupWorker"
         // Low on purpose: this used to retry (silently, with no cap at all
         // for most failure paths) for potentially hours, which was

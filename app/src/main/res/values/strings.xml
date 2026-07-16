@@ -28,6 +28,8 @@
     <string name="drive_backup_failed">Could not set up Drive backup: %1$s</string>
     <string name="drive_backup_done">Backed up %1$d documents and %2$d cards</string>
     <string name="drive_backup_incomplete">Backup incomplete — %1$d item(s) couldn\'t sync</string>
+    <string name="drive_backup_needs_recovery_key">Backup is waiting on a recovery key — open the Drive menu and tap "Finish backup setup"</string>
+    <string name="finish_backup_setup">Finish backup setup</string>
     <string name="backed_up_to_drive">Backed up to Google Drive</string>
     <string name="backup_pending">Waiting to back up to Google Drive</string>
     <string name="recovery_key_generated_title">Save your recovery key</string>

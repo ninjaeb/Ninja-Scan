@@ -268,12 +268,20 @@ private fun CardsScreen(
                     }
                 }
                 WorkInfo.State.FAILED -> {
-                    val failures = info.outputData.getInt(DriveBackupWorker.KEY_FAILURES, 0)
-                    if (failures > 0) {
+                    if (info.outputData.getBoolean(DriveBackupWorker.KEY_NEEDS_RECOVERY_KEY, false)) {
                         scope.launch {
                             snackbarHostState.showSnackbar(
-                                context.getString(R.string.drive_backup_incomplete, failures)
+                                context.getString(R.string.drive_backup_needs_recovery_key)
                             )
+                        }
+                    } else {
+                        val failures = info.outputData.getInt(DriveBackupWorker.KEY_FAILURES, 0)
+                        if (failures > 0) {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(R.string.drive_backup_incomplete, failures)
+                                )
+                            }
                         }
                     }
                 }
@@ -599,6 +607,10 @@ private fun CardsScreen(
                             },
                             hasRecoveryKey = DriveBackup.hasLocalKey(context),
                             onViewRecoveryKey = { viewingRecoveryKey = true },
+                            onSetupRecoveryKey = {
+                                pendingDriveRestore = false
+                                requestDriveAuthorization()
+                            },
                         )
                     },
                 )
@@ -810,6 +822,7 @@ private fun CardsScreen(
                         CardRow(
                             card = card,
                             tags = cardTags,
+                            allTags = allTags,
                             driveBackupEnabled = driveBackupEnabled,
                             selectionMode = cardSelectionActive,
                             selected = card.id in selectedCardIds,
@@ -820,6 +833,12 @@ private fun CardsScreen(
                             },
                             onSaveToContacts = { saveToContacts(context, card, cardTags) },
                             onDelete = { deleting = card },
+                            onToggleTag = { tag, applied ->
+                                scope.launch {
+                                    app.repository.toggleCardTag(card.id, tag.id, applied)
+                                    tagsByCard = app.repository.getCardTagsByCard()
+                                }
+                            },
                         )
                     }
                 }
@@ -944,6 +963,7 @@ private fun CardsScreen(
 private fun CardRow(
     card: BusinessCard,
     tags: List<Tag>,
+    allTags: List<Tag>,
     driveBackupEnabled: Boolean,
     selectionMode: Boolean,
     selected: Boolean,
@@ -951,8 +971,10 @@ private fun CardRow(
     onToggleSelect: () -> Unit,
     onSaveToContacts: () -> Unit,
     onDelete: () -> Unit,
+    onToggleTag: (Tag, Boolean) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var addTagMenuOpen by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -1047,12 +1069,43 @@ private fun CardRow(
                         onClick = { menuOpen = false; onSaveToContacts() },
                     )
                     DropdownMenuItem(
+                        text = { Text(stringResource(R.string.add_tag)) },
+                        leadingIcon = {
+                            Icon(Icons.Filled.Add, contentDescription = null, tint = ActionGreen)
+                        },
+                        enabled = allTags.isNotEmpty(),
+                        onClick = { menuOpen = false; addTagMenuOpen = true },
+                    )
+                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete)) },
                         leadingIcon = {
                             Icon(Icons.Filled.Delete, contentDescription = null, tint = DestructiveRed)
                         },
                         onClick = { menuOpen = false; onDelete() },
                     )
+                }
+                // A second menu anchored to the same overflow icon, opened
+                // after the first closes — Compose menus don't nest, so a
+                // "submenu" is really just a sibling shown in its place.
+                DropdownMenu(expanded = addTagMenuOpen, onDismissRequest = { addTagMenuOpen = false }) {
+                    allTags.forEach { tag ->
+                        val applied = tags.any { it.id == tag.id }
+                        DropdownMenuItem(
+                            text = { Text(tag.title) },
+                            leadingIcon = {
+                                Box(
+                                    Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(hexToColor(tag.color))
+                                )
+                            },
+                            trailingIcon = if (applied) {
+                                { Icon(Icons.Filled.Check, contentDescription = null, tint = ActionGreen) }
+                            } else null,
+                            onClick = { onToggleTag(tag, applied) },
+                        )
+                    }
                 }
             }
         }

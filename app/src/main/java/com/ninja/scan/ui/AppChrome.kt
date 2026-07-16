@@ -79,6 +79,7 @@ fun DriveMenuButton(
     onBackupNow: () -> Unit,
     hasRecoveryKey: Boolean = false,
     onViewRecoveryKey: () -> Unit = {},
+    onSetupRecoveryKey: () -> Unit = {},
 ) {
     Box {
         IconButton(onClick = { onExpandedChange(true) }) {
@@ -112,6 +113,16 @@ fun DriveMenuButton(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.drive_backup_now)) },
                     onClick = { onExpandedChange(false); onBackupNow() },
+                )
+            }
+            // Backup was already on (e.g. from before encryption existed)
+            // but this device never generated/entered a recovery key, so
+            // nothing actually uploads — a one-tap way to finish that
+            // setup instead of the confusing "turn off, then on again".
+            if (enabled && !hasRecoveryKey) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.finish_backup_setup)) },
+                    onClick = { onExpandedChange(false); onSetupRecoveryKey() },
                 )
             }
             if (hasRecoveryKey) {

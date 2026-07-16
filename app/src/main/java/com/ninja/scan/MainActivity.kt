@@ -198,6 +198,8 @@ class MainActivity : ComponentActivity() {
                                 getString(R.string.drive_backup_done, event.scans, event.cards)
                             is ScanEvent.DriveBackupIncomplete ->
                                 getString(R.string.drive_backup_incomplete, event.failures)
+                            ScanEvent.DriveBackupNeedsRecoveryKey ->
+                                getString(R.string.drive_backup_needs_recovery_key)
                             ScanEvent.DriveRestoreStarted ->
                                 getString(R.string.drive_restore_started)
                             is ScanEvent.DriveRestoreCompleted ->
@@ -267,9 +269,13 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             WorkInfo.State.FAILED -> {
-                                val failures = info.outputData.getInt(DriveBackupWorker.KEY_FAILURES, 0)
-                                if (failures > 0) {
-                                    viewModel.emitEvent(ScanEvent.DriveBackupIncomplete(failures))
+                                if (info.outputData.getBoolean(DriveBackupWorker.KEY_NEEDS_RECOVERY_KEY, false)) {
+                                    viewModel.emitEvent(ScanEvent.DriveBackupNeedsRecoveryKey)
+                                } else {
+                                    val failures = info.outputData.getInt(DriveBackupWorker.KEY_FAILURES, 0)
+                                    if (failures > 0) {
+                                        viewModel.emitEvent(ScanEvent.DriveBackupIncomplete(failures))
+                                    }
                                 }
                             }
                             else -> {}
@@ -323,6 +329,15 @@ class MainActivity : ComponentActivity() {
                                         .build()
                                 )
                             }
+                        }
+                    },
+                    onSetupRecoveryKey = {
+                        pendingDriveAction = DriveAction.ENABLE_BACKUP
+                        requestDriveAuthorization { pendingIntent ->
+                            driveConsentLauncher.launch(
+                                IntentSenderRequest.Builder(pendingIntent.intentSender)
+                                    .build()
+                            )
                         }
                     },
                     onRestoreFromDrive = {

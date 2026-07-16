@@ -114,6 +114,7 @@ fun ScanListScreen(
     onSearchQueryChange: (String) -> Unit,
     onFolderFilterChange: (String?) -> Unit,
     onToggleDriveBackup: () -> Unit,
+    onSetupRecoveryKey: () -> Unit,
     onOpenCards: () -> Unit,
     onOpenAbout: () -> Unit,
     onScanCardClick: () -> Unit,
@@ -245,6 +246,7 @@ fun ScanListScreen(
                             onBackupNow = onBackupNowDrive,
                             hasRecoveryKey = DriveBackup.hasLocalKey(context),
                             onViewRecoveryKey = { viewingRecoveryKey = true },
+                            onSetupRecoveryKey = onSetupRecoveryKey,
                         )
                     },
                 )

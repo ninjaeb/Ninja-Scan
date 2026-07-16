@@ -32,6 +32,7 @@ sealed interface ScanEvent {
     data class DriveBackupFailed(val message: String) : ScanEvent
     data class DriveBackupCompleted(val scans: Int, val cards: Int) : ScanEvent
     data class DriveBackupIncomplete(val failures: Int) : ScanEvent
+    data object DriveBackupNeedsRecoveryKey : ScanEvent
     data object DriveRestoreStarted : ScanEvent
     data class DriveRestoreCompleted(val scans: Int, val cards: Int) : ScanEvent
     data object DriveRestoreFailed : ScanEvent
