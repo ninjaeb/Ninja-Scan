@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
@@ -34,11 +35,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.ninja.scan.R
 import kotlinx.coroutines.launch
 
 /** Which of the two backup-recovery-key flows [BackupRecoveryKeyDialog] is showing. */
 enum class BackupRecoveryMode { GENERATE, ENTER }
+
+// Material3's AlertDialog defaults to a fixed, narrower-than-screen width
+// (platform default width) — these dialogs show a long monospace code that
+// benefits from the full screen width instead, so every AlertDialog below
+// opts out of that default and sets its own near-edge-to-edge width.
+private val wideDialogProperties = DialogProperties(usePlatformDefaultWidth = false)
+private val wideDialogModifier = Modifier
+    .fillMaxWidth()
+    .padding(horizontal = 16.dp)
 
 /**
  * Shown the first time backup/restore needs an encryption key this device
@@ -72,6 +83,8 @@ fun BackupRecoveryKeyDialog(
 fun ViewRecoveryKeyDialog(code: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = wideDialogModifier,
+        properties = wideDialogProperties,
         title = { Text(stringResource(R.string.recovery_key_title)) },
         text = {
             Column {
@@ -155,6 +168,8 @@ private fun GenerateRecoveryKeyDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = wideDialogModifier,
+        properties = wideDialogProperties,
         title = { Text(stringResource(R.string.recovery_key_generated_title)) },
         text = {
             Column {
@@ -197,6 +212,8 @@ private fun EnterRecoveryKeyDialog(
 
     AlertDialog(
         onDismissRequest = { if (!submitting) onDismiss() },
+        modifier = wideDialogModifier,
+        properties = wideDialogProperties,
         title = { Text(stringResource(R.string.enter_recovery_key_title)) },
         text = {
             Column {
