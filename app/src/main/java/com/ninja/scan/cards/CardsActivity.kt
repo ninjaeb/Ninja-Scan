@@ -1210,6 +1210,18 @@ private fun CardDetailScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { saveToContacts(context, currentCard(), cardTags) }) {
+                        Icon(
+                            Icons.Filled.PersonAdd,
+                            contentDescription = stringResource(R.string.save_to_contacts),
+                            tint = ActionGreen,
+                        )
+                    }
+                    TextButton(onClick = {
+                        onSave(currentCard(), if (card.id == 0L) appliedTagIds else emptyList())
+                    }) { Text(stringResource(R.string.save)) }
+                },
             )
         },
         bottomBar = {
