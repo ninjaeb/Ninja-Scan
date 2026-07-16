@@ -9,8 +9,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -58,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.ninja.scan.R
 import com.ninja.scan.cards.CardsActivity
+import com.ninja.scan.security.AppLock
 import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.SheetAction
 import com.ninja.scan.ui.ShareBlue
@@ -78,11 +82,16 @@ class AboutActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             var isDarkTheme by remember { mutableStateOf(ThemePrefs.isDark(this)) }
+            var appLockAvailable by remember { mutableStateOf(AppLock.isAvailable(this)) }
+            var appLockEnabled by remember { mutableStateOf(AppLock.isEnabled(this)) }
             // Documents/Cards/About are separate Activities; re-read the
             // shared preference on every resume so a toggle made on another
-            // screen is reflected here after navigating back.
+            // screen is reflected here after navigating back — also picks up
+            // enrollment changes made in the device's system settings.
             LifecycleResumeEffect(Unit) {
                 isDarkTheme = ThemePrefs.isDark(this@AboutActivity)
+                appLockAvailable = AppLock.isAvailable(this@AboutActivity)
+                appLockEnabled = AppLock.isEnabled(this@AboutActivity)
                 onPauseOrDispose { }
             }
             DocScannerTheme(darkTheme = isDarkTheme) {
@@ -97,6 +106,12 @@ class AboutActivity : ComponentActivity() {
                     onToggleTheme = {
                         isDarkTheme = !isDarkTheme
                         ThemePrefs.setDark(this, isDarkTheme)
+                    },
+                    appLockAvailable = appLockAvailable,
+                    appLockEnabled = appLockEnabled,
+                    onToggleAppLock = {
+                        appLockEnabled = it
+                        AppLock.setEnabled(this, it)
                     },
                 )
             }
@@ -115,6 +130,9 @@ private fun AboutScreen(
     onOpenCards: () -> Unit,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    appLockAvailable: Boolean,
+    appLockEnabled: Boolean,
+    onToggleAppLock: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -210,6 +228,26 @@ private fun AboutScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
+            }
+            if (appLockAvailable) {
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.app_lock_toggle_title), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            stringResource(R.string.app_lock_toggle_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = appLockEnabled, onCheckedChange = onToggleAppLock)
+                }
             }
             HorizontalDivider()
             SheetAction(

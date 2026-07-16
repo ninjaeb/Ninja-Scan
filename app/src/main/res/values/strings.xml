@@ -161,6 +161,11 @@
     <string name="edit_tag">Edit tag</string>
     <string name="tag_title">Title</string>
     <string name="tag_description">Description (optional)</string>
+    <string name="app_lock_prompt_title">Unlock Ninja Scan</string>
+    <string name="app_lock_prompt_subtitle">Use your fingerprint or face to continue</string>
+    <string name="app_lock_not_recognized">Not recognized — try again</string>
+    <string name="app_lock_toggle_title">Require biometric unlock</string>
+    <string name="app_lock_toggle_hint">Ask for your fingerprint or face every time the app opens</string>
     <string name="delete_tag">Delete tag</string>
     <string name="delete_tag_title">Delete tag?</string>
     <string name="delete_tag_body">“%1$s” will be removed from all cards it\'s applied to.</string>
