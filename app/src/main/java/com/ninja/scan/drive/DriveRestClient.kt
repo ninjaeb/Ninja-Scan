@@ -125,7 +125,11 @@ internal class DriveRestClient(private val token: String) {
      * wins, so a restore always reads the current manifest rather than an
      * arbitrary older copy that Drive's API happened to list first.
      */
-    fun findFile(name: String, folderId: String): String? {
+    fun findFile(name: String, folderId: String): String? =
+        findFiles(name, folderId).firstOrNull()
+
+    /** Every file with exactly [name] inside [folderId], newest first. */
+    fun findFiles(name: String, folderId: String): List<String> {
         val query = URLEncoder.encode(
             "name='${name.replace("'", "\\'")}' and '$folderId' in parents and trashed=false",
             "UTF-8"
@@ -134,8 +138,8 @@ internal class DriveRestClient(private val token: String) {
             "GET",
             "https://www.googleapis.com/drive/v3/files?q=$query&orderBy=modifiedTime+desc&fields=files(id)",
         )
-        val files = response.optJSONArray("files") ?: return null
-        return if (files.length() > 0) files.getJSONObject(0).getString("id") else null
+        val files = response.optJSONArray("files") ?: return emptyList()
+        return (0 until files.length()).map { files.getJSONObject(it).getString("id") }
     }
 
     /** Creates or (when [existingFileId] is set) replaces a small JSON file. */

@@ -159,6 +159,27 @@ class ScanRepository(
     }
 
     /**
+     * Re-applies manifest metadata to an already-restored scan whose earlier
+     * restore may have run without a readable manifest, losing the fields
+     * only the manifest carries (folder assignment, ID-card flag, watermark)
+     * to fallbacks. Fill-only: it never overwrites a value the user may have
+     * since set locally, so re-running restore can heal but not clobber.
+     */
+    internal suspend fun adoptManifestMetadata(
+        driveFileId: String,
+        entry: DriveManifest.ScanEntry,
+    ) = withContext(Dispatchers.IO) {
+        val scan = dao.getByDriveFileId(driveFileId) ?: return@withContext
+        val updated = scan.copy(
+            folder = scan.folder ?: entry.folder?.takeIf { it.isNotBlank() },
+            isIdCard = scan.isIdCard || entry.isIdCard,
+            watermark = scan.watermark
+                ?: entry.watermark.takeIf { !entry.watermarkBaked },
+        )
+        if (updated != scan) dao.update(updated)
+    }
+
+    /**
      * Inserts manifest cards not already in the library, downloading each
      * card's backed-up photo (if any) alongside its text fields. Returns the
      * count of cards restored.

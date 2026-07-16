@@ -48,22 +48,32 @@ class DriveRestoreWorker(
         // from before encryption existed, which still restores fine below.
         val localKey = DriveBackup.loadLocalKey(applicationContext)
 
+        // Duplicate manifests can exist in the folder (a past update-failed-
+        // so-create-a-new-one fallback, or copies encrypted with a since-
+        // replaced key) — try each candidate newest-first and keep the first
+        // one that actually decrypts and decodes, instead of giving up on
+        // cards/folders because one arbitrary pick happened to be stale.
         val manifest = try {
-            drive.findFile(DriveManifest.FILE_NAME, folderId)?.let { manifestId ->
+            var decoded: DriveManifest.Content? = null
+            for (manifestId in drive.findFiles(DriveManifest.FILE_NAME, folderId)) {
                 val temp = File.createTempFile("manifest", ".json", applicationContext.cacheDir)
                 try {
                     drive.downloadTo(manifestId, temp)
                     val bytes = temp.readBytes()
-                    val decoded = if (BackupCrypto.isEncrypted(bytes)) {
-                        localKey?.let { BackupCrypto.decryptBytes(bytes, it) }
+                    val plain = if (BackupCrypto.isEncrypted(bytes)) {
+                        // A wrong-key candidate throws on decrypt — skip it
+                        // and move on to the next copy rather than aborting.
+                        runCatching { localKey?.let { BackupCrypto.decryptBytes(bytes, it) } }.getOrNull()
                     } else {
                         bytes
                     }
-                    decoded?.let(DriveManifest::decode)
+                    decoded = plain?.let(DriveManifest::decode)
+                    if (decoded != null) break
                 } finally {
                     temp.delete()
                 }
             }
+            decoded
         } catch (e: DriveAuthException) {
             return@withContext Result.retry()
         } catch (e: Exception) {
@@ -94,6 +104,14 @@ class DriveRestoreWorker(
                     return@withContext Result.retry()
                 } catch (e: Exception) {
                     failures++
+                }
+            } else if (file.mimeType == "application/pdf") {
+                // Already restored — but possibly by an earlier pass that ran
+                // without a readable manifest, which loses folder assignment
+                // and other manifest-only metadata to fallbacks. Best-effort
+                // re-adopt from the manifest entry now that one decoded.
+                entries[file.id]?.let { entry ->
+                    runCatching { app.repository.adoptManifestMetadata(file.id, entry) }
                 }
             }
             current++

@@ -234,6 +234,16 @@ class DriveBackupWorker(
             }
         }
         DriveBackup.setCachedManifestId(applicationContext, manifestId)
+
+        // The create-fallback above (and past key/schema migrations) can
+        // leave stale same-named manifests behind, making a later restore's
+        // by-name lookup ambiguous — sweep every copy but the one just
+        // written. Best-effort: a failed sweep never fails the backup.
+        runCatching {
+            drive.findFiles(DriveManifest.FILE_NAME, folderId)
+                .filter { it != manifestId }
+                .forEach { drive.deleteFile(it) }
+        }
     }
 
     companion object {
