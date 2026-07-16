@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -78,6 +79,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -1184,6 +1186,17 @@ private fun CardDetailScreen(
         appliedTagIds = if (applied) appliedTagIds - tag.id else appliedTagIds + tag.id
     }
 
+    fun currentCard() = card.copy(
+        name = name.trim(),
+        company = company.trim(),
+        jobTitle = jobTitle.trim(),
+        phone = phone.trim(),
+        email = email.trim(),
+        website = website.trim(),
+        address = address.trim(),
+        notes = notes.trim(),
+    )
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -1197,46 +1210,32 @@ private fun CardDetailScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = {
-                        saveToContacts(
-                            context,
-                            card.copy(
-                                name = name.trim(),
-                                company = company.trim(),
-                                jobTitle = jobTitle.trim(),
-                                phone = phone.trim(),
-                                email = email.trim(),
-                                website = website.trim(),
-                                address = address.trim(),
-                                notes = notes.trim(),
-                            ),
-                            cardTags,
-                        )
-                    }) {
-                        Icon(
-                            Icons.Filled.PersonAdd,
-                            contentDescription = stringResource(R.string.save_to_contacts),
-                            tint = ActionGreen,
-                        )
-                    }
-                    TextButton(onClick = {
-                        onSave(
-                            card.copy(
-                                name = name.trim(),
-                                company = company.trim(),
-                                jobTitle = jobTitle.trim(),
-                                phone = phone.trim(),
-                                email = email.trim(),
-                                website = website.trim(),
-                                address = address.trim(),
-                                notes = notes.trim(),
-                            ),
-                            if (card.id == 0L) appliedTagIds else emptyList(),
-                        )
-                    }) { Text(stringResource(R.string.save)) }
-                },
             )
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { saveToContacts(context, currentCard(), cardTags) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = ActionGreen)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.save_to_contacts))
+                }
+                Button(
+                    onClick = {
+                        onSave(currentCard(), if (card.id == 0L) appliedTagIds else emptyList())
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            }
         },
     ) { padding ->
         Column(
