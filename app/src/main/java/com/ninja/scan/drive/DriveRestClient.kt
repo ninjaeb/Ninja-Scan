@@ -40,8 +40,10 @@ internal class DriveRestClient(private val token: String) {
             if (parentId != null) append(" and '$parentId' in parents")
         }
         val query = URLEncoder.encode(queryString, "UTF-8")
-        val response =
-            request("GET", "https://www.googleapis.com/drive/v3/files?q=$query&fields=files(id)")
+        val response = request(
+            "GET",
+            "https://www.googleapis.com/drive/v3/files?q=$query&orderBy=modifiedTime+desc&fields=files(id)",
+        )
         val files = response.optJSONArray("files") ?: return null
         return if (files.length() > 0) files.getJSONObject(0).getString("id") else null
     }
@@ -115,14 +117,23 @@ internal class DriveRestClient(private val token: String) {
     fun uploadPdf(file: File, name: String, folderId: String): String =
         uploadFile(file, name, folderId, "application/pdf")
 
-    /** Finds a file by exact name inside [folderId], or null. */
+    /**
+     * Finds a file by exact name inside [folderId], or null. If more than
+     * one file somehow shares that name (e.g. a past update-failed-so-
+     * create-a-new-one fallback left a stale duplicate behind — see
+     * DriveBackupWorker.uploadManifest), the most recently modified one
+     * wins, so a restore always reads the current manifest rather than an
+     * arbitrary older copy that Drive's API happened to list first.
+     */
     fun findFile(name: String, folderId: String): String? {
         val query = URLEncoder.encode(
             "name='${name.replace("'", "\\'")}' and '$folderId' in parents and trashed=false",
             "UTF-8"
         )
-        val response =
-            request("GET", "https://www.googleapis.com/drive/v3/files?q=$query&fields=files(id)")
+        val response = request(
+            "GET",
+            "https://www.googleapis.com/drive/v3/files?q=$query&orderBy=modifiedTime+desc&fields=files(id)",
+        )
         val files = response.optJSONArray("files") ?: return null
         return if (files.length() > 0) files.getJSONObject(0).getString("id") else null
     }
