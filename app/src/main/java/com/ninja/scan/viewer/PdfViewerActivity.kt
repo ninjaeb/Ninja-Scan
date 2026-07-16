@@ -206,11 +206,13 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                         }
                     },
                     actions = {
-                        // Two pages of the same document (a card's front and
-                        // back, scanned as separate pages) can be composited
-                        // onto one ID-card-formatted page — only makes sense
-                        // picked exactly in pairs.
-                        if (selectedPages.size == 2 && current != null) {
+                        // Composites the whole document's two pages (a
+                        // card's front and back, scanned as separate pages)
+                        // onto one ID-card-formatted page, replacing this
+                        // document in place — restricted to a 2-page
+                        // document with both pages selected, since replacing
+                        // the file would otherwise drop any other pages.
+                        if (selectedPages.size == 2 && current?.pageCount == 2) {
                             IconButton(
                                 onClick = {
                                     current?.let { doc ->
@@ -223,6 +225,11 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                                 )
                                             }
                                             result.onSuccess { saved ->
+                                                // The PDF was rebuilt in place under the
+                                                // same document — refresh the viewer's
+                                                // state so it reflects the new single
+                                                // ID-card page instead of the old pages.
+                                                scan = saved
                                                 snackbarHostState.showSnackbar(
                                                     context.getString(
                                                         R.string.scan_saved,

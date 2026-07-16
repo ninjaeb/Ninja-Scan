@@ -210,14 +210,18 @@ fun ScanListScreen(
                         }
                     },
                     actions = {
-                        // Two scans (a card's front and back, captured as
-                        // regular Documents) can be composited onto one
-                        // ID-card-formatted page — only makes sense picked
-                        // exactly in pairs.
-                        if (selectedIds.size == 2) {
+                        // Two single-page scans (a card's front and back,
+                        // captured as separate regular Documents) can be
+                        // composited onto one ID-card-formatted page,
+                        // replacing the first one in place and removing the
+                        // second — restricted to single-page scans, since
+                        // replacing a multi-page scan's file would otherwise
+                        // drop its other pages.
+                        val idCardCandidates = scans.filter { it.id in selectedIds }
+                        if (selectedIds.size == 2 && idCardCandidates.all { it.pageCount == 1 }) {
                             IconButton(
                                 onClick = {
-                                    onConvertToIdCard(scans.filter { it.id in selectedIds })
+                                    onConvertToIdCard(idCardCandidates)
                                     selectedIds.clear()
                                 },
                             ) {

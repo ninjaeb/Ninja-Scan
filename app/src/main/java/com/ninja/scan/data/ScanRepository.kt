@@ -844,8 +844,9 @@ class ScanRepository(
      * Rebuilds two already-saved single scans as one ID-card-formatted page
      * — front on top, back below, each at true card size — for scans that
      * were captured as regular Documents but are actually a card's two
-     * sides. Leaves both source scans untouched; adds the composited page
-     * as a new scan alongside them.
+     * sides. Replaces [front]'s own file in place rather than adding a
+     * third scan; if [back] is a different document it's now merged into
+     * [front], so it's deleted.
      */
     suspend fun convertToIdCard(front: ScanDocument, back: ScanDocument): ScanDocument =
         convertPagesToIdCard(front, 0, back, 0)
@@ -854,7 +855,8 @@ class ScanRepository(
      * Same as [convertToIdCard], but for two individual pages instead of
      * always page 0 — e.g. a multi-page document whose page 1 and page 2
      * are actually a card's front and back. [front] and [back] may be the
-     * same [ScanDocument] with different page indices.
+     * same [ScanDocument] with different page indices, in which case
+     * nothing is deleted — that one document's own file is simply replaced.
      */
     suspend fun convertPagesToIdCard(
         front: ScanDocument,
@@ -866,43 +868,63 @@ class ScanRepository(
             val frontUri = sourcePageUri(front, frontIndex) ?: error("Could not read the front image")
             val backUri = sourcePageUri(back, backIndex) ?: error("Could not read the back image")
 
-            val timestamp = System.currentTimeMillis()
-            val name = "ID card ${
-                SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date(timestamp))
-            }"
-            val baseName = "idcard_$timestamp"
-
-            val pdfFile = File(scansDir, "$baseName.pdf")
-            val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, pdfFile)
+            val source = File(front.pdfPath)
+            val rebuilt = File(scansDir, "${source.nameWithoutExtension}.idcard.pdf")
+            val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, rebuilt)
             check(wrote) { "Could not build the ID card page" }
 
-            val thumbFile = File(scansDir, "$baseName.thumb.jpg")
-            val hasThumb = ImageOptimizer.writeThumbnail(context, frontUri, thumbFile)
-
-            val originalsDir = File(scansDir, "originals/$baseName").apply { mkdirs() }
+            val newOriginals = File(scansDir, "originals/${source.nameWithoutExtension}.idcard").apply {
+                deleteRecursively()
+                mkdirs()
+            }
             listOf(frontUri, backUri).forEachIndexed { index, uri ->
                 runCatching {
                     context.contentResolver.openInputStream(uri)?.use { input ->
-                        File(originalsDir, pageFileName(index)).outputStream()
+                        File(newOriginals, pageFileName(index)).outputStream()
                             .use { input.copyTo(it) }
                     }
                 }
             }
 
-            val scan = ScanDocument(
-                title = name,
-                createdAt = timestamp,
+            val thumbPath = front.thumbnailPath
+                ?: File(scansDir, "${source.nameWithoutExtension}.thumb.jpg").absolutePath
+            val hasThumb = ImageOptimizer.writeThumbnail(context, frontUri, File(thumbPath))
+
+            // Swap the rebuilt PDF into place, then replace the originals
+            // directory the same way applyPageEdits does: build the new one
+            // alongside, then delete-and-rename over the old one.
+            if (!rebuilt.renameTo(source)) {
+                rebuilt.copyTo(source, overwrite = true)
+                rebuilt.delete()
+            }
+            front.originalsDir?.let { File(it).deleteRecursively() }
+            val finalOriginalsDir = File(scansDir, "originals/${source.nameWithoutExtension}")
+            finalOriginalsDir.deleteRecursively()
+            val originalsDirPath =
+                if (newOriginals.renameTo(finalOriginalsDir)) finalOriginalsDir.absolutePath
+                else newOriginals.absolutePath
+
+            // Content changed — the old Drive copy is stale; it's cleaned up
+            // on the next backup and this document re-uploads fresh.
+            front.driveFileId?.let { DriveBackup.addStaleFileId(context, it) }
+
+            val updated = front.copy(
                 pageCount = 1,
-                pdfPath = pdfFile.absolutePath,
-                thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
-                sizeBytes = pdfFile.length(),
+                sizeBytes = source.length(),
+                thumbnailPath = if (hasThumb) thumbPath else front.thumbnailPath,
                 ocrText = recognizeText(listOf(frontUri, backUri)),
-                originalsDir = originalsDir.absolutePath,
+                originalsDir = originalsDirPath,
                 isIdCard = true,
+                driveFileId = null,
             )
-            val saved = scan.copy(id = dao.insert(scan))
+            dao.update(updated)
+
+            // back merged into front's own file above — if it was a separate
+            // document, remove it so it isn't left behind as a duplicate.
+            if (back.id != front.id) delete(back)
+
             enqueueBackupIfEnabled()
-            saved
+            updated
         }
 
     /**
