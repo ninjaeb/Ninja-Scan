@@ -145,21 +145,6 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
         }
     }
 
-    /** [scans] must be exactly the front and back scan, in that order. */
-    fun onConvertToIdCard(scans: List<ScanDocument>, app: DocScannerApp) {
-        if (scans.size != 2) return
-        viewModelScope.launch {
-            runCatching { repository.convertToIdCard(scans[0], scans[1]) }
-                .onSuccess { scan ->
-                    _events.emit(
-                        ScanEvent.Saved(Formatter.formatShortFileSize(app, scan.sizeBytes))
-                    )
-                    _justSaved.value = scan
-                }
-                .onFailure { _events.emit(ScanEvent.Error(it.message ?: "unknown error")) }
-        }
-    }
-
     fun onImportPdf(uri: Uri?, app: DocScannerApp) {
         if (uri == null) return
         viewModelScope.launch {

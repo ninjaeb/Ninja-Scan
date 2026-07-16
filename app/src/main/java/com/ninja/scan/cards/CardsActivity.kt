@@ -115,6 +115,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
 import com.ninja.scan.DocScannerApp
+import com.ninja.scan.MainActivity
 import com.ninja.scan.R
 import com.ninja.scan.about.AboutActivity
 import com.ninja.scan.data.BusinessCard
@@ -176,6 +177,17 @@ class CardsActivity : ComponentActivity() {
                         @Suppress("DEPRECATION")
                         overridePendingTransition(R.anim.slide_in_from_right, R.anim.slide_out_to_left)
                     },
+                    // Unlike onBack, this always lands on Documents itself
+                    // regardless of whether Cards was opened from Documents
+                    // or from About — finish() alone would only return to
+                    // whichever one it actually came from.
+                    onOpenDocuments = {
+                        startActivity(
+                            Intent(this, MainActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            }
+                        )
+                    },
                     isDarkTheme = isDarkTheme,
                     onToggleTheme = {
                         isDarkTheme = !isDarkTheme
@@ -211,6 +223,7 @@ private val cardScannerOptions = GmsDocumentScannerOptions.Builder()
 private fun CardsScreen(
     autoStartScan: Boolean,
     onBack: () -> Unit,
+    onOpenDocuments: () -> Unit,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
 ) {
@@ -624,7 +637,7 @@ private fun CardsScreen(
             NavigationBar {
                 NavigationBarItem(
                     selected = false,
-                    onClick = onBack,
+                    onClick = onOpenDocuments,
                     icon = { Icon(Icons.Filled.Description, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_documents)) },
                     colors = brandedNavigationItemColors(),

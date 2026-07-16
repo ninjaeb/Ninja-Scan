@@ -841,34 +841,19 @@ class ScanRepository(
         }
 
     /**
-     * Rebuilds two already-saved single scans as one ID-card-formatted page
-     * — front on top, back below, each at true card size — for scans that
-     * were captured as regular Documents but are actually a card's two
-     * sides. Replaces [front]'s own file in place rather than adding a
-     * third scan; if [back] is a different document it's now merged into
-     * [front], so it's deleted.
+     * Rebuilds a document's two selected pages (a card's front and back,
+     * scanned as separate pages) as one ID-card-formatted page — front on
+     * top, back below, each at true card size — replacing that document's
+     * own PDF/thumbnail/originals in place. Only makes sense for a 2-page
+     * document with both pages given here; callers are expected to enforce
+     * that, since replacing the file would otherwise drop any other pages.
      */
-    suspend fun convertToIdCard(front: ScanDocument, back: ScanDocument): ScanDocument =
-        convertPagesToIdCard(front, 0, back, 0)
-
-    /**
-     * Same as [convertToIdCard], but for two individual pages instead of
-     * always page 0 — e.g. a multi-page document whose page 1 and page 2
-     * are actually a card's front and back. [front] and [back] may be the
-     * same [ScanDocument] with different page indices, in which case
-     * nothing is deleted — that one document's own file is simply replaced.
-     */
-    suspend fun convertPagesToIdCard(
-        front: ScanDocument,
-        frontIndex: Int,
-        back: ScanDocument,
-        backIndex: Int,
-    ): ScanDocument =
+    suspend fun convertPagesToIdCard(scan: ScanDocument, frontIndex: Int, backIndex: Int): ScanDocument =
         withContext(Dispatchers.IO) {
-            val frontUri = sourcePageUri(front, frontIndex) ?: error("Could not read the front image")
-            val backUri = sourcePageUri(back, backIndex) ?: error("Could not read the back image")
+            val frontUri = sourcePageUri(scan, frontIndex) ?: error("Could not read the front image")
+            val backUri = sourcePageUri(scan, backIndex) ?: error("Could not read the back image")
 
-            val source = File(front.pdfPath)
+            val source = File(scan.pdfPath)
             val rebuilt = File(scansDir, "${source.nameWithoutExtension}.idcard.pdf")
             val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, rebuilt)
             check(wrote) { "Could not build the ID card page" }
@@ -886,7 +871,7 @@ class ScanRepository(
                 }
             }
 
-            val thumbPath = front.thumbnailPath
+            val thumbPath = scan.thumbnailPath
                 ?: File(scansDir, "${source.nameWithoutExtension}.thumb.jpg").absolutePath
             val hasThumb = ImageOptimizer.writeThumbnail(context, frontUri, File(thumbPath))
 
@@ -897,7 +882,7 @@ class ScanRepository(
                 rebuilt.copyTo(source, overwrite = true)
                 rebuilt.delete()
             }
-            front.originalsDir?.let { File(it).deleteRecursively() }
+            scan.originalsDir?.let { File(it).deleteRecursively() }
             val finalOriginalsDir = File(scansDir, "originals/${source.nameWithoutExtension}")
             finalOriginalsDir.deleteRecursively()
             val originalsDirPath =
@@ -906,23 +891,18 @@ class ScanRepository(
 
             // Content changed — the old Drive copy is stale; it's cleaned up
             // on the next backup and this document re-uploads fresh.
-            front.driveFileId?.let { DriveBackup.addStaleFileId(context, it) }
+            scan.driveFileId?.let { DriveBackup.addStaleFileId(context, it) }
 
-            val updated = front.copy(
+            val updated = scan.copy(
                 pageCount = 1,
                 sizeBytes = source.length(),
-                thumbnailPath = if (hasThumb) thumbPath else front.thumbnailPath,
+                thumbnailPath = if (hasThumb) thumbPath else scan.thumbnailPath,
                 ocrText = recognizeText(listOf(frontUri, backUri)),
                 originalsDir = originalsDirPath,
                 isIdCard = true,
                 driveFileId = null,
             )
             dao.update(updated)
-
-            // back merged into front's own file above — if it was a separate
-            // document, remove it so it isn't left behind as a duplicate.
-            if (back.id != front.id) delete(back)
-
             enqueueBackupIfEnabled()
             updated
         }

@@ -397,7 +397,6 @@ class MainActivity : ComponentActivity() {
                     onMoveToFolder = viewModel::moveToFolder,
                     onDelete = viewModel::delete,
                     onDeleteScans = viewModel::deleteScans,
-                    onConvertToIdCard = { viewModel.onConvertToIdCard(it, application as DocScannerApp) },
                     onAddFolder = viewModel::addFolder,
                     onRenameFolder = viewModel::renameFolder,
                     onDeleteFolder = viewModel::deleteFolder,

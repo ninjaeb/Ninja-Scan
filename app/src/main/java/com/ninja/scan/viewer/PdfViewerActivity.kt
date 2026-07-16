@@ -221,7 +221,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                         scope.launch {
                                             val result = runCatching {
                                                 app.repository.convertPagesToIdCard(
-                                                    doc, pages[0], doc, pages[1],
+                                                    doc, pages[0], pages[1],
                                                 )
                                             }
                                             result.onSuccess { saved ->

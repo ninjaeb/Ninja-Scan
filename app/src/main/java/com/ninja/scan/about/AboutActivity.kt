@@ -59,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.ninja.scan.MainActivity
 import com.ninja.scan.R
 import com.ninja.scan.cards.CardsActivity
 import com.ninja.scan.security.AppLock
@@ -101,6 +102,17 @@ class AboutActivity : ComponentActivity() {
                         @Suppress("DEPRECATION")
                         overridePendingTransition(R.anim.slide_in_from_right, R.anim.slide_out_to_left)
                     },
+                    // Unlike onBack, this always lands on Documents itself
+                    // regardless of whether About was opened from Documents
+                    // or from Cards — finish() alone would only return to
+                    // whichever one it actually came from.
+                    onOpenDocuments = {
+                        startActivity(
+                            Intent(this, MainActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            }
+                        )
+                    },
                     onOpenCards = { startActivity(CardsActivity.intent(this)) },
                     isDarkTheme = isDarkTheme,
                     onToggleTheme = {
@@ -127,6 +139,7 @@ class AboutActivity : ComponentActivity() {
 @Composable
 private fun AboutScreen(
     onBack: () -> Unit,
+    onOpenDocuments: () -> Unit,
     onOpenCards: () -> Unit,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
@@ -172,7 +185,7 @@ private fun AboutScreen(
             NavigationBar {
                 NavigationBarItem(
                     selected = false,
-                    onClick = onBack,
+                    onClick = onOpenDocuments,
                     icon = { Icon(Icons.Filled.Description, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_documents)) },
                     colors = brandedNavigationItemColors(),
