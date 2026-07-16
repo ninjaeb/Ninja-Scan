@@ -1,3 +1,41 @@
+# Release notes — versionCode 11 (versionName 1.3)
+
+Covers every change since the versionCode 10 bump (`6029802`).
+
+## Play Store "What's new" (short version)
+
+Everything from 1.2 below, plus:
+
+- Fixed backups occasionally restoring without business cards, folders, and tags
+- Restoring again now also repairs a library restored while that bug was present
+- Folder colors are now kept through backup and restore
+- Fixed the status bar clock/icons being invisible in light mode
+- Fixed the business card editor's bottom buttons overlapping the phone's navigation bar
+
+## Full changelog
+
+### Bug fixes
+- **Restore reliability**: repeated backups could leave duplicate manifest
+  files in the Drive folder; a restore that happened to read a stale one
+  silently came back with documents only — no business cards, folders,
+  folder assignments, or tags. Restore now tries every manifest copy
+  (newest first) until one decrypts and decodes, backup sweeps stray
+  duplicates after each successful upload, and re-running restore heals a
+  library previously restored without its metadata (fill-only, so local
+  edits are never overwritten).
+- Fixed the system status bar and navigation bar icons being invisible in
+  light mode — the icon color never adapted to the in-app theme toggle.
+- Fixed the business card editor's bottom Save/contacts buttons drawing
+  behind the phone's system navigation bar, and shortened the wrapping
+  "Save to phone contacts" label to "Add to contacts".
+
+### Improvements
+- Folder chip colors are now carried in the backup manifest, so restored
+  folders keep the colors you knew them by instead of being re-assigned
+  arbitrary ones.
+
+---
+
 # Release notes — versionCode 10 (versionName 1.2)
 
 Covers every change on `claude/android-camera-scanner-ni4bo7` since the last
