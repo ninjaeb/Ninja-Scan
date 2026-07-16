@@ -113,9 +113,6 @@ dependencies {
 
     // App-open biometric lock
     implementation(libs.androidx.biometric)
-    // Whole-app (not per-Activity) foreground/background transitions, to
-    // gate re-locking without re-prompting on every screen change/rotation
-    implementation(libs.androidx.lifecycle.process)
 
     // Local library of scans
     implementation(libs.androidx.room.runtime)

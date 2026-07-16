@@ -3,9 +3,6 @@ package com.ninja.scan
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
 import com.ninja.scan.data.ScanDatabase
 import com.ninja.scan.data.ScanRepository
 import com.ninja.scan.drive.DriveBackup
@@ -21,9 +18,6 @@ class DocScannerApp : Application(), Application.ActivityLifecycleCallbacks {
         )
     }
 
-    /** The most recently started Activity — used as a launch context for the lock screen. */
-    private var frontActivity: Activity? = null
-
     override fun onCreate() {
         super.onCreate()
         // WorkManager's own schedule isn't restored by Android's Auto Backup,
@@ -32,39 +26,26 @@ class DocScannerApp : Application(), Application.ActivityLifecycleCallbacks {
         if (DriveBackup.isEnabled(this)) DriveBackup.enqueuePeriodic(this)
 
         registerActivityLifecycleCallbacks(this)
-        // ProcessLifecycleOwner reports whole-app foreground/background
-        // transitions rather than per-Activity ones, so switching between
-        // Documents/Cards/About — or rotating the screen — never re-triggers
-        // the lock; only actually backgrounding and reopening the app does.
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) {
-                val activity = frontActivity
-                if (activity != null && activity !is AppLockActivity &&
-                    !AppLock.lockActivityShowing && !AppLock.unlockedThisSession &&
-                    AppLock.isEnabled(this@DocScannerApp)
-                ) {
-                    AppLock.lockActivityShowing = true
-                    activity.startActivity(AppLockActivity.intent(activity))
-                }
-            }
-
-            override fun onStop(owner: LifecycleOwner) {
-                AppLock.unlockedThisSession = false
-            }
-        })
     }
 
+    // Fires for every Activity start in the app, not just the first — but
+    // AppLock.unlockedThisProcess makes every check after the very first
+    // one a no-op, so this only ever prompts once per process lifetime, no
+    // matter how many times the app is backgrounded/foregrounded or which
+    // screen (Documents/Cards/About) happens to be the one that starts.
     override fun onActivityStarted(activity: Activity) {
-        frontActivity = activity
-    }
-
-    override fun onActivityStopped(activity: Activity) {
-        if (frontActivity === activity) frontActivity = null
+        if (activity !is AppLockActivity && !AppLock.lockActivityShowing &&
+            !AppLock.unlockedThisProcess && AppLock.isEnabled(this)
+        ) {
+            AppLock.lockActivityShowing = true
+            activity.startActivity(AppLockActivity.intent(activity))
+        }
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
     override fun onActivityResumed(activity: Activity) {}
     override fun onActivityPaused(activity: Activity) {}
+    override fun onActivityStopped(activity: Activity) {}
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
     override fun onActivityDestroyed(activity: Activity) {}
 }

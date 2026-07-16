@@ -44,11 +44,12 @@ import com.ninja.scan.ui.theme.DocScannerTheme
 import com.ninja.scan.ui.theme.ThemePrefs
 
 /**
- * Full-screen biometric gate shown on top of whatever's on screen whenever
- * the app returns to the foreground with [AppLock] enabled. Success unlocks
- * for the rest of this process's foreground session and finishes, revealing
- * the real screen underneath; back just backgrounds the whole app instead
- * of revealing it unauthenticated.
+ * Full-screen biometric gate shown on top of whatever's on screen the first
+ * time the app launches with [AppLock] enabled. Success unlocks for the
+ * rest of this process's lifetime (not asked again until the app is fully
+ * killed and relaunched) and finishes, revealing the real screen
+ * underneath; back just backgrounds the whole app instead of revealing it
+ * unauthenticated.
  */
 class AppLockActivity : FragmentActivity() {
 
@@ -75,7 +76,7 @@ class AppLockActivity : FragmentActivity() {
                     ContextCompat.getMainExecutor(this),
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            AppLock.unlockedThisSession = true
+                            AppLock.unlockedThisProcess = true
                             finish()
                         }
 

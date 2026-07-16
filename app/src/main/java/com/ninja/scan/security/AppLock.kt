@@ -6,10 +6,11 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.core.content.edit
 
 /**
- * Gates the app behind a biometric check whenever it returns to the
- * foreground. [unlockedThisSession] is a per-process flag (not persisted)
- * so switching between Documents/Cards/About doesn't re-prompt — only
- * fully backgrounding and reopening the app does.
+ * Gates the app behind a biometric check once per process lifetime.
+ * [unlockedThisProcess] is an in-memory flag (not persisted), so it's reset
+ * whenever the app process itself restarts — but stays true for as long as
+ * that process keeps running, so it's never asked more than once per app
+ * launch no matter how many times the app is backgrounded/foregrounded.
  */
 object AppLock {
     private const val PREFS = "app_lock_prefs"
@@ -28,7 +29,7 @@ object AppLock {
     }
 
     @Volatile
-    var unlockedThisSession: Boolean = false
+    var unlockedThisProcess: Boolean = false
 
     /** Guards against launching a second lock screen on top of the first. */
     @Volatile
