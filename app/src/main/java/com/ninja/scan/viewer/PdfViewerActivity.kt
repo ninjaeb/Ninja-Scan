@@ -206,13 +206,11 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                         }
                     },
                     actions = {
-                        // Composites the whole document's two pages (a
-                        // card's front and back, scanned as separate pages)
-                        // onto one ID-card-formatted page, replacing this
-                        // document in place — restricted to a 2-page
-                        // document with both pages selected, since replacing
-                        // the file would otherwise drop any other pages.
-                        if (selectedPages.size == 2 && current?.pageCount == 2) {
+                        // Splices the two selected pages (a card's front and
+                        // back, scanned as separate pages) into one
+                        // ID-card-formatted page in their place — any other
+                        // pages of this document are kept untouched.
+                        if (selectedPages.size == 2 && current != null) {
                             IconButton(
                                 onClick = {
                                     current?.let { doc ->

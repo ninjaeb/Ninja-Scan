@@ -95,48 +95,65 @@ object ImageOptimizer {
      * at least one side was decoded.
      */
     fun writeIdCardPdf(context: Context, frontUri: Uri, backUri: Uri?, target: File): Boolean {
-        val front = decodeBounded(context, frontUri, MAX_PAGE_DIMENSION_PX)
-        val back = backUri?.let { decodeBounded(context, it, MAX_PAGE_DIMENSION_PX) }
-        if (front == null && back == null) return false
-
+        val page = compositeIdCardBitmap(context, frontUri, backUri) ?: return false
         val pdf = PdfDocument()
         try {
             val pageInfo = PdfDocument.PageInfo
-                .Builder(ID_CARD_PAGE_WIDTH_PX, ID_CARD_PAGE_HEIGHT_PX, 1)
+                .Builder(page.width, page.height, 1)
                 .create()
-            val page = pdf.startPage(pageInfo)
-            val canvas = page.canvas
-            canvas.drawColor(Color.WHITE)
-            val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-
-            val marginX = (ID_CARD_PAGE_WIDTH_PX * ID_CARD_MARGIN_RATIO).toInt()
-            val marginY = (ID_CARD_PAGE_HEIGHT_PX * ID_CARD_MARGIN_RATIO).toInt()
-            val gap = (ID_CARD_PAGE_HEIGHT_PX * ID_CARD_GAP_RATIO).toInt()
-            val usableWidth = ID_CARD_PAGE_WIDTH_PX - marginX * 2
-            val halfHeight = (ID_CARD_PAGE_HEIGHT_PX - marginY * 2 - gap) / 2
-            val cardLongPx = (ID_CARD_LONG_MM * PX_PER_MM_AT_300_DPI).toInt()
-            val cardShortPx = (ID_CARD_SHORT_MM * PX_PER_MM_AT_300_DPI).toInt()
-
-            front?.let {
-                drawAtCardSize(
-                    canvas, it, paint, marginX, marginY, usableWidth, halfHeight, cardLongPx, cardShortPx,
-                )
-                it.recycle()
-            }
-            back?.let {
-                drawAtCardSize(
-                    canvas, it, paint, marginX, marginY + halfHeight + gap, usableWidth, halfHeight,
-                    cardLongPx, cardShortPx,
-                )
-                it.recycle()
-            }
-
-            pdf.finishPage(page)
+            val pdfPage = pdf.startPage(pageInfo)
+            pdfPage.canvas.drawBitmap(page, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+            pdf.finishPage(pdfPage)
             FileOutputStream(target).use { pdf.writeTo(it) }
         } finally {
             pdf.close()
+            page.recycle()
         }
         return true
+    }
+
+    /**
+     * Composites [frontUri] and [backUri] onto one ID-card-formatted page
+     * bitmap — front on top, back below, each at true ID-1 card size with
+     * rounded corners, at the same fixed page dimensions [writeIdCardPdf]
+     * wraps into a PDF. Exposed separately so a caller that needs the raw
+     * page (e.g. splicing it into an existing multi-page PDF at its native
+     * resolution, unlike the generic bounded page pipeline) doesn't have to
+     * go through a temporary one-page PDF file. Returns null if neither side
+     * could be decoded.
+     */
+    fun compositeIdCardBitmap(context: Context, frontUri: Uri, backUri: Uri?): Bitmap? {
+        val front = decodeBounded(context, frontUri, MAX_PAGE_DIMENSION_PX)
+        val back = backUri?.let { decodeBounded(context, it, MAX_PAGE_DIMENSION_PX) }
+        if (front == null && back == null) return null
+
+        val page = Bitmap.createBitmap(ID_CARD_PAGE_WIDTH_PX, ID_CARD_PAGE_HEIGHT_PX, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(page)
+        canvas.drawColor(Color.WHITE)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+        val marginX = (ID_CARD_PAGE_WIDTH_PX * ID_CARD_MARGIN_RATIO).toInt()
+        val marginY = (ID_CARD_PAGE_HEIGHT_PX * ID_CARD_MARGIN_RATIO).toInt()
+        val gap = (ID_CARD_PAGE_HEIGHT_PX * ID_CARD_GAP_RATIO).toInt()
+        val usableWidth = ID_CARD_PAGE_WIDTH_PX - marginX * 2
+        val halfHeight = (ID_CARD_PAGE_HEIGHT_PX - marginY * 2 - gap) / 2
+        val cardLongPx = (ID_CARD_LONG_MM * PX_PER_MM_AT_300_DPI).toInt()
+        val cardShortPx = (ID_CARD_SHORT_MM * PX_PER_MM_AT_300_DPI).toInt()
+
+        front?.let {
+            drawAtCardSize(
+                canvas, it, paint, marginX, marginY, usableWidth, halfHeight, cardLongPx, cardShortPx,
+            )
+            it.recycle()
+        }
+        back?.let {
+            drawAtCardSize(
+                canvas, it, paint, marginX, marginY + halfHeight + gap, usableWidth, halfHeight,
+                cardLongPx, cardShortPx,
+            )
+            it.recycle()
+        }
+        return page
     }
 
     /**

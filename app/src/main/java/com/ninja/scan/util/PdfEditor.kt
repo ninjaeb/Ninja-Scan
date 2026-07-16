@@ -30,6 +30,17 @@ fun EditPage.rotatedClockwise(): EditPage = when (this) {
     is EditPage.FromImage -> copy(rotation = (rotation + 90) % 360)
 }
 
+/**
+ * One page of a spliced-together document: either an existing page of the
+ * source PDF (re-rendered through the same bounded pipeline every other
+ * page here goes through) or a bitmap inserted at its own native
+ * resolution, unbounded — see [PdfEditor.splicePages].
+ */
+sealed interface SplicePage {
+    data class Keep(val index: Int) : SplicePage
+    data class Insert(val bitmap: Bitmap) : SplicePage
+}
+
 /** Rebuilds and renders scan PDFs for the page editor and OCR re-runs. */
 object PdfEditor {
 
@@ -66,6 +77,47 @@ object PdfEditor {
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
             bitmap
         }
+    }
+
+    /**
+     * Rebuilds [sourcePdf] from [pages], each either an existing page
+     * re-rendered through the usual bounded pipeline (matching how the rest
+     * of the document already looks) or a bitmap inserted as its own page
+     * at native resolution — unlike [rebuildPdf]'s image pages, an inserted
+     * bitmap is NOT bounded to [MAX_PAGE_DIMENSION_PX], since it's already a
+     * purpose-built page (see ImageOptimizer.compositeIdCardBitmap) that
+     * must keep its exact physical size. Returns the number of pages
+     * written.
+     */
+    fun splicePages(sourcePdf: File, pages: List<SplicePage>, target: File): Int {
+        val document = PdfDocument()
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+        var pageNumber = 0
+        try {
+            openRenderer(sourcePdf).use { renderer ->
+                for (spec in pages) {
+                    val bitmap = when (spec) {
+                        is SplicePage.Keep -> renderPage(renderer, spec.index, MAX_PAGE_DIMENSION_PX)
+                        is SplicePage.Insert -> spec.bitmap
+                    } ?: continue
+                    pageNumber++
+                    val pageInfo = PdfDocument.PageInfo
+                        .Builder(bitmap.width, bitmap.height, pageNumber)
+                        .create()
+                    val page = document.startPage(pageInfo)
+                    page.canvas.drawColor(Color.WHITE)
+                    page.canvas.drawBitmap(bitmap, 0f, 0f, paint)
+                    document.finishPage(page)
+                    if (spec is SplicePage.Keep) bitmap.recycle()
+                }
+            }
+            if (pageNumber > 0) {
+                FileOutputStream(target).use { document.writeTo(it) }
+            }
+        } finally {
+            document.close()
+        }
+        return pageNumber
     }
 
     fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {

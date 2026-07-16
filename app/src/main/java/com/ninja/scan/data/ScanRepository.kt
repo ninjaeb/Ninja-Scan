@@ -20,6 +20,7 @@ import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.ImageOptimizer
 import com.ninja.scan.util.OcrLayout
 import com.ninja.scan.util.PdfEditor
+import com.ninja.scan.util.SplicePage
 import com.ninja.scan.util.XlsxWriter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -809,8 +810,10 @@ class ScanRepository(
             val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, pdfFile)
             check(wrote) { "Could not decode the scanned ID card" }
 
+            // From the actual composited page, not the raw front photo, so
+            // the list preview shows the true rounded-corner card layout.
             val thumbFile = File(scansDir, "$baseName.thumb.jpg")
-            val hasThumb = ImageOptimizer.writeThumbnail(context, frontUri, thumbFile)
+            val hasThumb = PdfEditor.writeThumbnail(pdfFile, thumbFile)
 
             // Keep the untouched front/back captures so they can be re-scanned
             // or re-composited later without quality loss.
@@ -841,65 +844,93 @@ class ScanRepository(
         }
 
     /**
-     * Rebuilds a document's two selected pages (a card's front and back,
-     * scanned as separate pages) as one ID-card-formatted page — front on
-     * top, back below, each at true card size — replacing that document's
-     * own PDF/thumbnail/originals in place. Only makes sense for a 2-page
-     * document with both pages given here; callers are expected to enforce
-     * that, since replacing the file would otherwise drop any other pages.
+     * Splices a document's two selected pages (a card's front and back,
+     * scanned as separate pages) into one ID-card-formatted page — front on
+     * top, back below, each at true card size — inserted where the earlier
+     * of the two pages was. Every other page of the document is kept
+     * untouched and in order; only makes it a pure ID-card document
+     * ([ScanDocument.isIdCard]) if that leaves it as the sole page.
      */
     suspend fun convertPagesToIdCard(scan: ScanDocument, frontIndex: Int, backIndex: Int): ScanDocument =
         withContext(Dispatchers.IO) {
             val frontUri = sourcePageUri(scan, frontIndex) ?: error("Could not read the front image")
             val backUri = sourcePageUri(scan, backIndex) ?: error("Could not read the back image")
+            val composite = ImageOptimizer.compositeIdCardBitmap(context, frontUri, backUri)
+                ?: error("Could not build the ID card page")
 
             val source = File(scan.pdfPath)
-            val rebuilt = File(scansDir, "${source.nameWithoutExtension}.idcard.pdf")
-            val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, rebuilt)
-            check(wrote) { "Could not build the ID card page" }
+            val originalCount = PdfEditor.pageCount(source)
+            val insertAt = minOf(frontIndex, backIndex)
+            val dropIndex = maxOf(frontIndex, backIndex)
+            val oldOriginals = scan.originalsDir?.let(::File)?.takeIf { it.isDirectory }
 
-            val newOriginals = File(scansDir, "originals/${source.nameWithoutExtension}.idcard").apply {
-                deleteRecursively()
-                mkdirs()
-            }
-            listOf(frontUri, backUri).forEachIndexed { index, uri ->
-                runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        File(newOriginals, pageFileName(index)).outputStream()
-                            .use { input.copyTo(it) }
+            val pages = buildList {
+                for (i in 0 until originalCount) {
+                    when (i) {
+                        insertAt -> add(SplicePage.Insert(composite))
+                        dropIndex -> {} // merged into the inserted page above
+                        else -> add(SplicePage.Keep(i))
                     }
                 }
             }
 
-            val thumbPath = scan.thumbnailPath
-                ?: File(scansDir, "${source.nameWithoutExtension}.thumb.jpg").absolutePath
-            val hasThumb = ImageOptimizer.writeThumbnail(context, frontUri, File(thumbPath))
+            val rebuilt = File(scansDir, "${source.nameWithoutExtension}.idcard.pdf")
+            val pageCount = PdfEditor.splicePages(source, pages, rebuilt)
+            check(pageCount > 0) { "Could not build the ID card page" }
 
-            // Swap the rebuilt PDF into place, then replace the originals
-            // directory the same way applyPageEdits does: build the new one
-            // alongside, then delete-and-rename over the old one.
+            // Regenerate originals to match the new page order: kept pages
+            // reuse their existing original file, the inserted page is
+            // written fresh from the composite bitmap.
+            val newOriginals = File(scansDir, "originals/${source.nameWithoutExtension}.idcard").apply {
+                deleteRecursively()
+                mkdirs()
+            }
+            pages.forEachIndexed { newIndex, spec ->
+                val target = File(newOriginals, pageFileName(newIndex))
+                when (spec) {
+                    is SplicePage.Keep -> {
+                        oldOriginals?.let { File(it, pageFileName(spec.index)) }
+                            ?.takeIf { it.exists() }
+                            ?.copyTo(target, overwrite = true)
+                    }
+                    is SplicePage.Insert -> runCatching {
+                        FileOutputStream(target).use {
+                            composite.compress(Bitmap.CompressFormat.JPEG, ORIGINAL_JPEG_QUALITY, it)
+                        }
+                    }
+                }
+            }
+            composite.recycle()
+
             if (!rebuilt.renameTo(source)) {
                 rebuilt.copyTo(source, overwrite = true)
                 rebuilt.delete()
             }
-            scan.originalsDir?.let { File(it).deleteRecursively() }
+            oldOriginals?.deleteRecursively()
             val finalOriginalsDir = File(scansDir, "originals/${source.nameWithoutExtension}")
             finalOriginalsDir.deleteRecursively()
             val originalsDirPath =
                 if (newOriginals.renameTo(finalOriginalsDir)) finalOriginalsDir.absolutePath
                 else newOriginals.absolutePath
 
+            // The thumbnail is always page 0 of the real, final PDF — so if
+            // the ID card page landed there, the list preview shows its true
+            // rounded-corner layout instead of a raw, sharp-cornered photo.
+            val thumbPath = scan.thumbnailPath
+                ?: File(scansDir, "${source.nameWithoutExtension}.thumb.jpg").absolutePath
+            val hasThumb = PdfEditor.writeThumbnail(source, File(thumbPath))
+
             // Content changed — the old Drive copy is stale; it's cleaned up
             // on the next backup and this document re-uploads fresh.
             scan.driveFileId?.let { DriveBackup.addStaleFileId(context, it) }
 
             val updated = scan.copy(
-                pageCount = 1,
+                pageCount = pageCount,
                 sizeBytes = source.length(),
                 thumbnailPath = if (hasThumb) thumbPath else scan.thumbnailPath,
-                ocrText = recognizeText(listOf(frontUri, backUri)),
+                ocrText = recognizeTextFromPdf(source),
                 originalsDir = originalsDirPath,
-                isIdCard = true,
+                isIdCard = pageCount == 1,
                 driveFileId = null,
             )
             dao.update(updated)
