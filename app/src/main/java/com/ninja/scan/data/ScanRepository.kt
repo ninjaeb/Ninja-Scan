@@ -848,9 +848,23 @@ class ScanRepository(
      * as a new scan alongside them.
      */
     suspend fun convertToIdCard(front: ScanDocument, back: ScanDocument): ScanDocument =
+        convertPagesToIdCard(front, 0, back, 0)
+
+    /**
+     * Same as [convertToIdCard], but for two individual pages instead of
+     * always page 0 — e.g. a multi-page document whose page 1 and page 2
+     * are actually a card's front and back. [front] and [back] may be the
+     * same [ScanDocument] with different page indices.
+     */
+    suspend fun convertPagesToIdCard(
+        front: ScanDocument,
+        frontIndex: Int,
+        back: ScanDocument,
+        backIndex: Int,
+    ): ScanDocument =
         withContext(Dispatchers.IO) {
-            val frontUri = sourcePageUri(front) ?: error("Could not read the front image")
-            val backUri = sourcePageUri(back) ?: error("Could not read the back image")
+            val frontUri = sourcePageUri(front, frontIndex) ?: error("Could not read the front image")
+            val backUri = sourcePageUri(back, backIndex) ?: error("Could not read the back image")
 
             val timestamp = System.currentTimeMillis()
             val name = "ID card ${
@@ -892,21 +906,22 @@ class ScanRepository(
         }
 
     /**
-     * The best available single photo standing in for one side of [scan]:
-     * its first kept original capture if there is one, otherwise its first
-     * PDF page rendered fresh — covers imported PDFs and any other scan
-     * with no per-page originals kept on disk.
+     * The best available single photo standing in for page [index] of
+     * [scan]: its kept original capture for that page if there is one,
+     * otherwise that PDF page rendered fresh — covers imported PDFs and any
+     * other scan with no per-page originals kept on disk.
      */
-    private fun sourcePageUri(scan: ScanDocument): Uri? {
+    private fun sourcePageUri(scan: ScanDocument, index: Int): Uri? {
         scan.originalsDir?.let { dir ->
-            val file = File(dir, pageFileName(0))
+            val file = File(dir, pageFileName(index))
             if (file.exists()) return Uri.fromFile(file)
         }
         val pdfFile = File(scan.pdfPath)
         if (!pdfFile.exists()) return null
-        val rendered = PdfEditor.renderPageFromFile(pdfFile, 0, ORIGINAL_MAX_DIMENSION_PX, 0)
+        val rendered = PdfEditor.renderPageFromFile(pdfFile, index, ORIGINAL_MAX_DIMENSION_PX, 0)
             ?: return null
-        val tempFile = File(context.cacheDir, "idcard_src_${scan.id}_${System.currentTimeMillis()}.jpg")
+        val tempFile =
+            File(context.cacheDir, "idcard_src_${scan.id}_${index}_${System.currentTimeMillis()}.jpg")
         FileOutputStream(tempFile).use {
             rendered.compress(Bitmap.CompressFormat.JPEG, ORIGINAL_JPEG_QUALITY, it)
         }

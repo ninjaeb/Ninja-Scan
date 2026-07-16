@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
+import android.text.format.Formatter
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.BrandingWatermark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudUpload
@@ -204,6 +206,48 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                         }
                     },
                     actions = {
+                        // Two pages of the same document (a card's front and
+                        // back, scanned as separate pages) can be composited
+                        // onto one ID-card-formatted page — only makes sense
+                        // picked exactly in pairs.
+                        if (selectedPages.size == 2 && current != null) {
+                            IconButton(
+                                onClick = {
+                                    current?.let { doc ->
+                                        val pages = selectedPages.sorted()
+                                        selectedPages.clear()
+                                        scope.launch {
+                                            val result = runCatching {
+                                                app.repository.convertPagesToIdCard(
+                                                    doc, pages[0], doc, pages[1],
+                                                )
+                                            }
+                                            result.onSuccess { saved ->
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(
+                                                        R.string.scan_saved,
+                                                        Formatter.formatShortFileSize(context, saved.sizeBytes),
+                                                    )
+                                                )
+                                            }.onFailure {
+                                                snackbarHostState.showSnackbar(
+                                                    context.getString(
+                                                        R.string.scan_failed,
+                                                        it.message ?: "unknown error",
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Filled.Badge,
+                                    contentDescription = stringResource(R.string.convert_to_id_card),
+                                    tint = ActionGreen,
+                                )
+                            }
+                        }
                         IconButton(onClick = { sharingPages = true }) {
                             Icon(
                                 Icons.Filled.Share,
