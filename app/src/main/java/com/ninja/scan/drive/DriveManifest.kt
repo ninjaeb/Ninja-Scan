@@ -38,6 +38,8 @@ internal object DriveManifest {
         val cards: List<CardEntry>,
         val folders: List<String>,
         val tags: List<TagEntry> = emptyList(),
+        /** Folder name -> chip color, so restored folders keep their look. */
+        val folderColors: Map<String, String> = emptyMap(),
     )
 
     /** Stable dedupe key for a card across backup/restore cycles. */
@@ -84,6 +86,9 @@ internal object DriveManifest {
         }
         root.put("cards", cards)
         root.put("folders", JSONArray(content.folders))
+        // Kept separate from the legacy "folders" string array so manifests
+        // stay readable by app versions from before colors were carried.
+        root.put("folderColors", JSONObject(content.folderColors.toMap()))
         val tags = JSONArray()
         for (tag in content.tags) {
             tags.put(
@@ -151,6 +156,12 @@ internal object DriveManifest {
         for (i in 0 until foldersJson.length()) {
             foldersJson.optString(i).takeIf { it.isNotEmpty() }?.let(folders::add)
         }
+        val folderColors = mutableMapOf<String, String>()
+        root.optJSONObject("folderColors")?.let { colorsJson ->
+            for (name in colorsJson.keys()) {
+                colorsJson.optString(name).takeIf { it.isNotEmpty() }?.let { folderColors[name] = it }
+            }
+        }
         val tags = mutableListOf<TagEntry>()
         val tagsJson = root.optJSONArray("tags") ?: JSONArray()
         for (i in 0 until tagsJson.length()) {
@@ -160,7 +171,7 @@ internal object DriveManifest {
                 tags.add(TagEntry(title = title, description = tag.optString("description"), color = tag.optString("color")))
             }
         }
-        Content(scans, cards, folders, tags)
+        Content(scans, cards, folders, tags, folderColors)
     }.getOrNull()
 
     private fun JSONObject.optStringOrNull(key: String): String? =

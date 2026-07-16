@@ -19,6 +19,9 @@ interface FolderDao {
     @Query("SELECT name FROM folders ORDER BY name")
     suspend fun getAll(): List<String>
 
+    @Query("SELECT * FROM folders ORDER BY name")
+    suspend fun getAllDetailed(): List<Folder>
+
     @Query("SELECT COUNT(*) FROM folders")
     suspend fun count(): Int
 

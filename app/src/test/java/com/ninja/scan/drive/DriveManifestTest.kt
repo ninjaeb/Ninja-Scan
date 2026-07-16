@@ -31,6 +31,7 @@ class DriveManifestTest {
             ),
         ),
         folders = listOf("Receipts", "Invoices"),
+        folderColors = mapOf("Receipts" to "#EF5350", "Invoices" to "#42A5F5"),
     )
 
     @Test
@@ -45,6 +46,7 @@ class DriveManifestTest {
             decoded.cards.map { it.key to it.card.name to it.card.photoDriveFileId },
         )
         assertEquals(content.folders, decoded.folders)
+        assertEquals(content.folderColors, decoded.folderColors)
     }
 
     @Test

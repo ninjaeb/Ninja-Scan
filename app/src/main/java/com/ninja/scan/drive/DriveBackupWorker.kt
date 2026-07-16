@@ -215,7 +215,11 @@ class DriveBackupWorker(
         val tags = app.repository.getTags().map { tag ->
             DriveManifest.TagEntry(title = tag.title, description = tag.description, color = tag.color)
         }
-        val content = DriveManifest.Content(scans, cards, app.repository.getFolderNames(), tags)
+        val folders = app.repository.getFoldersDetailed()
+        val content = DriveManifest.Content(
+            scans, cards, folders.map { it.name }, tags,
+            folderColors = folders.associate { it.name to it.color },
+        )
         val bytes = BackupCrypto.encryptBytes(DriveManifest.encode(content, System.currentTimeMillis()), localKey)
 
         val existing = DriveBackup.cachedManifestId(applicationContext)

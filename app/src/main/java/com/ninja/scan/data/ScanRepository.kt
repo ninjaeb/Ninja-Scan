@@ -285,6 +285,20 @@ class ScanRepository(
 
     suspend fun getFolderNames(): List<String> = folderDao.getAll()
 
+    suspend fun getFoldersDetailed(): List<Folder> = folderDao.getAllDetailed()
+
+    /**
+     * Restore-side folder insert: recreates a folder with its backed-up chip
+     * [color] when the manifest carries one (older manifests don't), instead
+     * of re-assigning colors by insertion order. A no-op for a folder that
+     * already exists locally — the local color wins, same as tag restore.
+     */
+    suspend fun restoreFolder(name: String, color: String?) {
+        val cleaned = name.trim().takeIf { it.isNotEmpty() } ?: return
+        if (color != null) folderDao.insert(Folder(cleaned, color))
+        else folderDao.insertNamed(cleaned)
+    }
+
     private fun enqueueBackupIfEnabled() {
         if (DriveBackup.isEnabled(context)) DriveBackup.enqueue(context)
     }

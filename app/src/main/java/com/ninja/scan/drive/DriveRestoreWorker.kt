@@ -80,7 +80,7 @@ class DriveRestoreWorker(
             null // Absent/corrupt/undecryptable manifest: PDFs still restore with fallbacks.
         }
 
-        manifest?.folders?.forEach { app.repository.addFolder(it) }
+        manifest?.folders?.forEach { app.repository.restoreFolder(it, manifest.folderColors[it]) }
 
         val entries = manifest?.scans?.associateBy { it.driveFileId }.orEmpty()
         val known = app.repository.getDriveFileIds().toSet()
