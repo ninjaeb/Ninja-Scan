@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
@@ -136,6 +137,7 @@ fun ScanListScreen(
     onMoveToFolder: (ScanDocument, String?) -> Unit,
     onDelete: (ScanDocument) -> Unit,
     onDeleteScans: (List<ScanDocument>) -> Unit,
+    onConvertToIdCard: (List<ScanDocument>) -> Unit,
     onAddFolder: (String) -> Unit,
     onRenameFolder: (String, String) -> Unit,
     onDeleteFolder: (String) -> Unit,
@@ -208,6 +210,24 @@ fun ScanListScreen(
                         }
                     },
                     actions = {
+                        // Two scans (a card's front and back, captured as
+                        // regular Documents) can be composited onto one
+                        // ID-card-formatted page — only makes sense picked
+                        // exactly in pairs.
+                        if (selectedIds.size == 2) {
+                            IconButton(
+                                onClick = {
+                                    onConvertToIdCard(scans.filter { it.id in selectedIds })
+                                    selectedIds.clear()
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Filled.Badge,
+                                    contentDescription = stringResource(R.string.convert_to_id_card),
+                                    tint = ActionGreen,
+                                )
+                            }
+                        }
                         IconButton(
                             onClick = {
                                 multiSharingScans = scans.filter { it.id in selectedIds }

@@ -70,6 +70,7 @@
     <string name="business_cards">Business cards</string>
     <string name="scan_business_card">Scan business card</string>
     <string name="scan_id_card">Scan ID card</string>
+    <string name="convert_to_id_card">Convert to ID card page</string>
     <string name="import_pdf">Import PDF</string>
     <string name="import_images">Import images</string>
     <string name="import_photo">Import photo</string>

@@ -841,6 +841,80 @@ class ScanRepository(
         }
 
     /**
+     * Rebuilds two already-saved single scans as one ID-card-formatted page
+     * — front on top, back below, each at true card size — for scans that
+     * were captured as regular Documents but are actually a card's two
+     * sides. Leaves both source scans untouched; adds the composited page
+     * as a new scan alongside them.
+     */
+    suspend fun convertToIdCard(front: ScanDocument, back: ScanDocument): ScanDocument =
+        withContext(Dispatchers.IO) {
+            val frontUri = sourcePageUri(front) ?: error("Could not read the front image")
+            val backUri = sourcePageUri(back) ?: error("Could not read the back image")
+
+            val timestamp = System.currentTimeMillis()
+            val name = "ID card ${
+                SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date(timestamp))
+            }"
+            val baseName = "idcard_$timestamp"
+
+            val pdfFile = File(scansDir, "$baseName.pdf")
+            val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, pdfFile)
+            check(wrote) { "Could not build the ID card page" }
+
+            val thumbFile = File(scansDir, "$baseName.thumb.jpg")
+            val hasThumb = ImageOptimizer.writeThumbnail(context, frontUri, thumbFile)
+
+            val originalsDir = File(scansDir, "originals/$baseName").apply { mkdirs() }
+            listOf(frontUri, backUri).forEachIndexed { index, uri ->
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        File(originalsDir, pageFileName(index)).outputStream()
+                            .use { input.copyTo(it) }
+                    }
+                }
+            }
+
+            val scan = ScanDocument(
+                title = name,
+                createdAt = timestamp,
+                pageCount = 1,
+                pdfPath = pdfFile.absolutePath,
+                thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
+                sizeBytes = pdfFile.length(),
+                ocrText = recognizeText(listOf(frontUri, backUri)),
+                originalsDir = originalsDir.absolutePath,
+                isIdCard = true,
+            )
+            val saved = scan.copy(id = dao.insert(scan))
+            enqueueBackupIfEnabled()
+            saved
+        }
+
+    /**
+     * The best available single photo standing in for one side of [scan]:
+     * its first kept original capture if there is one, otherwise its first
+     * PDF page rendered fresh — covers imported PDFs and any other scan
+     * with no per-page originals kept on disk.
+     */
+    private fun sourcePageUri(scan: ScanDocument): Uri? {
+        scan.originalsDir?.let { dir ->
+            val file = File(dir, pageFileName(0))
+            if (file.exists()) return Uri.fromFile(file)
+        }
+        val pdfFile = File(scan.pdfPath)
+        if (!pdfFile.exists()) return null
+        val rendered = PdfEditor.renderPageFromFile(pdfFile, 0, ORIGINAL_MAX_DIMENSION_PX, 0)
+            ?: return null
+        val tempFile = File(context.cacheDir, "idcard_src_${scan.id}_${System.currentTimeMillis()}.jpg")
+        FileOutputStream(tempFile).use {
+            rendered.compress(Bitmap.CompressFormat.JPEG, ORIGINAL_JPEG_QUALITY, it)
+        }
+        rendered.recycle()
+        return Uri.fromFile(tempFile)
+    }
+
+    /**
      * Imports an existing PDF picked from device storage as-is: copied into
      * the library unchanged (no re-optimization, since it wasn't captured by
      * the scanner), with a thumbnail and OCR text generated so it's
