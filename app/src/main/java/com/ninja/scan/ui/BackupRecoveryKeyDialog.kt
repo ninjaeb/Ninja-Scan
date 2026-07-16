@@ -4,11 +4,12 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,34 +89,40 @@ fun ViewRecoveryKeyDialog(code: String, onDismiss: () -> Unit) {
     )
 }
 
-/** The code in a read-only text box, with one-tap Copy and "email to myself" actions. */
+/** The code in a read-only text box, with Copy and Share actions below it. */
 @Composable
 private fun RecoveryCodeRow(code: String) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    Row(verticalAlignment = Alignment.Top) {
+    Column {
         OutlinedTextField(
             value = code.chunked(4).joinToString("-"),
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.recovery_key_field)) },
             textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
         )
-        IconButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
-            Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy))
-        }
-        IconButton(
-            onClick = {
-                val email = Intent(Intent.ACTION_SEND).apply {
-                    type = "message/rfc822"
-                    putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.recovery_key_title))
-                    putExtra(Intent.EXTRA_TEXT, code)
-                }
-                runCatching { context.startActivity(email) }
-            },
-        ) {
-            Icon(Icons.Filled.Email, contentDescription = stringResource(R.string.email_recovery_key))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy))
+            }
+            IconButton(
+                onClick = {
+                    // Generic text share, not an email-typed intent — so any
+                    // app on the share sheet (Gmail, WhatsApp, Messages, Notes,
+                    // etc.) can actually handle it, not just email clients.
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.recovery_key_title))
+                        putExtra(Intent.EXTRA_TEXT, code)
+                    }
+                    val chooser = Intent.createChooser(send, context.getString(R.string.share_recovery_key))
+                    runCatching { context.startActivity(chooser) }
+                },
+            ) {
+                Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share_recovery_key))
+            }
         }
     }
 }

@@ -42,7 +42,7 @@
     <string name="recovery_key_title">Recovery key</string>
     <string name="recovery_key_view_hint">This is the key that encrypts your Google Drive backup. Save a copy anywhere you\'ll be able to find it later — if it\'s lost, your backups can\'t be decrypted.</string>
     <string name="view_recovery_key">View recovery key</string>
-    <string name="email_recovery_key">Email to myself</string>
+    <string name="share_recovery_key">Share recovery key</string>
     <string name="copy">Copy</string>
     <string name="paste">Paste</string>
     <string name="done">Done</string>
