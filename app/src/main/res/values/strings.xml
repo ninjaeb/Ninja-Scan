@@ -134,7 +134,7 @@
     <string name="documents_selected">%1$d documents selected</string>
     <string name="share_multiple_subject">%1$d documents</string>
     <string name="share_caption">Scan with Ninja Scan App, no ads, free, no watermark</string>
-    <string name="add_scan">Add Scan</string>
+    <string name="add_scan">Add</string>
     <string name="print">Print</string>
     <string name="clear">Clear</string>
     <string name="add_folder">New folder</string>

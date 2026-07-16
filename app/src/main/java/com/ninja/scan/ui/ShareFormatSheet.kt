@@ -39,7 +39,12 @@ import java.io.File
 
 /**
  * "How do you want to share this?" sheet: PDF, per-page images, one tall
- * long image, or every page as its own PDF.
+ * long image, or every page as its own PDF. When [onSaveAsPdf] and
+ * [onSaveAsImages] are both given, also offers saving a copy to the device
+ * in either format, so Share can be the one place for "get this document
+ * out of the app" in whatever form — used by the document viewer, which no
+ * longer has a separate Save button; left out where a caller already has
+ * its own dedicated Save action (e.g. the Documents list's row menu).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,15 +55,53 @@ fun ShareFormatSheet(
     onImages: () -> Unit,
     onLongImage: () -> Unit,
     onSeparatePdfs: () -> Unit,
+    onSaveAsPdf: (() -> Unit)? = null,
+    onSaveAsImages: (() -> Unit)? = null,
 ) {
-    ShareFormatSheetBody(
-        header = { ScanSheetHeader(scan) },
-        onDismiss = onDismiss,
-        onPdf = onPdf,
-        onImages = onImages,
-        onLongImage = onLongImage,
-        onSeparatePdfs = onSeparatePdfs,
-    )
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        ScanSheetHeader(scan)
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        SheetAction(
+            Icons.Filled.PictureAsPdf,
+            stringResource(R.string.share_as_pdf),
+            iconTint = DestructiveRed,
+            onClick = onPdf,
+        )
+        SheetAction(
+            Icons.Filled.Image,
+            stringResource(R.string.share_as_images),
+            iconTint = ShareBlue,
+            onClick = onImages,
+        )
+        SheetAction(
+            Icons.Filled.Photo,
+            stringResource(R.string.share_as_long_image),
+            iconTint = EditAmber,
+            onClick = onLongImage,
+        )
+        SheetAction(
+            Icons.AutoMirrored.Filled.ViewList,
+            stringResource(R.string.export_separate_pdfs),
+            iconTint = ActionGreen,
+            onClick = onSeparatePdfs,
+        )
+        if (onSaveAsPdf != null && onSaveAsImages != null) {
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            SheetAction(
+                Icons.Filled.PictureAsPdf,
+                stringResource(R.string.save_as_pdf),
+                iconTint = DestructiveRed,
+                onClick = onSaveAsPdf,
+            )
+            SheetAction(
+                Icons.Filled.Image,
+                stringResource(R.string.save_as_images),
+                iconTint = ShareBlue,
+                onClick = onSaveAsImages,
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+    }
 }
 
 /** Same format choices, batched over several selected documents at once. */
@@ -203,34 +246,6 @@ internal fun SheetAction(
         Icon(icon, contentDescription = null, tint = iconTint)
         Spacer(Modifier.width(16.dp))
         Text(label, style = MaterialTheme.typography.bodyLarge)
-    }
-}
-
-/** "How do you want to save this?" sheet: PDF, or every page as an image. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SaveFormatSheet(
-    scan: ScanDocument,
-    onDismiss: () -> Unit,
-    onPdf: () -> Unit,
-    onImages: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        ScanSheetHeader(scan)
-        HorizontalDivider(Modifier.padding(vertical = 4.dp))
-        SheetAction(
-            Icons.Filled.PictureAsPdf,
-            stringResource(R.string.save_as_pdf),
-            iconTint = DestructiveRed,
-            onClick = onPdf,
-        )
-        SheetAction(
-            Icons.Filled.Image,
-            stringResource(R.string.save_as_images),
-            iconTint = ShareBlue,
-            onClick = onImages,
-        )
-        Spacer(Modifier.height(24.dp))
     }
 }
 

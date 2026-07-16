@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.BrandingWatermark
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Print
@@ -90,7 +89,6 @@ import com.ninja.scan.ui.FolderIndigo
 import com.ninja.scan.ui.HintPrefs
 import com.ninja.scan.ui.LongPressHint
 import com.ninja.scan.ui.PagesShareSheet
-import com.ninja.scan.ui.SaveFormatSheet
 import com.ninja.scan.ui.ShareBlue
 import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
@@ -147,7 +145,6 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
 
     var scan by remember { mutableStateOf<ScanDocument?>(null) }
     var sharing by remember { mutableStateOf(false) }
-    var saving by remember { mutableStateOf(false) }
     var editingWatermark by remember { mutableStateOf(false) }
     var renamingTitle by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -378,20 +375,6 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                     },
                     label = { BarLabel(stringResource(R.string.print)) },
                 )
-                NavigationBarItem(
-                    selected = false,
-                    enabled = current != null,
-                    onClick = { saving = true },
-                    icon = {
-                        Icon(
-                            Icons.Filled.CloudUpload,
-                            contentDescription = null,
-                            tint = if (current != null) MaterialTheme.colorScheme.primary
-                            else LocalContentColor.current,
-                        )
-                    },
-                    label = { BarLabel(stringResource(R.string.save)) },
-                )
             }
         },
     ) { padding ->
@@ -464,6 +447,19 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
             onSeparatePdfs = {
                 sharing = false; ShareActions.shareSeparatePdfs(activity, current)
             },
+            onSaveAsPdf = { sharing = false; exportLauncher.launch("${current.title}.pdf") },
+            onSaveAsImages = {
+                sharing = false
+                scope.launch {
+                    val count = app.repository.saveImagesToDevice(current)
+                    val message = if (count > 0) {
+                        context.getString(R.string.saved_images_to_device, count)
+                    } else {
+                        context.getString(R.string.save_images_failed)
+                    }
+                    snackbarHostState.showSnackbar(message)
+                }
+            },
         )
     }
 
@@ -491,26 +487,6 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 sharingPages = false
                 selectedPages.clear()
                 ShareActions.sharePagesSeparatePdfs(activity, current, pages)
-            },
-        )
-    }
-
-    if (saving && current != null) {
-        SaveFormatSheet(
-            scan = current,
-            onDismiss = { saving = false },
-            onPdf = { saving = false; exportLauncher.launch("${current.title}.pdf") },
-            onImages = {
-                saving = false
-                scope.launch {
-                    val count = app.repository.saveImagesToDevice(current)
-                    val message = if (count > 0) {
-                        context.getString(R.string.saved_images_to_device, count)
-                    } else {
-                        context.getString(R.string.save_images_failed)
-                    }
-                    snackbarHostState.showSnackbar(message)
-                }
             },
         )
     }
