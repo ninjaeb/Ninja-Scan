@@ -253,15 +253,19 @@ object DriveBackup {
     /**
      * Checks whether this device already has a usable key, and if not,
      * whether a recovery key was already generated (on this or another
-     * device) by looking for [ENCRYPTION_FILE_NAME] in the backup folder.
+     * device) by looking for [ENCRYPTION_FILE_NAME] in the backup folder —
+     * across every same-named backup folder, since duplicates can exist
+     * from past sessions and the file may live in any of them.
      */
     suspend fun resolveKeyRequirement(context: Context, token: String): KeyRequirement =
         withContext(Dispatchers.IO) {
             if (hasLocalKey(context)) return@withContext KeyRequirement.Ready
             val drive = DriveRestClient(token)
-            val folderId = runCatching { drive.resolveFolder(context) }.getOrNull()
-                ?: return@withContext KeyRequirement.NeedsSetup
-            val exists = runCatching { drive.findFile(ENCRYPTION_FILE_NAME, folderId) }.getOrNull() != null
+            val exists = runCatching {
+                drive.findFolders(FOLDER_NAME).any { folderId ->
+                    drive.findFile(ENCRYPTION_FILE_NAME, folderId) != null
+                }
+            }.getOrDefault(false)
             if (exists) KeyRequirement.NeedsUnlock else KeyRequirement.NeedsSetup
         }
 
@@ -281,25 +285,35 @@ object DriveBackup {
      * Downloads the verifier another device already generated, checks
      * [recoveryCode] against it, and caches the key locally if it matches —
      * this is how a fresh install/new device unlocks an existing encrypted
-     * backup. Returns false for a wrong/malformed code; throws on a
+     * backup. Duplicate backup folders and verifier files can exist from
+     * past sessions (possibly for since-replaced keys), so every candidate
+     * is tried and the code is accepted if it matches any of them — the
+     * restore worker then decrypts whichever content this key actually
+     * fits. Returns false for a wrong/malformed code; throws on a
      * network/Drive failure.
      */
     suspend fun unlockWithRecoveryKey(context: Context, token: String, recoveryCode: String): Boolean =
         withContext(Dispatchers.IO) {
             val key = BackupCrypto.decodeRecoveryKey(recoveryCode) ?: return@withContext false
             val drive = DriveRestClient(token)
-            val folderId = drive.resolveFolder(context)
-            val fileId = drive.findFile(ENCRYPTION_FILE_NAME, folderId) ?: return@withContext false
-            val temp = File.createTempFile("ninja-scan-encryption", ".json", context.cacheDir)
-            try {
-                drive.downloadTo(fileId, temp)
-                val verifier = Base64.getDecoder().decode(JSONObject(temp.readText()).getString("verifier"))
-                if (!BackupCrypto.verifyKey(key, verifier)) return@withContext false
-                saveLocalKey(context, key)
-                true
-            } finally {
-                temp.delete()
+            val candidates = drive.findFolders(FOLDER_NAME)
+                .flatMap { folderId -> drive.findFiles(ENCRYPTION_FILE_NAME, folderId) }
+            for (fileId in candidates) {
+                val temp = File.createTempFile("ninja-scan-encryption", ".json", context.cacheDir)
+                try {
+                    drive.downloadTo(fileId, temp)
+                    val verifier = runCatching {
+                        Base64.getDecoder().decode(JSONObject(temp.readText()).getString("verifier"))
+                    }.getOrNull() ?: continue // corrupt candidate: try the next one
+                    if (BackupCrypto.verifyKey(key, verifier)) {
+                        saveLocalKey(context, key)
+                        return@withContext true
+                    }
+                } finally {
+                    temp.delete()
+                }
             }
+            false
         }
 
     /**

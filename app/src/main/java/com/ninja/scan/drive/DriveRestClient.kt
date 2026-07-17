@@ -34,7 +34,16 @@ internal class DriveRestClient(private val token: String) {
         }.getOrDefault(false)
 
     /** Finds a folder by name, optionally scoped to a [parentId]. */
-    fun findFolder(name: String, parentId: String? = null): String? {
+    fun findFolder(name: String, parentId: String? = null): String? =
+        findFolders(name, parentId).firstOrNull()
+
+    /**
+     * Every folder named [name] (optionally under [parentId]), newest
+     * first. Duplicates happen — e.g. a backup folder re-created during a
+     * transient lookup failure — and restore-side callers must consider
+     * all of them rather than betting on one arbitrary pick.
+     */
+    fun findFolders(name: String, parentId: String? = null): List<String> {
         val queryString = buildString {
             append("mimeType='application/vnd.google-apps.folder' and name='$name' and trashed=false")
             if (parentId != null) append(" and '$parentId' in parents")
@@ -44,8 +53,8 @@ internal class DriveRestClient(private val token: String) {
             "GET",
             "https://www.googleapis.com/drive/v3/files?q=$query&orderBy=modifiedTime+desc&fields=files(id)",
         )
-        val files = response.optJSONArray("files") ?: return null
-        return if (files.length() > 0) files.getJSONObject(0).getString("id") else null
+        val files = response.optJSONArray("files") ?: return emptyList()
+        return (0 until files.length()).map { files.getJSONObject(it).getString("id") }
     }
 
     /** Creates a folder, optionally nested inside a [parentId]. */

@@ -37,25 +37,33 @@ class DriveRestoreWorker(
         if (authResult.hasResolution() || token == null) return@withContext Result.failure()
 
         val drive = DriveRestClient(token)
-        val folderId = try {
-            drive.findFolder(DriveBackup.FOLDER_NAME)
+        // Duplicate "Ninja Scan" folders can exist from past sessions (a
+        // folder re-created during a transient lookup failure); restore
+        // reads across ALL of them so nothing is missed just because one
+        // arbitrary folder pick happened to be a stale one.
+        val folderIds = try {
+            drive.findFolders(DriveBackup.FOLDER_NAME)
         } catch (e: Exception) {
             return@withContext Result.retry()
-        } ?: return@withContext Result.success(workDataOf(KEY_SCANS to 0, KEY_CARDS to 0))
+        }
+        if (folderIds.isEmpty()) {
+            return@withContext Result.success(workDataOf(KEY_SCANS to 0, KEY_CARDS to 0))
+        }
 
         // Set up (or unlocked) from the UI before restore is ever enqueued;
         // null here just means every file turns out to be legacy plaintext
         // from before encryption existed, which still restores fine below.
         val localKey = DriveBackup.loadLocalKey(applicationContext)
 
-        // Duplicate manifests can exist in the folder (a past update-failed-
-        // so-create-a-new-one fallback, or copies encrypted with a since-
-        // replaced key) — try each candidate newest-first and keep the first
-        // one that actually decrypts and decodes, instead of giving up on
-        // cards/folders because one arbitrary pick happened to be stale.
+        // Duplicate manifests can exist (a past update-failed-so-create-a-
+        // new-one fallback, copies encrypted with a since-replaced key, or
+        // copies living in a duplicate backup folder) — try each candidate
+        // newest-first and keep the first one that actually decrypts and
+        // decodes, instead of giving up on cards/folders because one
+        // arbitrary pick happened to be stale.
         val manifest = try {
             var decoded: DriveManifest.Content? = null
-            for (manifestId in drive.findFiles(DriveManifest.FILE_NAME, folderId)) {
+            for (manifestId in folderIds.flatMap { drive.findFiles(DriveManifest.FILE_NAME, it) }) {
                 val temp = File.createTempFile("manifest", ".json", applicationContext.cacheDir)
                 try {
                     drive.downloadTo(manifestId, temp)
@@ -87,7 +95,7 @@ class DriveRestoreWorker(
         var restored = 0
         var failures = 0
         val children = try {
-            drive.listChildren(folderId)
+            folderIds.flatMap { drive.listChildren(it) }.distinctBy { it.id }
         } catch (e: Exception) {
             return@withContext Result.retry()
         }
