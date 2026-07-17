@@ -203,10 +203,10 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                         }
                     },
                     actions = {
-                        // Splices the two selected pages (a card's front and
-                        // back, scanned as separate pages) into one
-                        // ID-card-formatted page in their place — any other
-                        // pages of this document are kept untouched.
+                        // Combines the two selected pages (a card's front
+                        // and back, scanned as separate pages) into a new
+                        // ID-card document, created in this document's own
+                        // folder — this document itself stays untouched.
                         if (selectedPages.size == 2 && current != null) {
                             IconButton(
                                 onClick = {
@@ -220,11 +220,6 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                                 )
                                             }
                                             result.onSuccess { saved ->
-                                                // The PDF was rebuilt in place under the
-                                                // same document — refresh the viewer's
-                                                // state so it reflects the new single
-                                                // ID-card page instead of the old pages.
-                                                scan = saved
                                                 snackbarHostState.showSnackbar(
                                                     context.getString(
                                                         R.string.scan_saved,
