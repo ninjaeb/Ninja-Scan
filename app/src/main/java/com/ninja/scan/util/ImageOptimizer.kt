@@ -8,7 +8,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
-import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import java.io.File
 import java.io.FileOutputStream
@@ -58,33 +57,25 @@ object ImageOptimizer {
 
     /**
      * Builds an optimized multi-page PDF from the given page image URIs.
-     * Returns the number of pages written.
+     * Pages are embedded as JPEGs at [PAGE_JPEG_QUALITY] (see
+     * [JpegPdfWriter] for why that matters for file size). Returns the
+     * number of pages written.
      */
     fun writeOptimizedPdf(context: Context, pageUris: List<Uri>, target: File): Int {
-        val pdf = PdfDocument()
-        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-        var pageNumber = 0
-        try {
-            for (uri in pageUris) {
-                val bitmap = decodeBounded(context, uri, MAX_PAGE_DIMENSION_PX) ?: continue
-                pageNumber++
-                val pageInfo = PdfDocument.PageInfo
-                    .Builder(bitmap.width, bitmap.height, pageNumber)
-                    .create()
-                val page = pdf.startPage(pageInfo)
-                page.canvas.drawColor(Color.WHITE)
-                page.canvas.drawBitmap(bitmap, 0f, 0f, paint)
-                pdf.finishPage(page)
-                bitmap.recycle()
-            }
-            if (pageNumber > 0) {
-                FileOutputStream(target).use { pdf.writeTo(it) }
-            }
-        } finally {
-            pdf.close()
+        val writer = JpegPdfWriter(target)
+        for (uri in pageUris) {
+            val bitmap = decodeBounded(context, uri, MAX_PAGE_DIMENSION_PX) ?: continue
+            writer.addPage(toJpeg(bitmap, PAGE_JPEG_QUALITY), bitmap.width, bitmap.height)
+            bitmap.recycle()
         }
-        return pageNumber
+        return writer.finish()
     }
+
+    /** [bitmap] as JPEG bytes, the form [JpegPdfWriter] pages embed. */
+    internal fun toJpeg(bitmap: Bitmap, quality: Int = PAGE_JPEG_QUALITY): ByteArray =
+        java.io.ByteArrayOutputStream().also {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it)
+        }.toByteArray()
 
     /**
      * Builds a single-page A4 PDF with an ID card's front and back stacked on
@@ -96,20 +87,10 @@ object ImageOptimizer {
      */
     fun writeIdCardPdf(context: Context, frontUri: Uri, backUri: Uri?, target: File): Boolean {
         val page = compositeIdCardBitmap(context, frontUri, backUri) ?: return false
-        val pdf = PdfDocument()
-        try {
-            val pageInfo = PdfDocument.PageInfo
-                .Builder(page.width, page.height, 1)
-                .create()
-            val pdfPage = pdf.startPage(pageInfo)
-            pdfPage.canvas.drawBitmap(page, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
-            pdf.finishPage(pdfPage)
-            FileOutputStream(target).use { pdf.writeTo(it) }
-        } finally {
-            pdf.close()
-            page.recycle()
-        }
-        return true
+        val writer = JpegPdfWriter(target)
+        writer.addPage(toJpeg(page, PAGE_JPEG_QUALITY), page.width, page.height)
+        page.recycle()
+        return writer.finish() > 0
     }
 
     /**
