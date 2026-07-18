@@ -22,9 +22,16 @@ import java.io.FileOutputStream
 object ImageOptimizer {
 
     private const val MAX_PAGE_DIMENSION_PX = 2480
-    private const val PAGE_JPEG_QUALITY = 85
+    private const val PAGE_JPEG_QUALITY = 92
     private const val THUMBNAIL_DIMENSION_PX = 512
     private const val THUMBNAIL_JPEG_QUALITY = 80
+
+    // A business card's stored photo is not a mere list thumbnail like
+    // THUMBNAIL_* above — it's the sole persisted copy shown full-width in
+    // the card detail screen and the exact file backed up to (and restored
+    // from) Drive, so it gets its own, much higher, quality tier.
+    private const val CARD_PHOTO_DIMENSION_PX = 2000
+    private const val CARD_PHOTO_JPEG_QUALITY = 92
 
     // A4 at 300 DPI (2480x3508px) — the same "1 pixel = 1 PDF point" printable
     // page other PDFs here already use, just at a fixed size instead of one
@@ -185,6 +192,21 @@ object ImageOptimizer {
         val bitmap = decodeBounded(context, pageUri, THUMBNAIL_DIMENSION_PX) ?: return false
         FileOutputStream(target).use {
             bitmap.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_JPEG_QUALITY, it)
+        }
+        bitmap.recycle()
+        return true
+    }
+
+    /**
+     * Writes a business card's photo at [CARD_PHOTO_DIMENSION_PX] /
+     * [CARD_PHOTO_JPEG_QUALITY] — unlike [writeThumbnail], this is the only
+     * copy of the card ever kept, so it's sized to stay legible (fine print,
+     * small logos) in the full-width detail view and in the Drive backup.
+     */
+    fun writeCardPhoto(context: Context, imageUri: Uri, target: File): Boolean {
+        val bitmap = decodeBounded(context, imageUri, CARD_PHOTO_DIMENSION_PX) ?: return false
+        FileOutputStream(target).use {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, CARD_PHOTO_JPEG_QUALITY, it)
         }
         bitmap.recycle()
         return true

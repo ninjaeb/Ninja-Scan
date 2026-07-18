@@ -719,7 +719,7 @@ class ScanRepository(
         }
         val cardsDir = File(context.filesDir, "cards").apply { mkdirs() }
         val thumb = File(cardsDir, "card_${System.currentTimeMillis()}.jpg")
-        val hasThumb = ImageOptimizer.writeThumbnail(context, imageUri, thumb)
+        val hasThumb = ImageOptimizer.writeCardPhoto(context, imageUri, thumb)
         CardParser.parse(ocrLines).copy(
             createdAt = System.currentTimeMillis(),
             thumbnailPath = if (hasThumb) thumb.absolutePath else null,
