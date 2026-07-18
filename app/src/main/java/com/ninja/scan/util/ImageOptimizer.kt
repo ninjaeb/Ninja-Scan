@@ -33,9 +33,14 @@ object ImageOptimizer {
     // A business card's stored photo is not a mere list thumbnail like
     // THUMBNAIL_* above — it's the sole persisted copy shown full-width in
     // the card detail screen and the exact file backed up to (and restored
-    // from) Drive, so it gets its own, much higher, quality tier.
-    private const val CARD_PHOTO_DIMENSION_PX = 2000
-    private const val CARD_PHOTO_JPEG_QUALITY = 92
+    // from) Drive, so it gets its own tier, sharper than a list thumbnail
+    // but still balanced for backup size like PAGE_JPEG_QUALITY above. A
+    // card is a much smaller physical object than a document page — 1280px
+    // is already ~380 DPI across an ID-1 card's long edge, well past what's
+    // needed to read fine print, so there's no reason to size it as large
+    // as a full page just because the number is bigger.
+    private const val CARD_PHOTO_DIMENSION_PX = 1280
+    private const val CARD_PHOTO_JPEG_QUALITY = 85
 
     // A4 at 300 DPI (2480x3508px) — the same "1 pixel = 1 PDF point" printable
     // page other PDFs here already use, just at a fixed size instead of one
