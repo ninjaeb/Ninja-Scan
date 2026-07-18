@@ -22,7 +22,11 @@ import java.io.FileOutputStream
 object ImageOptimizer {
 
     private const val MAX_PAGE_DIMENSION_PX = 2480
-    private const val PAGE_JPEG_QUALITY = 92
+    // The one PDF backing a document is both the local viewing copy and,
+    // unmodified, the exact file uploaded to Drive backup — so this single
+    // value has to balance quality against upload/storage size for both,
+    // rather than favoring quality alone.
+    private const val PAGE_JPEG_QUALITY = 88
     private const val THUMBNAIL_DIMENSION_PX = 512
     private const val THUMBNAIL_JPEG_QUALITY = 80
 
