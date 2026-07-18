@@ -6,7 +6,7 @@ import org.json.JSONObject
 
 /**
  * The JSON library manifest stored alongside the PDFs in the Drive backup
- * folder. It carries everything a PDF file alone cannot: titles, folders,
+ * folder. It carries everything a PDF file alone cannot: titles, tags,
  * editable watermark text, OCR text, and the full business-card list — so a
  * restore after reinstall/data-clear rebuilds the library losslessly.
  */
@@ -20,7 +20,7 @@ internal object DriveManifest {
         val title: String,
         val createdAt: Long,
         val pageCount: Int,
-        val folder: String?,
+        val tagTitles: List<String> = emptyList(),
         val watermark: String?,
         /** True for legacy uploads that had the watermark baked into pages. */
         val watermarkBaked: Boolean,
@@ -36,19 +36,26 @@ internal object DriveManifest {
     data class Content(
         val scans: List<ScanEntry>,
         val cards: List<CardEntry>,
-        val folders: List<String>,
+        /** Business Cards' tag catalog. */
         val tags: List<TagEntry> = emptyList(),
-        /** Folder name -> chip color, so restored folders keep their look. */
-        val folderColors: Map<String, String> = emptyMap(),
+        /** Documents' tag catalog — a separate catalog from [tags]. */
+        val scanTags: List<TagEntry> = emptyList(),
+        /**
+         * When this manifest was written (epoch millis). Restore reads this
+         * back to pick the genuinely newest manifest across duplicate backup
+         * folders, instead of trusting Drive's file/folder listing order —
+         * see DriveRestoreWorker.
+         */
+        val updatedAt: Long = 0L,
     )
 
     /** Stable dedupe key for a card across backup/restore cycles. */
     fun cardKey(card: BusinessCard): String = "${card.createdAt}-${card.id}"
 
-    fun encode(content: Content, updatedAt: Long): ByteArray {
+    fun encode(content: Content): ByteArray {
         val root = JSONObject()
             .put("schemaVersion", SCHEMA_VERSION)
-            .put("updatedAt", updatedAt)
+            .put("updatedAt", content.updatedAt)
         val scans = JSONArray()
         for (entry in content.scans) {
             scans.put(
@@ -57,7 +64,7 @@ internal object DriveManifest {
                     .put("title", entry.title)
                     .put("createdAt", entry.createdAt)
                     .put("pageCount", entry.pageCount)
-                    .put("folder", entry.folder ?: JSONObject.NULL)
+                    .put("tagTitles", JSONArray(entry.tagTitles))
                     .put("watermark", entry.watermark ?: JSONObject.NULL)
                     .put("watermarkBaked", entry.watermarkBaked)
                     .put("ocrText", entry.ocrText)
@@ -85,26 +92,32 @@ internal object DriveManifest {
             )
         }
         root.put("cards", cards)
-        root.put("folders", JSONArray(content.folders))
-        // Kept separate from the legacy "folders" string array so manifests
-        // stay readable by app versions from before colors were carried.
-        root.put("folderColors", JSONObject(content.folderColors.toMap()))
-        val tags = JSONArray()
-        for (tag in content.tags) {
-            tags.put(
-                JSONObject()
-                    .put("title", tag.title)
-                    .put("description", tag.description)
-                    .put("color", tag.color)
-            )
+        fun tagsArray(entries: List<TagEntry>) = JSONArray().apply {
+            for (tag in entries) {
+                put(
+                    JSONObject()
+                        .put("title", tag.title)
+                        .put("description", tag.description)
+                        .put("color", tag.color)
+                )
+            }
         }
-        root.put("tags", tags)
+        root.put("tags", tagsArray(content.tags))
+        root.put("scanTags", tagsArray(content.scanTags))
         return root.toString().toByteArray(Charsets.UTF_8)
     }
 
     /** Parses manifest bytes; null when absent fields make it unusable. */
     fun decode(bytes: ByteArray): Content? = runCatching {
         val root = JSONObject(String(bytes, Charsets.UTF_8))
+        fun titlesArray(json: JSONObject, key: String): List<String> {
+            val titles = mutableListOf<String>()
+            val array = json.optJSONArray(key) ?: JSONArray()
+            for (i in 0 until array.length()) {
+                array.optString(i).takeIf { it.isNotEmpty() }?.let(titles::add)
+            }
+            return titles
+        }
         val scans = mutableListOf<ScanEntry>()
         val scansJson = root.optJSONArray("scans") ?: JSONArray()
         for (i in 0 until scansJson.length()) {
@@ -115,7 +128,7 @@ internal object DriveManifest {
                     title = scan.optString("title"),
                     createdAt = scan.optLong("createdAt"),
                     pageCount = scan.optInt("pageCount"),
-                    folder = scan.optStringOrNull("folder"),
+                    tagTitles = titlesArray(scan, "tagTitles"),
                     watermark = scan.optStringOrNull("watermark"),
                     watermarkBaked = scan.optBoolean("watermarkBaked", false),
                     ocrText = scan.optString("ocrText"),
@@ -127,11 +140,6 @@ internal object DriveManifest {
         val cardsJson = root.optJSONArray("cards") ?: JSONArray()
         for (i in 0 until cardsJson.length()) {
             val card = cardsJson.getJSONObject(i)
-            val tagTitles = mutableListOf<String>()
-            val tagTitlesJson = card.optJSONArray("tagTitles") ?: JSONArray()
-            for (t in 0 until tagTitlesJson.length()) {
-                tagTitlesJson.optString(t).takeIf { it.isNotEmpty() }?.let(tagTitles::add)
-            }
             cards.add(
                 CardEntry(
                     key = card.optString("key"),
@@ -147,32 +155,41 @@ internal object DriveManifest {
                         createdAt = card.optLong("createdAt"),
                         photoDriveFileId = card.optStringOrNull("photoDriveFileId"),
                     ),
-                    tagTitles = tagTitles,
+                    tagTitles = titlesArray(card, "tagTitles"),
                 )
             )
         }
-        val folders = mutableListOf<String>()
-        val foldersJson = root.optJSONArray("folders") ?: JSONArray()
-        for (i in 0 until foldersJson.length()) {
-            foldersJson.optString(i).takeIf { it.isNotEmpty() }?.let(folders::add)
-        }
-        val folderColors = mutableMapOf<String, String>()
-        root.optJSONObject("folderColors")?.let { colorsJson ->
-            for (name in colorsJson.keys()) {
-                colorsJson.optString(name).takeIf { it.isNotEmpty() }?.let { folderColors[name] = it }
+        fun tagsArray(key: String): List<TagEntry> {
+            val entries = mutableListOf<TagEntry>()
+            val array = root.optJSONArray(key) ?: JSONArray()
+            for (i in 0 until array.length()) {
+                val tag = array.getJSONObject(i)
+                val title = tag.optString("title")
+                if (title.isNotEmpty()) {
+                    entries.add(
+                        TagEntry(title = title, description = tag.optString("description"), color = tag.optString("color"))
+                    )
+                }
             }
+            return entries
         }
-        val tags = mutableListOf<TagEntry>()
-        val tagsJson = root.optJSONArray("tags") ?: JSONArray()
-        for (i in 0 until tagsJson.length()) {
-            val tag = tagsJson.getJSONObject(i)
-            val title = tag.optString("title")
-            if (title.isNotEmpty()) {
-                tags.add(TagEntry(title = title, description = tag.optString("description"), color = tag.optString("color")))
-            }
-        }
-        Content(scans, cards, folders, tags, folderColors)
+        Content(
+            scans, cards,
+            tags = tagsArray("tags"),
+            scanTags = tagsArray("scanTags"),
+            updatedAt = root.optLong("updatedAt", 0L),
+        )
     }.getOrNull()
+
+    /**
+     * Picks the manifest with the greatest [Content.updatedAt] among
+     * [candidates] (nulls — undecodable copies — are ignored). Restore uses
+     * this to pick the genuinely newest manifest across duplicate backup
+     * folders, instead of trusting whichever copy Drive's API happened to
+     * list first.
+     */
+    fun pickFreshest(candidates: List<Content?>): Content? =
+        candidates.filterNotNull().maxByOrNull { it.updatedAt }
 
     private fun JSONObject.optStringOrNull(key: String): String? =
         if (isNull(key)) null else optString(key).takeIf { it.isNotEmpty() }

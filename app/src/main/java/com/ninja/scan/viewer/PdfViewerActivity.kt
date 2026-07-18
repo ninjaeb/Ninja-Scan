@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.BrandingWatermark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
@@ -84,6 +85,7 @@ import com.ninja.scan.R
 import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.editor.PageEditorActivity
 import com.ninja.scan.ui.ActionGreen
+import com.ninja.scan.ui.DestructiveRed
 import com.ninja.scan.ui.EditAmber
 import com.ninja.scan.ui.FolderIndigo
 import com.ninja.scan.ui.HintPrefs
@@ -154,6 +156,7 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
     val selectedPages = remember { mutableStateListOf<Int>() }
     val pageSelectionActive = selectedPages.isNotEmpty()
     var sharingPages by remember { mutableStateOf(false) }
+    var confirmingPageDelete by remember { mutableStateOf(false) }
     BackHandler(enabled = pageSelectionActive) { selectedPages.clear() }
     var showLongPressHint by remember {
         mutableStateOf(!HintPrefs.isDismissed(context, HINT_KEY_PAGES))
@@ -203,10 +206,12 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                         }
                     },
                     actions = {
-                        // Combines the two selected pages (a card's front
-                        // and back, scanned as separate pages) into a new
-                        // ID-card document, created in this document's own
-                        // folder — this document itself stays untouched.
+                        // Composites the two selected pages (a card's front
+                        // and back, scanned as separate pages) into one
+                        // ID-card-formatted page, appended to this SAME
+                        // document — it grows by one page rather than
+                        // becoming a separate document; the two source
+                        // pages stay in place.
                         if (selectedPages.size == 2 && current != null) {
                             IconButton(
                                 onClick = {
@@ -215,15 +220,16 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                         selectedPages.clear()
                                         scope.launch {
                                             val result = runCatching {
-                                                app.repository.convertPagesToIdCard(
+                                                app.repository.appendIdCardPage(
                                                     doc, pages[0], pages[1],
                                                 )
                                             }
-                                            result.onSuccess { saved ->
+                                            result.onSuccess { updated ->
+                                                scan = updated
                                                 snackbarHostState.showSnackbar(
                                                     context.getString(
                                                         R.string.scan_saved,
-                                                        Formatter.formatShortFileSize(context, saved.sizeBytes),
+                                                        Formatter.formatShortFileSize(context, updated.sizeBytes),
                                                     )
                                                 )
                                             }.onFailure {
@@ -250,6 +256,21 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                                 Icons.Filled.Share,
                                 contentDescription = stringResource(R.string.share),
                                 tint = ShareBlue,
+                            )
+                        }
+                        // Deletes just the selected pages from this document
+                        // (see PageEditorActivity for the same precedent) —
+                        // disabled rather than hidden once every page is
+                        // selected, since a document can't be left empty.
+                        val canDeletePages = current != null && selectedPages.size < current.pageCount
+                        IconButton(
+                            onClick = { confirmingPageDelete = true },
+                            enabled = canDeletePages,
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = if (canDeletePages) DestructiveRed else LocalContentColor.current,
                             )
                         }
                     },
@@ -482,6 +503,42 @@ private fun PdfViewerScreen(scanId: Long, onBack: () -> Unit) {
                 sharingPages = false
                 selectedPages.clear()
                 ShareActions.sharePagesSeparatePdfs(activity, current, pages)
+            },
+        )
+    }
+
+    if (confirmingPageDelete && current != null) {
+        AlertDialog(
+            onDismissRequest = { confirmingPageDelete = false },
+            title = { Text(stringResource(R.string.delete_pages_dialog_title)) },
+            text = { Text(stringResource(R.string.delete_pages_dialog_body, selectedPages.size)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmingPageDelete = false
+                    val toRemove = selectedPages.toSet()
+                    selectedPages.clear()
+                    scope.launch {
+                        val remaining = (0 until current.pageCount)
+                            .filter { it !in toRemove }
+                            .map { EditPage.FromPdf(it) }
+                        val result = runCatching {
+                            app.repository.applyPageEdits(current.id, remaining, current.watermark)
+                        }
+                        result.onSuccess { scan = it }
+                            .onFailure { e ->
+                                snackbarHostState.showSnackbar(
+                                    context.getString(R.string.edit_failed, e.message ?: "unknown error")
+                                )
+                            }
+                    }
+                }) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingPageDelete = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             },
         )
     }

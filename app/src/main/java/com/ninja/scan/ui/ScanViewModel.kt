@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.ninja.scan.DocScannerApp
+import com.ninja.scan.data.DocumentTag
 import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.data.ScanRepository
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -44,54 +45,52 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
-    private val _folderFilter = MutableStateFlow<String?>(null)
-    val folderFilter: StateFlow<String?> = _folderFilter
+    private val _tagFilter = MutableStateFlow<Long?>(null)
+    val tagFilter: StateFlow<Long?> = _tagFilter
 
-    /** All folder names currently in use, for the filter chips and dialogs. */
-    val folders: StateFlow<List<String>> = repository.folders
+    /** All document tags currently in use, for the filter chips and dialogs. */
+    val documentTags: StateFlow<List<DocumentTag>> = repository.documentTags
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Folder name -> hex color, so folder chips can show a colored dot like tags. */
-    val folderColors: StateFlow<Map<String, String>> = repository.folderColors
+    /** scanId -> its tags, so rows and the filter can stay live. */
+    val scanTagsByScan: StateFlow<Map<Long, List<DocumentTag>>> = repository.scanTagsByScan
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    /** Library contents; narrowed by search text and the selected folder. */
-    val scans: StateFlow<List<ScanDocument>> = _searchQuery
-        .flatMapLatest { query ->
+    /** Library contents; narrowed by search text and the selected tag. */
+    val scans: StateFlow<List<ScanDocument>> = combine(
+        _searchQuery.flatMapLatest { query ->
             if (query.isBlank()) repository.scans else repository.search(query.trim())
-        }
-        .combine(_folderFilter) { list, folder ->
-            if (folder == null) list else list.filter { it.folder == folder }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        },
+        _tagFilter,
+        scanTagsByScan,
+    ) { list, tagId, tagsByScan ->
+        if (tagId == null) list else list.filter { scan -> tagsByScan[scan.id].orEmpty().any { it.id == tagId } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
     }
 
-    fun onFolderFilterChange(folder: String?) {
-        _folderFilter.value = folder
+    fun onTagFilterChange(tagId: Long?) {
+        _tagFilter.value = tagId
     }
 
-    fun moveToFolder(scan: ScanDocument, folder: String?) {
-        viewModelScope.launch { repository.moveToFolder(scan, folder) }
+    fun toggleScanTag(scan: ScanDocument, tag: DocumentTag, currentlyApplied: Boolean) {
+        viewModelScope.launch { repository.toggleScanTag(scan.id, tag.id, currentlyApplied) }
     }
 
-    fun addFolder(name: String) {
-        viewModelScope.launch { repository.addFolder(name) }
+    fun createDocumentTag(title: String, description: String, color: String) {
+        viewModelScope.launch { repository.createDocumentTag(title, description, color) }
     }
 
-    fun renameFolder(oldName: String, newName: String) {
+    fun updateDocumentTag(tag: DocumentTag) {
+        viewModelScope.launch { repository.updateDocumentTag(tag) }
+    }
+
+    fun deleteDocumentTag(tagId: Long) {
         viewModelScope.launch {
-            repository.renameFolder(oldName, newName)
-            if (_folderFilter.value == oldName) _folderFilter.value = newName.trim()
-        }
-    }
-
-    fun deleteFolder(name: String) {
-        viewModelScope.launch {
-            repository.deleteFolder(name)
-            if (_folderFilter.value == name) _folderFilter.value = null
+            repository.deleteDocumentTag(tagId)
+            if (_tagFilter.value == tagId) _tagFilter.value = null
         }
     }
 
@@ -177,11 +176,13 @@ class ScanViewModel(private val repository: ScanRepository) : ViewModel() {
         _justSaved.value = null
     }
 
-    fun confirmScanDetails(scan: ScanDocument, title: String, folder: String?) {
+    fun confirmScanDetails(scan: ScanDocument, title: String, tagIds: List<Long>) {
         _justSaved.value = null
         viewModelScope.launch {
             repository.rename(scan, title)
-            repository.moveToFolder(scan, folder)
+            // A freshly saved scan starts with zero tags, so every id here is
+            // a straight "add" — never a toggle-off.
+            for (tagId in tagIds) repository.toggleScanTag(scan.id, tagId, false)
         }
     }
 

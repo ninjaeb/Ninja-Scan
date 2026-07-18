@@ -9,10 +9,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
-        ScanDocument::class, BusinessCard::class, Folder::class,
+        ScanDocument::class, BusinessCard::class,
         Tag::class, CardTagCrossRef::class,
+        DocumentTag::class, ScanTagCrossRef::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = false,
 )
 abstract class ScanDatabase : RoomDatabase() {
@@ -21,9 +22,9 @@ abstract class ScanDatabase : RoomDatabase() {
 
     abstract fun cardDao(): BusinessCardDao
 
-    abstract fun folderDao(): FolderDao
-
     abstract fun tagDao(): TagDao
+
+    abstract fun scanTagDao(): ScanTagDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -225,6 +226,95 @@ abstract class ScanDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // No DEFAULT clause on `description`, matching MIGRATION_10_11's
+                // tags table — the DocumentTag entity declares no
+                // @ColumnInfo default, so Room's post-migration schema check
+                // expects none.
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `document_tags` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `description` TEXT NOT NULL, " +
+                        "`color` TEXT NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `scan_tag_cross_ref` (" +
+                        "`scanId` INTEGER NOT NULL, `tagId` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`scanId`, `tagId`))"
+                )
+
+                // Losslessly convert every distinct folder into an equivalent
+                // document tag (reusing the folder's name as the tag title
+                // and its color when it has one) and link every scan
+                // currently in that folder to it, so no organization is lost
+                // when the single-folder model is retired in favor of tags —
+                // same "seed the new relational model from existing data"
+                // approach MIGRATION_10_11 used for card tags.
+                val folderNameToTagId = HashMap<String, Long>()
+                var paletteIndex = 0
+                db.query("SELECT name, color FROM folders ORDER BY name").use { cursor ->
+                    val nameIndex = cursor.getColumnIndex("name")
+                    val colorIndex = cursor.getColumnIndex("color")
+                    while (cursor.moveToNext()) {
+                        val name = cursor.getString(nameIndex)
+                        val storedColor = cursor.getString(colorIndex)
+                        val color = storedColor?.takeIf { it.isNotEmpty() }
+                            ?: DEFAULT_TAG_PALETTE[paletteIndex % DEFAULT_TAG_PALETTE.size]
+                                .also { paletteIndex++ }
+                        db.execSQL(
+                            "INSERT INTO document_tags (title, description, color) VALUES (?, '', ?)",
+                            arrayOf(name, color)
+                        )
+                        db.query("SELECT last_insert_rowid()").use { idCursor ->
+                            idCursor.moveToFirst()
+                            folderNameToTagId[name] = idCursor.getLong(0)
+                        }
+                    }
+                }
+                db.query("SELECT id, folder FROM scans WHERE folder IS NOT NULL").use { cursor ->
+                    val idIndex = cursor.getColumnIndex("id")
+                    val folderIndex = cursor.getColumnIndex("folder")
+                    while (cursor.moveToNext()) {
+                        val scanId = cursor.getLong(idIndex)
+                        val folderName = cursor.getString(folderIndex)
+                        val tagId = folderNameToTagId[folderName] ?: continue
+                        db.execSQL(
+                            "INSERT OR IGNORE INTO scan_tag_cross_ref (scanId, tagId) VALUES (?, ?)",
+                            arrayOf(scanId, tagId)
+                        )
+                    }
+                }
+
+                // Rebuild scans without the now-migrated `folder` column: the
+                // ScanDocument entity no longer declares it, and leaving the
+                // physical column behind makes Room's startup schema check
+                // see an unexpected extra column on every upgrading install —
+                // same reasoning as MIGRATION_10_11's rebuild of
+                // business_cards for its `tags` column.
+                db.execSQL(
+                    "CREATE TABLE `scans_new` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                        "`pageCount` INTEGER NOT NULL, `pdfPath` TEXT NOT NULL, " +
+                        "`thumbnailPath` TEXT, `sizeBytes` INTEGER NOT NULL, " +
+                        "`ocrText` TEXT NOT NULL DEFAULT '', `driveFileId` TEXT, " +
+                        "`watermark` TEXT, `originalsDir` TEXT, " +
+                        "`isIdCard` INTEGER NOT NULL DEFAULT 0)"
+                )
+                db.execSQL(
+                    "INSERT INTO scans_new (id, title, createdAt, pageCount, pdfPath, " +
+                        "thumbnailPath, sizeBytes, ocrText, driveFileId, watermark, originalsDir, isIdCard) " +
+                        "SELECT id, title, createdAt, pageCount, pdfPath, thumbnailPath, sizeBytes, " +
+                        "ocrText, driveFileId, watermark, originalsDir, isIdCard FROM scans"
+                )
+                db.execSQL("DROP TABLE scans")
+                db.execSQL("ALTER TABLE scans_new RENAME TO scans")
+
+                db.execSQL("DROP TABLE IF EXISTS folders")
+            }
+        }
+
         @Volatile
         private var instance: ScanDatabase? = null
 
@@ -239,7 +329,7 @@ abstract class ScanDatabase : RoomDatabase() {
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                         MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                         MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
-                        MIGRATION_12_13,
+                        MIGRATION_12_13, MIGRATION_13_14,
                     )
                     .build()
                     .also { instance = it }

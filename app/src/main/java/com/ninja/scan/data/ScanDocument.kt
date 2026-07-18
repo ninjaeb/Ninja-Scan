@@ -20,8 +20,6 @@ data class ScanDocument(
     val ocrText: String = "",
     /** Google Drive file id once the PDF has been backed up, null otherwise. */
     val driveFileId: String? = null,
-    /** Optional folder name used to organize the library; null = unfiled. */
-    val folder: String? = null,
     /**
      * Optional watermark text. The stored PDF stays clean; the watermark is
      * stamped on the fly when the scan is viewed, shared, exported, or

@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
@@ -33,8 +34,8 @@ import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -75,7 +76,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -84,6 +84,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ninja.scan.R
+import com.ninja.scan.data.DocumentTag
 import com.ninja.scan.data.ScanDocument
 import com.ninja.scan.drive.DriveBackup
 import android.text.format.DateUtils
@@ -99,9 +100,9 @@ private const val HINT_KEY_DOCUMENTS = "documents"
 fun ScanListScreen(
     scans: List<ScanDocument>,
     searchQuery: String,
-    folders: List<String>,
-    folderColors: Map<String, String>,
-    folderFilter: String?,
+    documentTags: List<DocumentTag>,
+    tagFilter: Long?,
+    scanTagsByScan: Map<Long, List<DocumentTag>>,
     driveBackupEnabled: Boolean,
     justSaved: ScanDocument?,
     snackbarHostState: SnackbarHostState,
@@ -109,10 +110,10 @@ fun ScanListScreen(
     backupProgress: SyncProgress?,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
-    onConfirmScanDetails: (ScanDocument, String, String?) -> Unit,
+    onConfirmScanDetails: (ScanDocument, String, List<Long>) -> Unit,
     onDismissScanDetails: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
-    onFolderFilterChange: (String?) -> Unit,
+    onTagFilterChange: (Long?) -> Unit,
     onToggleDriveBackup: () -> Unit,
     onSetupRecoveryKey: () -> Unit,
     onOpenCards: () -> Unit,
@@ -133,36 +134,37 @@ fun ScanListScreen(
     onShareSeparatePdfsMulti: (List<ScanDocument>) -> Unit,
     onSaveToCloud: (ScanDocument) -> Unit,
     onRename: (ScanDocument, String) -> Unit,
-    onMoveToFolder: (ScanDocument, String?) -> Unit,
+    onToggleScanTag: (ScanDocument, DocumentTag, Boolean) -> Unit,
+    onCreateTag: (String, String, String) -> Unit,
+    onUpdateTag: (DocumentTag) -> Unit,
+    onDeleteTag: (Long) -> Unit,
     onDelete: (ScanDocument) -> Unit,
     onDeleteScans: (List<ScanDocument>) -> Unit,
-    onAddFolder: (String) -> Unit,
-    onRenameFolder: (String, String) -> Unit,
-    onDeleteFolder: (String) -> Unit,
     onRestoreFromDrive: () -> Unit,
     onBackupNowDrive: () -> Unit,
 ) {
+    // Tag management (create/edit/delete, shared by the filter row's
+    // long-press menu and each row's "Manage tags" dropdown).
+    var creatingTag by remember { mutableStateOf(false) }
+    var editingTag by remember { mutableStateOf<DocumentTag?>(null) }
+    var deletingTag by remember { mutableStateOf<DocumentTag?>(null) }
+
     justSaved?.let { scan ->
         SaveDetailsDialog(
             scan = scan,
-            folders = folders,
-            folderColors = folderColors,
-            onConfirm = { title, folder -> onConfirmScanDetails(scan, title, folder) },
+            documentTags = documentTags,
+            onConfirm = { title, tagIds -> onConfirmScanDetails(scan, title, tagIds) },
             onDismiss = onDismissScanDetails,
+            onRequestCreateTag = { creatingTag = true },
         )
     }
 
     // Row-menu actions drive the share-format sheet and these dialogs.
     var sharingScan by remember { mutableStateOf<ScanDocument?>(null) }
     var renamingScan by remember { mutableStateOf<ScanDocument?>(null) }
-    var movingScan by remember { mutableStateOf<ScanDocument?>(null) }
     var deletingScan by remember { mutableStateOf<ScanDocument?>(null) }
 
-    // Folder management (add chip + long-press menu on a folder chip).
-    var addingFolder by remember { mutableStateOf(false) }
-    var folderMenuFor by remember { mutableStateOf<String?>(null) }
-    var renamingFolder by remember { mutableStateOf<String?>(null) }
-    var deletingFolder by remember { mutableStateOf<String?>(null) }
+    var tagFilterMenuFor by remember { mutableStateOf<Long?>(null) }
     var driveMenuOpen by remember { mutableStateOf(false) }
 
     // Long-press a row to pick several scans and share them together.
@@ -305,7 +307,7 @@ fun ScanListScreen(
                     stringResource(R.string.drive_backup_started), backupProgress
                 )
             }
-            if (scans.isNotEmpty() || searching || folderFilter != null) {
+            if (scans.isNotEmpty() || searching || tagFilter != null) {
                 SearchField(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange,
@@ -323,7 +325,7 @@ fun ScanListScreen(
                     },
                 )
             }
-            if (scans.isNotEmpty() || folders.isNotEmpty() || folderFilter != null) {
+            if (scans.isNotEmpty() || documentTags.isNotEmpty() || tagFilter != null) {
                 LazyRow(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                         horizontal = 16.dp
@@ -332,43 +334,41 @@ fun ScanListScreen(
                 ) {
                     item {
                         FilterChip(
-                            selected = folderFilter == null,
-                            onClick = { onFolderFilterChange(null) },
+                            selected = tagFilter == null,
+                            onClick = { onTagFilterChange(null) },
                             label = { Text(stringResource(R.string.all_scans)) },
                         )
                     }
-                    items(folders) { folder ->
-                        // Long-press a folder chip for rename/delete.
+                    items(documentTags, key = { it.id }) { tag ->
+                        // Long-press a tag chip for rename/delete.
                         Box {
                             LongPressableChip(
-                                label = folder,
-                                selected = folderFilter == folder,
-                                leadingDot = folderColors[folder]?.let(::hexToColor),
+                                label = tag.title,
+                                selected = tagFilter == tag.id,
+                                leadingDot = hexToColor(tag.color),
                                 onClick = {
-                                    onFolderFilterChange(
-                                        if (folderFilter == folder) null else folder
-                                    )
+                                    onTagFilterChange(if (tagFilter == tag.id) null else tag.id)
                                 },
-                                onLongClick = { folderMenuFor = folder },
+                                onLongClick = { tagFilterMenuFor = tag.id },
                             )
                             DropdownMenu(
-                                expanded = folderMenuFor == folder,
-                                onDismissRequest = { folderMenuFor = null },
+                                expanded = tagFilterMenuFor == tag.id,
+                                onDismissRequest = { tagFilterMenuFor = null },
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.rename_folder)) },
-                                    onClick = { folderMenuFor = null; renamingFolder = folder },
+                                    text = { Text(stringResource(R.string.edit_tag)) },
+                                    onClick = { tagFilterMenuFor = null; editingTag = tag },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.delete_folder)) },
-                                    onClick = { folderMenuFor = null; deletingFolder = folder },
+                                    text = { Text(stringResource(R.string.delete_tag)) },
+                                    onClick = { tagFilterMenuFor = null; deletingTag = tag },
                                 )
                             }
                         }
                     }
                     item {
                         AssistChip(
-                            onClick = { addingFolder = true },
+                            onClick = { creatingTag = true },
                             leadingIcon = {
                                 Icon(
                                     Icons.Filled.Add,
@@ -376,7 +376,7 @@ fun ScanListScreen(
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
-                            label = { Text(stringResource(R.string.add_folder)) },
+                            label = { Text(stringResource(R.string.create_tag)) },
                         )
                     }
                 }
@@ -405,7 +405,8 @@ fun ScanListScreen(
                     items(scans, key = { it.id }) { scan ->
                         ScanRow(
                             scan = scan,
-                            folderColors = folderColors,
+                            tags = scanTagsByScan[scan.id].orEmpty(),
+                            documentTags = documentTags,
                             selectionMode = selectionActive,
                             selected = scan.id in selectedIds,
                             onClick = { onOpen(scan) },
@@ -417,7 +418,8 @@ fun ScanListScreen(
                             onRename = { renamingScan = scan },
                             onDelete = { deletingScan = scan },
                             onSaveToCloud = { onSaveToCloud(scan) },
-                            onMoveToFolder = { movingScan = scan },
+                            onToggleTag = { tag, applied -> onToggleScanTag(scan, tag, applied) },
+                            onRequestCreateTag = { creatingTag = true },
                         )
                     }
                 }
@@ -479,62 +481,6 @@ fun ScanListScreen(
         )
     }
 
-    movingScan?.let { scan ->
-        var newFolder by remember(scan.id) { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { movingScan = null },
-            title = { Text(stringResource(R.string.move_to_folder)) },
-            text = {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        folders.forEach { folder ->
-                            LongPressableChip(
-                                label = folder,
-                                selected = folder == scan.folder,
-                                leadingDot = folderColors[folder]?.let(::hexToColor),
-                                onClick = { movingScan = null; onMoveToFolder(scan, folder) },
-                            )
-                        }
-                    }
-                    if (scan.folder != null) {
-                        TextButton(
-                            onClick = { movingScan = null; onMoveToFolder(scan, null) },
-                        ) {
-                            Text(stringResource(R.string.remove_from_folder))
-                        }
-                    }
-                    OutlinedTextField(
-                        value = newFolder,
-                        onValueChange = { newFolder = it },
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.new_folder_hint)) },
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        movingScan = null
-                        onMoveToFolder(scan, newFolder.trim())
-                    },
-                    enabled = newFolder.isNotBlank(),
-                ) {
-                    Text(stringResource(R.string.move))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { movingScan = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
     deletingScan?.let { scan ->
         AlertDialog(
             onDismissRequest = { deletingScan = null },
@@ -575,93 +521,43 @@ fun ScanListScreen(
         )
     }
 
-    if (addingFolder) {
-        var name by remember { mutableStateOf("") }
-        val focusRequester = remember { FocusRequester() }
-        AlertDialog(
-            onDismissRequest = { addingFolder = false },
-            title = { Text(stringResource(R.string.add_folder)) },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.new_folder_hint)) },
-                    modifier = Modifier.focusRequester(focusRequester),
-                )
-                LaunchedEffect(Unit) { focusRequester.requestFocus() }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { addingFolder = false; onAddFolder(name.trim()) },
-                    enabled = name.isNotBlank(),
-                ) {
-                    Text(stringResource(R.string.save))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { addingFolder = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
+    if (creatingTag) {
+        TagEditorDialog(
+            isNew = true,
+            onDismiss = { creatingTag = false },
+            onSave = { title, description, color ->
+                creatingTag = false
+                onCreateTag(title, description, color)
             },
         )
     }
 
-    renamingFolder?.let { folder ->
-        var name by remember(folder) { mutableStateOf(folder) }
-        val trimmed = name.trim()
-        val collides = trimmed != folder && folders.contains(trimmed)
-        val focusRequester = remember { FocusRequester() }
-        AlertDialog(
-            onDismissRequest = { renamingFolder = null },
-            title = { Text(stringResource(R.string.rename_folder)) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        singleLine = true,
-                        modifier = Modifier.focusRequester(focusRequester),
-                    )
-                    LaunchedEffect(Unit) { focusRequester.requestFocus() }
-                    if (collides) {
-                        Text(
-                            stringResource(R.string.folder_merge_warning),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { renamingFolder = null; onRenameFolder(folder, trimmed) },
-                    enabled = trimmed.isNotEmpty() && trimmed != folder,
-                ) {
-                    Text(stringResource(R.string.rename))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { renamingFolder = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
+    editingTag?.let { tag ->
+        TagEditorDialog(
+            existingTitle = tag.title,
+            existingDescription = tag.description,
+            existingColor = tag.color,
+            isNew = false,
+            onDismiss = { editingTag = null },
+            onSave = { title, description, color ->
+                editingTag = null
+                onUpdateTag(tag.copy(title = title, description = description, color = color))
             },
         )
     }
 
-    deletingFolder?.let { folder ->
+    deletingTag?.let { tag ->
         AlertDialog(
-            onDismissRequest = { deletingFolder = null },
-            title = { Text(stringResource(R.string.delete_folder_title)) },
-            text = { Text(stringResource(R.string.delete_folder_body, folder)) },
+            onDismissRequest = { deletingTag = null },
+            title = { Text(stringResource(R.string.delete_tag_title)) },
+            text = { Text(stringResource(R.string.delete_scan_tag_body, tag.title)) },
             confirmButton = {
-                TextButton(onClick = { deletingFolder = null; onDeleteFolder(folder) }) {
+                TextButton(onClick = { deletingTag = null; onDeleteTag(tag.id) }) {
                     Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deletingFolder = null }) {
+                TextButton(onClick = { deletingTag = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
@@ -687,20 +583,20 @@ fun ScanListScreen(
 }
 
 
-/** Shown right after a scan is saved: set the name and pick a folder. */
+/** Shown right after a scan is saved: set the name and pick tags. */
 @Composable
 private fun SaveDetailsDialog(
     scan: ScanDocument,
-    folders: List<String>,
-    folderColors: Map<String, String>,
-    onConfirm: (title: String, folder: String?) -> Unit,
+    documentTags: List<DocumentTag>,
+    onConfirm: (title: String, tagIds: List<Long>) -> Unit,
     onDismiss: () -> Unit,
+    onRequestCreateTag: () -> Unit,
 ) {
     var titleField by remember(scan.id) {
         mutableStateOf(TextFieldValue(scan.title, selection = TextRange(0, scan.title.length)))
     }
-    var selectedFolder by remember(scan.id) { mutableStateOf(scan.folder) }
-    var newFolder by remember(scan.id) { mutableStateOf("") }
+    // A freshly saved scan starts with no tags, so this only ever grows.
+    var selectedTagIds by remember(scan.id) { mutableStateOf<Set<Long>>(emptySet()) }
     val nameFocusRequester = remember { FocusRequester() }
 
     AlertDialog(
@@ -716,43 +612,44 @@ private fun SaveDetailsDialog(
                     modifier = Modifier.focusRequester(nameFocusRequester),
                 )
                 LaunchedEffect(Unit) { nameFocusRequester.requestFocus() }
-                if (folders.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.save_details_folder),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        folders.forEach { folder ->
-                            LongPressableChip(
-                                label = folder,
-                                selected = folder == selectedFolder,
-                                leadingDot = folderColors[folder]?.let(::hexToColor),
-                                onClick = {
-                                    selectedFolder = if (selectedFolder == folder) null else folder
-                                    newFolder = ""
-                                },
-                            )
-                        }
-                    }
-                }
-                OutlinedTextField(
-                    value = newFolder,
-                    onValueChange = { newFolder = it; if (it.isNotBlank()) selectedFolder = null },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.new_folder_hint)) },
-                    modifier = Modifier.padding(top = 8.dp),
+                Text(
+                    stringResource(R.string.save_details_tags),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
                 )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    documentTags.forEach { tag ->
+                        LongPressableChip(
+                            label = tag.title,
+                            selected = tag.id in selectedTagIds,
+                            leadingDot = hexToColor(tag.color),
+                            onClick = {
+                                selectedTagIds = if (tag.id in selectedTagIds) {
+                                    selectedTagIds - tag.id
+                                } else {
+                                    selectedTagIds + tag.id
+                                }
+                            },
+                        )
+                    }
+                    AssistChip(
+                        onClick = onRequestCreateTag,
+                        leadingIcon = {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        label = { Text(stringResource(R.string.create_tag)) },
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onConfirm(titleField.text, newFolder.trim().ifEmpty { selectedFolder })
+                onConfirm(titleField.text, selectedTagIds.toList())
             }) {
                 Text(stringResource(R.string.save))
             }
@@ -825,7 +722,8 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 @Composable
 private fun ScanRow(
     scan: ScanDocument,
-    folderColors: Map<String, String>,
+    tags: List<DocumentTag>,
+    documentTags: List<DocumentTag>,
     selectionMode: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
@@ -834,10 +732,12 @@ private fun ScanRow(
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onSaveToCloud: () -> Unit,
-    onMoveToFolder: () -> Unit,
+    onToggleTag: (DocumentTag, Boolean) -> Unit,
+    onRequestCreateTag: () -> Unit,
 ) {
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
+    var tagMenuOpen by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -904,24 +804,27 @@ private fun ScanRow(
                         )
                     }
                 }
-                scan.folder?.let { folder ->
+                if (tags.isNotEmpty()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(top = 4.dp),
                     ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(folderColors[folder]?.let(::hexToColor) ?: Color.Gray)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            folder,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
+                        tags.take(3).forEachIndexed { index, tag ->
+                            if (index > 0) Spacer(Modifier.width(8.dp))
+                            Box(
+                                Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(hexToColor(tag.color))
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                tag.title,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
                     }
                 }
             }
@@ -957,9 +860,36 @@ private fun ScanRow(
                         onClick = { menuOpen = false; onSaveToCloud() },
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.move_to_folder)) },
-                        leadingIcon = { Icon(Icons.Filled.Folder, contentDescription = null, tint = FolderIndigo) },
-                        onClick = { menuOpen = false; onMoveToFolder() },
+                        text = { Text(stringResource(R.string.manage_tags)) },
+                        leadingIcon = { Icon(Icons.Filled.Label, contentDescription = null, tint = FolderIndigo) },
+                        onClick = { menuOpen = false; tagMenuOpen = true },
+                    )
+                }
+                DropdownMenu(expanded = tagMenuOpen, onDismissRequest = { tagMenuOpen = false }) {
+                    documentTags.forEach { tag ->
+                        val applied = tags.any { it.id == tag.id }
+                        DropdownMenuItem(
+                            text = { Text(tag.title) },
+                            leadingIcon = {
+                                Box(
+                                    Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(hexToColor(tag.color))
+                                )
+                            },
+                            trailingIcon = {
+                                if (applied) {
+                                    Icon(Icons.Filled.Check, contentDescription = null)
+                                }
+                            },
+                            onClick = { onToggleTag(tag, applied) },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.create_tag)) },
+                        leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = ActionGreen) },
+                        onClick = { tagMenuOpen = false; onRequestCreateTag() },
                     )
                 }
             }

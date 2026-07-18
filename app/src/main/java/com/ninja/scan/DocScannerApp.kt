@@ -14,7 +14,7 @@ class DocScannerApp : Application(), Application.ActivityLifecycleCallbacks {
     val repository: ScanRepository by lazy {
         val database = ScanDatabase.get(this)
         ScanRepository(
-            this, database.scanDao(), database.cardDao(), database.folderDao(), database.tagDao(),
+            this, database.scanDao(), database.cardDao(), database.tagDao(), database.scanTagDao(),
         )
     }
 

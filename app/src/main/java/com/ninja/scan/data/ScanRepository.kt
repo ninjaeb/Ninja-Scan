@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.ninja.scan.drive.BackupCrypto
 import com.ninja.scan.drive.DriveBackup
@@ -40,11 +41,12 @@ class ScanRepository(
     private val context: Context,
     private val dao: ScanDao,
     private val cardDao: BusinessCardDao,
-    private val folderDao: FolderDao,
     private val tagDao: TagDao,
+    private val scanTagDao: ScanTagDao,
 ) {
 
     private companion object {
+        const val TAG = "ScanRepository"
         const val OCR_RENDER_DIMENSION_PX = 1600
         const val ORIGINAL_MAX_DIMENSION_PX = 4096
         const val ORIGINAL_JPEG_QUALITY = 92
@@ -119,6 +121,8 @@ class ScanRepository(
         file: DriveFile,
         entry: DriveManifest.ScanEntry?,
         localKey: ByteArray?,
+        catalogTags: List<DriveManifest.TagEntry> = emptyList(),
+        tagCache: MutableMap<String, DocumentTag> = mutableMapOf(),
     ): Boolean = withContext(Dispatchers.IO) {
         // Deterministic name: a retried restore simply overwrites a partial
         // download instead of duplicating it.
@@ -148,40 +152,75 @@ class ScanRepository(
             ocrText = entry?.ocrText?.takeIf { it.isNotBlank() }
                 ?: recognizeTextFromPdf(pdf),
             driveFileId = file.id,
-            folder = entry?.folder,
             watermark = if (entry?.watermarkBaked == true) null else entry?.watermark,
             originalsDir = null,
             isIdCard = entry?.isIdCard ?: false,
         )
-        dao.insert(scan)
+        val newId = dao.insert(scan)
+        for (title in entry?.tagTitles.orEmpty()) {
+            val tag = resolveScanTag(title, catalogTags, tagCache)
+            scanTagDao.addScanTag(ScanTagCrossRef(newId, tag.id))
+        }
         true
     }
 
     /**
      * Re-applies manifest metadata to an already-restored scan whose earlier
      * restore may have run without a readable manifest, losing the fields
-     * only the manifest carries (folder assignment, ID-card flag, watermark)
-     * to fallbacks. Fill-only: it never overwrites a value the user may have
-     * since set locally, so re-running restore can heal but not clobber.
+     * only the manifest carries (tags, ID-card flag, watermark) to fallbacks.
+     * Fill-only: it never overwrites a value the user may have since set
+     * locally, so re-running restore can heal but not clobber.
      */
     internal suspend fun adoptManifestMetadata(
         driveFileId: String,
         entry: DriveManifest.ScanEntry,
+        catalogTags: List<DriveManifest.TagEntry> = emptyList(),
+        tagCache: MutableMap<String, DocumentTag> = mutableMapOf(),
     ) = withContext(Dispatchers.IO) {
         val scan = dao.getByDriveFileId(driveFileId) ?: return@withContext
         val updated = scan.copy(
-            folder = scan.folder ?: entry.folder?.takeIf { it.isNotBlank() },
             isIdCard = scan.isIdCard || entry.isIdCard,
             watermark = scan.watermark
                 ?: entry.watermark.takeIf { !entry.watermarkBaked },
         )
         if (updated != scan) dao.update(updated)
+        // Fill-only, mirroring the scalar fields above: only seed tags from
+        // the manifest if this scan doesn't have any locally yet.
+        if (scanTagDao.getTagsForScan(scan.id).isEmpty()) {
+            for (title in entry.tagTitles) {
+                val tag = resolveScanTag(title, catalogTags, tagCache)
+                scanTagDao.addScanTag(ScanTagCrossRef(scan.id, tag.id))
+            }
+        }
     }
+
+    /** Downloads and decrypts (if needed) a card photo by Drive file id into [cardsDir]; null on any failure. */
+    private fun downloadCardPhoto(
+        drive: DriveRestClient,
+        fileId: String,
+        cardsDir: File,
+        localKey: ByteArray?,
+    ): String? = runCatching {
+        val target = File(cardsDir, "restored_$fileId.jpg")
+        drive.downloadTo(fileId, target)
+        if (BackupCrypto.fileIsEncrypted(target)) {
+            val photoKey = localKey ?: error("photo is encrypted but no backup key is set up")
+            val decrypted = File(cardsDir, "restored_$fileId.decrypting.jpg")
+            BackupCrypto.decryptFile(target, decrypted, photoKey)
+            decrypted.copyTo(target, overwrite = true)
+            decrypted.delete()
+        }
+        target.absolutePath
+    }.getOrNull() // download/decrypt failure: skip the photo, keep the card record
 
     /**
      * Inserts manifest cards not already in the library, downloading each
-     * card's backed-up photo (if any) alongside its text fields. Returns the
-     * count of cards restored.
+     * card's backed-up photo (if any) alongside its text fields. A manifest
+     * entry that matches an existing local card missing its photo (e.g. a
+     * prior restore's photo download/decrypt failed) is healed in place
+     * instead of skipped — mirrors adoptManifestMetadata's fill-only healing
+     * for scans, which cards never had before. Returns the count of cards
+     * newly inserted.
      */
     internal suspend fun restoreCards(
         drive: DriveRestClient,
@@ -189,9 +228,8 @@ class ScanRepository(
         catalogTags: List<DriveManifest.TagEntry> = emptyList(),
         localKey: ByteArray? = null,
     ): Int = withContext(Dispatchers.IO) {
-        val existing = cardDao.getAll()
-            .map { listOf(it.name, it.phone, it.email, it.createdAt.toString()) }
-            .toSet()
+        val existingByKey = cardDao.getAll()
+            .associateBy { listOf(it.name, it.phone, it.email, it.createdAt.toString()) }
         val cardsDir = File(context.filesDir, "cards").apply { mkdirs() }
         // Local color wins: the catalog only seeds a tag when no local tag with
         // that title (case-insensitively) exists yet.
@@ -215,24 +253,25 @@ class ScanRepository(
         for (entry in entries) {
             val card = entry.card
             val key = listOf(card.name, card.phone, card.email, card.createdAt.toString())
-            if (key in existing) continue
+            val existingCard = existingByKey[key]
+            if (existingCard != null) {
+                if (existingCard.thumbnailPath == null && card.photoDriveFileId != null) {
+                    runCatching {
+                        downloadCardPhoto(drive, card.photoDriveFileId, cardsDir, localKey)?.let { path ->
+                            cardDao.update(
+                                existingCard.copy(thumbnailPath = path, photoDriveFileId = card.photoDriveFileId)
+                            )
+                        }
+                    }.onFailure { Log.w(TAG, "Photo heal failed for card key $key", it) }
+                }
+                continue
+            }
             // One bad entry (a stray insert/tag-linking failure) must not
             // abort every remaining card — each is restored independently,
             // mirroring how the scan-restore loop isolates per-file failures.
             try {
                 val thumbnailPath = card.photoDriveFileId?.let { fileId ->
-                    runCatching {
-                        val target = File(cardsDir, "restored_$fileId.jpg")
-                        drive.downloadTo(fileId, target)
-                        if (BackupCrypto.fileIsEncrypted(target)) {
-                            val photoKey = localKey ?: error("photo is encrypted but no backup key is set up")
-                            val decrypted = File(cardsDir, "restored_$fileId.decrypting.jpg")
-                            BackupCrypto.decryptFile(target, decrypted, photoKey)
-                            decrypted.copyTo(target, overwrite = true)
-                            decrypted.delete()
-                        }
-                        target.absolutePath
-                    }.getOrNull() // download/decrypt failure: skip the photo, keep the card record
+                    downloadCardPhoto(drive, fileId, cardsDir, localKey)
                 }
                 val newId = cardDao.insert(card.copy(id = 0, thumbnailPath = thumbnailPath))
                 for (tagTitle in entry.tagTitles) {
@@ -241,7 +280,7 @@ class ScanRepository(
                 }
                 restored++
             } catch (e: Exception) {
-                // Skip this card; the rest of the restore continues.
+                Log.w(TAG, "Card restore failed for key $key", e)
             }
         }
         restored
@@ -249,53 +288,68 @@ class ScanRepository(
 
     suspend fun getScan(id: Long): ScanDocument? = dao.getById(id)
 
-    val folders: Flow<List<String>> = folderDao.observeAll()
+    val documentTags: Flow<List<DocumentTag>> = scanTagDao.observeAll()
 
-    /** Folder name -> hex color, so folder chips can match the tag chip look. */
-    val folderColors: Flow<Map<String, String>> =
-        folderDao.observeAllDetailed().map { list -> list.associate { it.name to it.color } }
+    suspend fun getDocumentTags(): List<DocumentTag> = scanTagDao.getAll()
 
-    suspend fun moveToFolder(scan: ScanDocument, folder: String?) {
-        val cleaned = folder?.trim()?.takeIf { it.isNotEmpty() }
-        // Folders typed into the move/save dialogs become real folder rows.
-        cleaned?.let { folderDao.insertNamed(it) }
-        dao.setFolder(scan.id, cleaned)
+    suspend fun createDocumentTag(title: String, description: String, color: String): DocumentTag {
+        val id = scanTagDao.insert(
+            DocumentTag(title = title.trim(), description = description.trim(), color = color)
+        )
+        enqueueBackupIfEnabled()
+        return DocumentTag(id, title.trim(), description.trim(), color)
+    }
+
+    suspend fun updateDocumentTag(tag: DocumentTag) {
+        scanTagDao.update(tag)
         enqueueBackupIfEnabled()
     }
 
-    suspend fun addFolder(name: String) {
-        name.trim().takeIf { it.isNotEmpty() }?.let {
-            folderDao.insertNamed(it)
-            enqueueBackupIfEnabled()
-        }
-    }
-
-    suspend fun renameFolder(oldName: String, newName: String) {
-        val cleaned = newName.trim()
-        if (cleaned.isEmpty() || cleaned == oldName) return
-        folderDao.rename(oldName, cleaned)
+    suspend fun deleteDocumentTag(tagId: Long) {
+        scanTagDao.delete(tagId)
         enqueueBackupIfEnabled()
     }
 
-    suspend fun deleteFolder(name: String) {
-        folderDao.delete(name)
+    suspend fun getScanTags(scanId: Long): List<DocumentTag> = scanTagDao.getTagsForScan(scanId)
+
+    /** Matches Cards' "+ Tag" tap-to-toggle UX directly. */
+    suspend fun toggleScanTag(scanId: Long, tagId: Long, currentlyApplied: Boolean) {
+        if (currentlyApplied) scanTagDao.removeScanTag(scanId, tagId)
+        else scanTagDao.addScanTag(ScanTagCrossRef(scanId, tagId))
         enqueueBackupIfEnabled()
     }
 
-    suspend fun getFolderNames(): List<String> = folderDao.getAll()
-
-    suspend fun getFoldersDetailed(): List<Folder> = folderDao.getAllDetailed()
+    /** Reactive scanId -> tags map, so the Documents list's tag filter/chips stay live. */
+    val scanTagsByScan: Flow<Map<Long, List<DocumentTag>>> = scanTagDao.observeAllScanTagRows()
+        .map { rows -> rows.groupBy({ it.scanId }, { DocumentTag(it.tagId, it.title, "", it.color) }) }
 
     /**
-     * Restore-side folder insert: recreates a folder with its backed-up chip
-     * [color] when the manifest carries one (older manifests don't), instead
-     * of re-assigning colors by insertion order. A no-op for a folder that
-     * already exists locally — the local color wins, same as tag restore.
+     * Resolve-or-create a document tag by title, seeding color/description
+     * from the manifest catalog entry when it's new — mirrors restoreCards'
+     * resolveTag, but against the separate document-tag catalog. [cache] is
+     * shared across every scan restored in one run so the same title only
+     * gets looked up/created once, lazily seeded from the DB on first use.
      */
-    suspend fun restoreFolder(name: String, color: String?) {
-        val cleaned = name.trim().takeIf { it.isNotEmpty() } ?: return
-        if (color != null) folderDao.insert(Folder(cleaned, color))
-        else folderDao.insertNamed(cleaned)
+    private suspend fun resolveScanTag(
+        title: String,
+        catalogTags: List<DriveManifest.TagEntry>,
+        cache: MutableMap<String, DocumentTag>,
+    ): DocumentTag {
+        if (cache.isEmpty()) {
+            scanTagDao.getAll().forEach { cache[it.title.lowercase()] = it }
+        }
+        cache[title.lowercase()]?.let { return it }
+        val catalogEntry = catalogTags.find { it.title.equals(title, ignoreCase = true) }
+        val id = scanTagDao.insert(
+            DocumentTag(
+                title = title,
+                description = catalogEntry?.description.orEmpty(),
+                color = catalogEntry?.color ?: "#9E9E9E",
+            )
+        )
+        val tag = DocumentTag(id, title, catalogEntry?.description.orEmpty(), catalogEntry?.color ?: "#9E9E9E")
+        cache[title.lowercase()] = tag
+        return tag
     }
 
     private fun enqueueBackupIfEnabled() {
@@ -878,57 +932,41 @@ class ScanRepository(
         }
 
     /**
-     * Builds a brand-new ID card document from two pages of an existing
-     * scan (a card's front and back, scanned as separate pages) — front on
-     * top, back below, each at true card size — placed in the same folder
-     * as the source document. The source document itself is left completely
-     * untouched.
+     * Composites [frontIndex]/[backIndex] of [scan] (a card's front and
+     * back, scanned as separate pages) onto one ID-card-formatted page —
+     * front on top, back below, each at true card size — and appends it as
+     * a new final page of the SAME document, growing it from N to N+1
+     * pages. The two source pages are left in place (non-destructive); use
+     * the viewer's page-selection delete to remove them afterward if
+     * desired. Reuses the exact append mechanism the "Add Scan" flow
+     * already uses: existing pages plus one new image page, via
+     * [applyPageEdits].
+     *
+     * Known cosmetic limitation: [ScanDocument.isIdCard] is a per-document
+     * flag, so if [scan] has a watermark set, the appended card page gets
+     * the normal full-page watermark rather than the two-region card
+     * watermark treatment — not worth a per-page marker for this edge case.
      */
-    suspend fun convertPagesToIdCard(scan: ScanDocument, frontIndex: Int, backIndex: Int): ScanDocument =
+    suspend fun appendIdCardPage(scan: ScanDocument, frontIndex: Int, backIndex: Int): ScanDocument =
         withContext(Dispatchers.IO) {
             val frontUri = sourcePageUri(scan, frontIndex) ?: error("Could not read the front image")
             val backUri = sourcePageUri(scan, backIndex) ?: error("Could not read the back image")
 
-            val timestamp = System.currentTimeMillis()
-            val name = "ID card ${
-                SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date(timestamp))
-            }"
-            val baseName = "idcard_$timestamp"
-
-            val pdfFile = File(scansDir, "$baseName.pdf")
-            val wrote = ImageOptimizer.writeIdCardPdf(context, frontUri, backUri, pdfFile)
-            check(wrote) { "Could not build the ID card page" }
-
-            // From the composited page, not the raw front photo, so the list
-            // preview shows the true rounded-corner card layout.
-            val thumbFile = File(scansDir, "$baseName.thumb.jpg")
-            val hasThumb = PdfEditor.writeThumbnail(pdfFile, thumbFile)
-
-            val originalsDir = File(scansDir, "originals/$baseName").apply { mkdirs() }
-            listOf(frontUri, backUri).forEachIndexed { index, uri ->
-                runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        File(originalsDir, pageFileName(index)).outputStream()
-                            .use { input.copyTo(it) }
-                    }
-                }
+            val composite = ImageOptimizer.compositeIdCardBitmap(context, frontUri, backUri)
+                ?: error("Could not build the ID card page")
+            val tempImage =
+                File(context.cacheDir, "idcard_append_${scan.id}_${System.currentTimeMillis()}.jpg")
+            FileOutputStream(tempImage).use {
+                composite.compress(Bitmap.CompressFormat.JPEG, ORIGINAL_JPEG_QUALITY, it)
             }
+            composite.recycle()
 
-            val idCard = ScanDocument(
-                title = name,
-                createdAt = timestamp,
-                pageCount = 1,
-                pdfPath = pdfFile.absolutePath,
-                thumbnailPath = if (hasThumb) thumbFile.absolutePath else null,
-                sizeBytes = pdfFile.length(),
-                ocrText = recognizeText(listOf(frontUri, backUri)),
-                originalsDir = originalsDir.absolutePath,
-                folder = scan.folder,
-                isIdCard = true,
-            )
-            val saved = idCard.copy(id = dao.insert(idCard))
-            enqueueBackupIfEnabled()
-            saved
+            val existingCount = PdfEditor.pageCount(File(scan.pdfPath))
+            val pages = List(existingCount) { EditPage.FromPdf(it) } +
+                listOf(EditPage.FromImage(Uri.fromFile(tempImage)))
+            val updated = applyPageEdits(scan.id, pages, scan.watermark)
+            tempImage.delete()
+            updated
         }
 
     /**

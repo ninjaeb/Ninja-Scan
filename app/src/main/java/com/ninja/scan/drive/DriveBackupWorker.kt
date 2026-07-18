@@ -15,8 +15,8 @@ import java.io.File
 /**
  * Uploads every scan without a Drive file id into the app's "Ninja Scan"
  * folder on Google Drive, deletes previously replaced copies, and refreshes
- * the library manifest (scan metadata + business cards + folder list) so a
- * later restore can rebuild the library losslessly. The clean stored PDF is
+ * the library manifest (scan metadata + business cards + both tag catalogs)
+ * so a later restore can rebuild the library losslessly. The clean stored PDF is
  * uploaded — watermarks stay editable metadata and are re-applied in-app.
  * Every PDF, card photo, and the manifest are AES-256-GCM encrypted (see
  * BackupCrypto/DriveBackup) with a key derived from a password set up in the
@@ -196,12 +196,13 @@ class DriveBackupWorker(
         localKey: ByteArray,
     ) {
         val scans = app.repository.getBackedUpScans().map { scan ->
+            val tagTitles = app.repository.getScanTags(scan.id).map { it.title }
             DriveManifest.ScanEntry(
                 driveFileId = scan.driveFileId.orEmpty(),
                 title = scan.title,
                 createdAt = scan.createdAt,
                 pageCount = scan.pageCount,
-                folder = scan.folder,
+                tagTitles = tagTitles,
                 watermark = scan.watermark,
                 watermarkBaked = false,
                 ocrText = scan.ocrText,
@@ -212,15 +213,17 @@ class DriveBackupWorker(
             val tagTitles = app.repository.getCardTags(card.id).map { it.title }
             DriveManifest.CardEntry(DriveManifest.cardKey(card), card, tagTitles)
         }
-        val tags = app.repository.getTags().map { tag ->
+        val cardTagCatalog = app.repository.getTags().map { tag ->
             DriveManifest.TagEntry(title = tag.title, description = tag.description, color = tag.color)
         }
-        val folders = app.repository.getFoldersDetailed()
+        val scanTagCatalog = app.repository.getDocumentTags().map { tag ->
+            DriveManifest.TagEntry(title = tag.title, description = tag.description, color = tag.color)
+        }
         val content = DriveManifest.Content(
-            scans, cards, folders.map { it.name }, tags,
-            folderColors = folders.associate { it.name to it.color },
+            scans, cards, cardTagCatalog, scanTagCatalog,
+            updatedAt = System.currentTimeMillis(),
         )
-        val bytes = BackupCrypto.encryptBytes(DriveManifest.encode(content, System.currentTimeMillis()), localKey)
+        val bytes = BackupCrypto.encryptBytes(DriveManifest.encode(content), localKey)
 
         val existing = DriveBackup.cachedManifestId(applicationContext)
             ?: drive.findFile(DriveManifest.FILE_NAME, folderId)

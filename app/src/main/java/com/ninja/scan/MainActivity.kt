@@ -113,9 +113,9 @@ class MainActivity : ComponentActivity() {
             DocScannerTheme(darkTheme = isDarkTheme) {
                 val scans by viewModel.scans.collectAsState()
                 val searchQuery by viewModel.searchQuery.collectAsState()
-                val folders by viewModel.folders.collectAsState()
-                val folderColors by viewModel.folderColors.collectAsState()
-                val folderFilter by viewModel.folderFilter.collectAsState()
+                val documentTags by viewModel.documentTags.collectAsState()
+                val scanTagsByScan by viewModel.scanTagsByScan.collectAsState()
+                val tagFilter by viewModel.tagFilter.collectAsState()
                 val driveBackupEnabled by viewModel.driveBackupEnabled.collectAsState()
                 val justSaved by viewModel.justSaved.collectAsState()
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -286,9 +286,9 @@ class MainActivity : ComponentActivity() {
                 ScanListScreen(
                     scans = scans,
                     searchQuery = searchQuery,
-                    folders = folders,
-                    folderColors = folderColors,
-                    folderFilter = folderFilter,
+                    documentTags = documentTags,
+                    tagFilter = tagFilter,
+                    scanTagsByScan = scanTagsByScan,
                     driveBackupEnabled = driveBackupEnabled,
                     justSaved = justSaved,
                     snackbarHostState = snackbarHostState,
@@ -302,7 +302,7 @@ class MainActivity : ComponentActivity() {
                     onConfirmScanDetails = viewModel::confirmScanDetails,
                     onDismissScanDetails = viewModel::dismissScanDetails,
                     onSearchQueryChange = viewModel::onSearchQueryChange,
-                    onFolderFilterChange = viewModel::onFolderFilterChange,
+                    onTagFilterChange = viewModel::onTagFilterChange,
                     onOpenCards = {
                         startActivity(CardsActivity.intent(this))
                         // Continues the swipe's motion into the activity
@@ -394,12 +394,12 @@ class MainActivity : ComponentActivity() {
                         exportLauncher.launch("${scan.title}.pdf")
                     },
                     onRename = viewModel::rename,
-                    onMoveToFolder = viewModel::moveToFolder,
+                    onToggleScanTag = viewModel::toggleScanTag,
+                    onCreateTag = viewModel::createDocumentTag,
+                    onUpdateTag = viewModel::updateDocumentTag,
+                    onDeleteTag = viewModel::deleteDocumentTag,
                     onDelete = viewModel::delete,
                     onDeleteScans = viewModel::deleteScans,
-                    onAddFolder = viewModel::addFolder,
-                    onRenameFolder = viewModel::renameFolder,
-                    onDeleteFolder = viewModel::deleteFolder,
                 )
 
                 if (showRestoreOffer) {

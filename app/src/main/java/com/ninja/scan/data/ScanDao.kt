@@ -34,9 +34,6 @@ interface ScanDao {
     @Query("SELECT * FROM scans WHERE driveFileId = :fileId")
     suspend fun getByDriveFileId(fileId: String): ScanDocument?
 
-    @Query("UPDATE scans SET folder = :folder WHERE id = :id")
-    suspend fun setFolder(id: Long, folder: String?)
-
     @Query("UPDATE scans SET driveFileId = :fileId WHERE id = :id")
     suspend fun setDriveFileId(id: Long, fileId: String)
 

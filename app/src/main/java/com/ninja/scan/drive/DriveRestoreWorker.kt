@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.ninja.scan.DocScannerApp
+import com.ninja.scan.data.DocumentTag
 import com.google.android.gms.auth.api.identity.Identity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -14,7 +15,7 @@ import java.io.File
 /**
  * Downloads the "Ninja Scan" Drive backup back into the library: every PDF
  * not already present (matched by Drive file id) plus the business cards and
- * folder list from the manifest. Idempotent — running it twice restores
+ * both tag catalogs from the manifest. Idempotent — running it twice restores
  * nothing new — so WorkManager retries after partial failures are safe.
  * Encrypted content (see BackupCrypto) is decrypted with the key set up or
  * unlocked in the UI before this worker was enqueued; legacy plaintext
@@ -57,12 +58,14 @@ class DriveRestoreWorker(
 
         // Duplicate manifests can exist (a past update-failed-so-create-a-
         // new-one fallback, copies encrypted with a since-replaced key, or
-        // copies living in a duplicate backup folder) — try each candidate
-        // newest-first and keep the first one that actually decrypts and
-        // decodes, instead of giving up on cards/folders because one
-        // arbitrary pick happened to be stale.
+        // copies living in a duplicate backup folder). Drive's own file/
+        // folder listing order is not a reliable proxy for recency, so every
+        // candidate that decodes is kept and the one with the greatest
+        // embedded updatedAt wins — not just the first one that happens to
+        // parse — otherwise a stale-but-valid copy could silently win over
+        // one with a more recent card/scan list.
         val manifest = try {
-            var decoded: DriveManifest.Content? = null
+            val decodedCandidates = mutableListOf<DriveManifest.Content?>()
             for (manifestId in folderIds.flatMap { drive.findFiles(DriveManifest.FILE_NAME, it) }) {
                 val temp = File.createTempFile("manifest", ".json", applicationContext.cacheDir)
                 try {
@@ -75,22 +78,21 @@ class DriveRestoreWorker(
                     } else {
                         bytes
                     }
-                    decoded = plain?.let(DriveManifest::decode)
-                    if (decoded != null) break
+                    decodedCandidates.add(plain?.let(DriveManifest::decode))
                 } finally {
                     temp.delete()
                 }
             }
-            decoded
+            DriveManifest.pickFreshest(decodedCandidates)
         } catch (e: DriveAuthException) {
             return@withContext Result.retry()
         } catch (e: Exception) {
             null // Absent/corrupt/undecryptable manifest: PDFs still restore with fallbacks.
         }
 
-        manifest?.folders?.forEach { app.repository.restoreFolder(it, manifest.folderColors[it]) }
-
         val entries = manifest?.scans?.associateBy { it.driveFileId }.orEmpty()
+        val scanTagCatalog = manifest?.scanTags.orEmpty()
+        val scanTagCache = mutableMapOf<String, DocumentTag>()
         val known = app.repository.getDriveFileIds().toSet()
         var restored = 0
         var failures = 0
@@ -105,7 +107,11 @@ class DriveRestoreWorker(
         for (file in children) {
             if (file.mimeType == "application/pdf" && file.id !in known) {
                 try {
-                    if (app.repository.restoreScanFromDrive(drive, file, entries[file.id], localKey)) {
+                    if (
+                        app.repository.restoreScanFromDrive(
+                            drive, file, entries[file.id], localKey, scanTagCatalog, scanTagCache,
+                        )
+                    ) {
                         restored++
                     }
                 } catch (e: DriveAuthException) {
@@ -115,11 +121,13 @@ class DriveRestoreWorker(
                 }
             } else if (file.mimeType == "application/pdf") {
                 // Already restored — but possibly by an earlier pass that ran
-                // without a readable manifest, which loses folder assignment
-                // and other manifest-only metadata to fallbacks. Best-effort
-                // re-adopt from the manifest entry now that one decoded.
+                // without a readable manifest, which loses tags and other
+                // manifest-only metadata to fallbacks. Best-effort re-adopt
+                // from the manifest entry now that one decoded.
                 entries[file.id]?.let { entry ->
-                    runCatching { app.repository.adoptManifestMetadata(file.id, entry) }
+                    runCatching {
+                        app.repository.adoptManifestMetadata(file.id, entry, scanTagCatalog, scanTagCache)
+                    }
                 }
             }
             current++
