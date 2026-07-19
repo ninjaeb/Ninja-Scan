@@ -29,7 +29,19 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Upload debug APK
+        # continue-on-error: by this point the build and tests already ran
+        # and would have failed the job on their own if broken, so a repo
+        # storage-quota hiccup here (a real recurring issue — see below)
+        # shouldn't fail the whole check over something the code has no
+        # control over.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          # Short retention so accumulated debug APKs from every CI run
+          # don't perpetually eat into the repo's Actions storage quota —
+          # this workflow previously hit "Artifact storage quota has been
+          # hit" outright, failing the job even though the build/tests
+          # both passed.
+          retention-days: 7
