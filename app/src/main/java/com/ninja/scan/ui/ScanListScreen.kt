@@ -525,9 +525,9 @@ fun ScanListScreen(
         TagEditorDialog(
             isNew = true,
             onDismiss = { creatingTag = false },
-            onSave = { title, description, color ->
+            onSave = { title, color ->
                 creatingTag = false
-                onCreateTag(title, description, color)
+                onCreateTag(title, "", color)
             },
         )
     }
@@ -535,13 +535,12 @@ fun ScanListScreen(
     editingTag?.let { tag ->
         TagEditorDialog(
             existingTitle = tag.title,
-            existingDescription = tag.description,
             existingColor = tag.color,
             isNew = false,
             onDismiss = { editingTag = null },
-            onSave = { title, description, color ->
+            onSave = { title, color ->
                 editingTag = null
-                onUpdateTag(tag.copy(title = title, description = description, color = color))
+                onUpdateTag(tag.copy(title = title, color = color))
             },
         )
     }

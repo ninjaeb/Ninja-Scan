@@ -15,7 +15,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.work.WorkInfo
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -99,14 +98,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -137,6 +132,7 @@ import com.ninja.scan.ui.LongPressHint
 import com.ninja.scan.ui.LongPressableChip
 import com.ninja.scan.ui.ShareBlue
 import com.ninja.scan.ui.SyncProgress
+import com.ninja.scan.ui.TagEditorDialog
 import com.ninja.scan.ui.ThemeToggleButton
 import com.ninja.scan.ui.WhatsAppGreen
 import com.ninja.scan.ui.brandedNavigationItemColors
@@ -856,6 +852,7 @@ private fun CardsScreen(
                                     tagsByCard = app.repository.getCardTagsByCard()
                                 }
                             },
+                            onCreateTag = { creatingTagFilter = true },
                         )
                     }
                 }
@@ -911,24 +908,24 @@ private fun CardsScreen(
 
     if (creatingTagFilter) {
         TagEditorDialog(
-            existing = null,
+            isNew = true,
             onDismiss = { creatingTagFilter = false },
-            onSave = { title, description, color ->
+            onSave = { title, color ->
                 creatingTagFilter = false
-                scope.launch { app.repository.createTag(title, description, color) }
+                scope.launch { app.repository.createTag(title, "", color) }
             },
         )
     }
 
     editingTagFilter?.let { tag ->
         TagEditorDialog(
-            existing = tag,
+            existingTitle = tag.title,
+            existingColor = tag.color,
+            isNew = false,
             onDismiss = { editingTagFilter = null },
-            onSave = { title, description, color ->
+            onSave = { title, color ->
                 editingTagFilter = null
-                scope.launch {
-                    app.repository.updateTag(tag.copy(title = title, description = description, color = color))
-                }
+                scope.launch { app.repository.updateTag(tag.copy(title = title, color = color)) }
             },
         )
     }
@@ -989,6 +986,7 @@ private fun CardRow(
     onSaveToContacts: () -> Unit,
     onDelete: () -> Unit,
     onToggleTag: (Tag, Boolean) -> Unit,
+    onCreateTag: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var addTagMenuOpen by remember { mutableStateOf(false) }
@@ -1092,7 +1090,6 @@ private fun CardRow(
                         leadingIcon = {
                             Icon(Icons.Filled.Add, contentDescription = null, tint = ActionGreen)
                         },
-                        enabled = allTags.isNotEmpty(),
                         onClick = { menuOpen = false; addTagMenuOpen = true },
                     )
                     DropdownMenuItem(
@@ -1125,6 +1122,11 @@ private fun CardRow(
                             onClick = { onToggleTag(tag, applied) },
                         )
                     }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.create_tag)) },
+                        leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = ActionGreen) },
+                        onClick = { addTagMenuOpen = false; onCreateTag() },
+                    )
                 }
             }
         }
@@ -1152,9 +1154,6 @@ private fun CardTagsRow(tags: List<Tag>) {
 
 private fun hexToColor(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)
-
-private fun colorToHex(color: Color): String =
-    "#%06X".format(0xFFFFFF and color.toArgb())
 
 /**
  * Full-page contact details editor, with the scanned card image at the
@@ -1256,9 +1255,15 @@ private fun CardDetailScreen(
                 OutlinedButton(
                     onClick = { saveToContacts(context, currentCard(), cardTags) },
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                 ) {
-                    Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = ActionGreen)
-                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Filled.PersonAdd,
+                        contentDescription = null,
+                        tint = ActionGreen,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.add_to_contacts), maxLines = 1)
                 }
                 Button(
@@ -1266,6 +1271,7 @@ private fun CardDetailScreen(
                         onSave(currentCard(), if (card.id == 0L) appliedTagIds else emptyList())
                     },
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                 ) {
                     Text(stringResource(R.string.save))
                 }
@@ -1463,12 +1469,12 @@ private fun CardDetailScreen(
 
     if (creatingTag) {
         TagEditorDialog(
-            existing = null,
+            isNew = true,
             onDismiss = { creatingTag = false },
-            onSave = { title, description, color ->
+            onSave = { title, color ->
                 creatingTag = false
                 scope.launch {
-                    val tag = app.repository.createTag(title, description, color)
+                    val tag = app.repository.createTag(title, "", color)
                     toggleTag(tag)
                 }
             },
@@ -1477,13 +1483,13 @@ private fun CardDetailScreen(
 
     editingTag?.let { tag ->
         TagEditorDialog(
-            existing = tag,
+            existingTitle = tag.title,
+            existingColor = tag.color,
+            isNew = false,
             onDismiss = { editingTag = null },
-            onSave = { title, description, color ->
+            onSave = { title, color ->
                 editingTag = null
-                scope.launch {
-                    app.repository.updateTag(tag.copy(title = title, description = description, color = color))
-                }
+                scope.launch { app.repository.updateTag(tag.copy(title = title, color = color)) }
             },
         )
     }
@@ -1590,93 +1596,3 @@ private fun openMap(context: Context, address: String) {
     }
 }
 
-/** Create-or-edit dialog: title/confirm label switch on whether [existing] is null. */
-@Composable
-private fun TagEditorDialog(
-    existing: Tag?,
-    onDismiss: () -> Unit,
-    onSave: (title: String, description: String, color: String) -> Unit,
-) {
-    var title by remember { mutableStateOf(existing?.title.orEmpty()) }
-    var description by remember { mutableStateOf(existing?.description.orEmpty()) }
-    val focusRequester = remember { FocusRequester() }
-    val palette = listOf(
-        colorResource(R.color.tag_red), colorResource(R.color.tag_orange),
-        colorResource(R.color.tag_amber), colorResource(R.color.tag_green),
-        colorResource(R.color.tag_mint), colorResource(R.color.tag_blue),
-        colorResource(R.color.tag_light_blue), colorResource(R.color.tag_purple),
-        colorResource(R.color.tag_lavender), colorResource(R.color.tag_pink),
-        Color.Black,
-    )
-    var selectedIndex by remember {
-        mutableStateOf(
-            existing?.color
-                ?.let { hex -> palette.indexOfFirst { colorToHex(it).equals(hex, ignoreCase = true) } }
-                ?.takeIf { it >= 0 }
-                ?: (palette.size - 1)
-        )
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (existing == null) R.string.create_tag else R.string.edit_tag)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.tag_title)) },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                )
-                LaunchedEffect(Unit) { focusRequester.requestFocus() }
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text(stringResource(R.string.tag_description)) },
-                    minLines = 2,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                )
-                Column(Modifier.padding(top = 12.dp)) {
-                    palette.chunked(6).forEach { rowColors ->
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 8.dp),
-                        ) {
-                            rowColors.forEach { swatch ->
-                                val index = palette.indexOf(swatch)
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(swatch)
-                                        .clickable { selectedIndex = index },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    if (index == selectedIndex) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSave(title.trim(), description.trim(), colorToHex(palette[selectedIndex])) },
-                enabled = title.isNotBlank(),
-            ) {
-                Text(stringResource(if (existing == null) R.string.create else R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        },
-    )
-}

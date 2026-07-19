@@ -20,9 +20,12 @@ class DocScannerApp : Application(), Application.ActivityLifecycleCallbacks {
 
     override fun onCreate() {
         super.onCreate()
-        // WorkManager's own schedule isn't restored by Android's Auto Backup,
-        // while this SharedPreferences flag can be — re-arming here closes
-        // that gap and is a cheap no-op when already scheduled.
+        // A WorkManager schedule can be lost independently of this flag
+        // (app data cleared, OS quirks) without the flag itself changing —
+        // re-arming here closes that gap and is a cheap no-op when already
+        // scheduled. This is unrelated to Android's own Auto Backup: that's
+        // deliberately excluded from covering this app's data at all (see
+        // res/xml/backup_rules.xml) in favor of the encrypted Drive backup.
         if (DriveBackup.isEnabled(this)) DriveBackup.enqueuePeriodic(this)
 
         registerActivityLifecycleCallbacks(this)

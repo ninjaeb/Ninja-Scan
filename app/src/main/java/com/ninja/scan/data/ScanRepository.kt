@@ -264,6 +264,19 @@ class ScanRepository(
                         }
                     }.onFailure { Log.w(TAG, "Photo heal failed for card key $key", it) }
                 }
+                // Fill-only, mirroring the photo heal above: only seed tags
+                // from the manifest if this card doesn't have any locally
+                // yet, so a partial/stale local row (e.g. one that came back
+                // without its tags) can self-heal without clobbering tags
+                // the user may have since applied by hand.
+                if (entry.tagTitles.isNotEmpty() && tagDao.getTagsForCard(existingCard.id).isEmpty()) {
+                    runCatching {
+                        for (tagTitle in entry.tagTitles) {
+                            val tag = resolveTag(tagTitle)
+                            tagDao.addCardTag(CardTagCrossRef(existingCard.id, tag.id))
+                        }
+                    }.onFailure { Log.w(TAG, "Tag heal failed for card key $key", it) }
+                }
                 continue
             }
             // One bad entry (a stray insert/tag-linking failure) must not

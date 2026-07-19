@@ -227,7 +227,19 @@ object DriveBackup {
     // without the key) lives in Drive as ENCRYPTION_FILE_NAME so a pasted-in
     // recovery code can be checked before trusting it.
 
-    fun hasLocalKey(context: Context): Boolean = prefs(context).contains(KEY_BACKUP_KEY_WRAPPED)
+    /**
+     * True only when the cached wrapped key is actually present AND still
+     * unwraps — not just that a value exists under [KEY_BACKUP_KEY_WRAPPED].
+     * The two can disagree: the wrapped key sits in SharedPreferences, but
+     * the Android Keystore entry that unwraps it does not survive an app
+     * uninstall. A device with a stale SharedPreferences copy (e.g. one
+     * that predates backup_rules.xml/data_extraction_rules.xml excluding
+     * `sharedpref` from Android's OS-level Auto Backup) would otherwise
+     * report a working key that [loadLocalKey] can actually never return,
+     * skipping the recovery-key prompt and silently failing every
+     * encrypted upload/download from then on.
+     */
+    fun hasLocalKey(context: Context): Boolean = loadLocalKey(context) != null
 
     /** The cached raw AES key, or null if this device hasn't generated/entered one yet. */
     fun loadLocalKey(context: Context): ByteArray? {

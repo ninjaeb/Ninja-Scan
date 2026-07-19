@@ -95,22 +95,20 @@ fun colorToHex(color: Color): String =
     "#%06X".format(0xFFFFFF and color.toArgb())
 
 /**
- * Create-or-edit dialog for a tag (title/description fields + a color-swatch
- * palette). Generalized over plain primitives rather than a specific tag
- * entity type so both Documents' and Cards' tag catalogs can share this UI
- * despite being backed by separate tables.
+ * Create-or-edit dialog for a tag (title field + a color-swatch palette).
+ * Generalized over plain primitives rather than a specific tag entity type
+ * so both Documents' and Cards' tag catalogs can share this UI despite being
+ * backed by separate tables.
  */
 @Composable
 fun TagEditorDialog(
     existingTitle: String = "",
-    existingDescription: String = "",
     existingColor: String? = null,
     isNew: Boolean,
     onDismiss: () -> Unit,
-    onSave: (title: String, description: String, color: String) -> Unit,
+    onSave: (title: String, color: String) -> Unit,
 ) {
     var title by remember { mutableStateOf(existingTitle) }
-    var description by remember { mutableStateOf(existingDescription) }
     val focusRequester = remember { FocusRequester() }
     val palette = listOf(
         colorResource(R.color.tag_red), colorResource(R.color.tag_orange),
@@ -144,15 +142,6 @@ fun TagEditorDialog(
                         .focusRequester(focusRequester),
                 )
                 LaunchedEffect(Unit) { focusRequester.requestFocus() }
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text(stringResource(R.string.tag_description)) },
-                    minLines = 2,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                )
                 Column(Modifier.padding(top = 12.dp)) {
                     palette.chunked(6).forEach { rowColors ->
                         Row(
@@ -181,7 +170,7 @@ fun TagEditorDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title.trim(), description.trim(), colorToHex(palette[selectedIndex])) },
+                onClick = { onSave(title.trim(), colorToHex(palette[selectedIndex])) },
                 enabled = title.isNotBlank(),
             ) {
                 Text(stringResource(if (isNew) R.string.create else R.string.save))

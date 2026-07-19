@@ -62,6 +62,29 @@ class CardParserTest {
     }
 
     @Test
+    fun `address lines ending in their own comma don't double up when joined`() {
+        // Each address line on a real card is often already comma-terminated
+        // — joining them with ", " unconditionally used to double it up
+        // ("Tower B," + ", " -> "Tower B,, Vertical...").
+        val lines = listOf(
+            line("Olivia H.C. Ow", top = 0),
+            line("9 B-21-03, Tower B,", top = 20),
+            line("Vertical Business Suite, Avenue 3,", top = 40),
+            line("Bangsar South, No.8, Jalan Kerinchi,", top = 60),
+            line("59200 Kuala Lumpur, Malaysia.", top = 80),
+        )
+
+        val card = CardParser.parse(lines)
+
+        assertTrue(!card.address.contains(",,"))
+        assertEquals(
+            "9 B-21-03, Tower B, Vertical Business Suite, Avenue 3, " +
+                "Bangsar South, No.8, Jalan Kerinchi, 59200 Kuala Lumpur, Malaysia.",
+            card.address,
+        )
+    }
+
+    @Test
     fun `flat text compatibility wrapper resolves fields in original order`() {
         val text = """
             Jane Smith

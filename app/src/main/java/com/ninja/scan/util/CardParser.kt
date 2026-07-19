@@ -125,13 +125,17 @@ object CardParser {
         val name = pair?.first?.text ?: selectName(remaining, jobTitle, company)
 
         // Address: the leftover lines that actually look like an address.
+        // Each source line often already ends in its own trailing comma (how
+        // addresses are usually printed line-by-line on a card), so joining
+        // with ", " unconditionally would double it up ("Tower B," + ", " ->
+        // "Tower B,, Vertical...") — strip that first.
         val address = remaining
             .filter { (_, text) -> text != name && text != company && text != jobTitle }
             .filter { (_, text) ->
                 val lower = text.lowercase()
                 text.any(Char::isDigit) || addressHints.any { lower.contains(it) }
             }
-            .joinToString(", ") { it.text }
+            .joinToString(", ") { it.text.trim().trimEnd(',').trim() }
             .take(250)
 
         return BusinessCard(
