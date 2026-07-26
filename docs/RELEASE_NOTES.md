@@ -1,3 +1,63 @@
+# Release notes — versionCode 13 (versionName 1.5)
+
+Covers every change since the versionCode 11 bump (`740f1c0`).
+
+## Play Store "What's new" (short version)
+
+- Documents now use tags instead of folders, just like Business Cards
+- Combining a card's front and back now adds it as a new page in the same document instead of a separate one
+- Delete just the pages you select from inside a document
+- Fixed Drive restore not working correctly after reinstalling the app
+- More reliable restore and unlock when a duplicate backup folder exists in Drive
+- Smaller Drive backups, with no extra loss in quality
+
+## Full changelog
+
+### New features
+- **Document tags replace folders**: Documents now use a tag model exactly
+  like Business Cards, including its own separate tag catalog. Existing
+  folders are migrated automatically to identically-colored tags on first
+  upgrade, applied to the same documents, so no organization is lost.
+- **Combine-to-ID-card now appends in place**: selecting a card's front and
+  back pages and combining them adds the composited card as a new final
+  page of that same document instead of creating a separate document. The
+  original two pages are kept untouched and can be removed afterward.
+- **Delete selected pages**: the document viewer's long-press page
+  selection gained a Delete action next to Share, for removing just the
+  pages you've selected.
+
+### Improvements
+- Backup files are now noticeably smaller: generated PDFs embed each
+  page's already-JPEG-compressed bytes directly instead of Android's
+  lossless re-encode, shrinking scans 10-30x with no additional quality
+  loss (a composited ID card page alone dropped from ~15 MB).
+- Backup image quality was retuned: scanned pages raised slightly to
+  quality 88, and business card photos now get their own dedicated
+  1280px/quality-85 capture instead of reusing the small list thumbnail.
+- Removed the tag description field from the create/edit tag dialog (both
+  Documents and Business Cards) for a simpler flow, and unified the two
+  screens onto one shared dialog implementation.
+- The business card row's tag submenu gained a "Create Tag" entry and is
+  no longer disabled when no tags exist yet.
+- Now targets Android 16 (API 36), keeping the app compliant with the
+  Play Store's minimum target API requirement.
+
+### Bug fixes
+- Fixed Drive restore silently failing to bring your data back after an
+  uninstall/reinstall: Android's own OS-level Auto Backup was restoring a
+  stale, unusable copy of this app's local encryption key ahead of its own
+  Drive restore. That OS-level backup path is now excluded entirely — this
+  app's encrypted Drive backup is the sole source of truth.
+- Fixed restore and recovery-code unlock only checking one Drive backup
+  folder when a duplicate "Ninja Scan" folder existed, which could pick a
+  stale copy with no cards, folders, or tags, or reject a correct recovery
+  code. Both now check every duplicate folder.
+- Fixed the business card detail screen's "Add to contacts" button label
+  being truncated to "Add to".
+- Fixed business card address parsing occasionally doubling up commas.
+
+---
+
 # Release notes — versionCode 11 (versionName 1.3)
 
 Covers every change since the versionCode 10 bump (`6029802`).

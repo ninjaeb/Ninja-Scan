@@ -167,11 +167,11 @@
     <string name="delete_tag_body">“%1$s” will be removed from all cards it\'s applied to.</string>
     <string name="create">Create</string>
     <string-array name="changelog_items">
-        <item>Google Drive backups are now encrypted with a private recovery key only you hold</item>
-        <item>Unlock Ninja Scan with your fingerprint or face</item>
-        <item>Combine a card\'s front and back pages into one ID card, right from the document viewer</item>
-        <item>Add tags to a business card straight from its menu</item>
-        <item>More reliable restore — business cards, folders, and tags always come back</item>
-        <item>Folder colors are kept through backup and restore</item>
+        <item>Documents now use tags instead of folders, just like Business Cards</item>
+        <item>Combining a card\'s front and back now adds it as a new page in the same document</item>
+        <item>Delete just the pages you select from inside a document</item>
+        <item>Fixed Drive restore not working correctly after reinstalling the app</item>
+        <item>More reliable restore when a duplicate backup folder exists in Drive</item>
+        <item>Smaller Drive backups, with no extra loss in quality</item>
     </string-array>
 </resources>
