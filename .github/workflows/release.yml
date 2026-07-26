@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Read app version
         id: version
@@ -21,13 +21,13 @@ jobs:
           echo "versionCode **$CODE** — versionName **$NAME**" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5.6.0
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6.2.0
 
       - name: Decode keystore
         run: echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
@@ -51,13 +51,13 @@ jobs:
         run: rm -f app/release.keystore app/keystore.properties
 
       - name: Upload release bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: app-release-aab-v${{ steps.version.outputs.code }}
           path: app/build/outputs/bundle/release/app-release.aab
 
       - name: Upload native debug symbols
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: native-debug-symbols
           path: app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
