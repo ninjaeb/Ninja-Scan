@@ -93,6 +93,12 @@ class DriveRestoreWorker(
         val entries = manifest?.scans?.associateBy { it.driveFileId }.orEmpty()
         val scanTagCatalog = manifest?.scanTags.orEmpty()
         val scanTagCache = mutableMapOf<String, DocumentTag>()
+        // Seed every catalog tag locally up front, not just ones a scan/card
+        // entry happens to reference below — otherwise a tag created but not
+        // yet applied to anything is silently dropped by restore, since
+        // resolveScanTag/resolveTag are only ever invoked per-entry.
+        runCatching { app.repository.seedCardTagCatalog(manifest?.tags.orEmpty()) }
+        runCatching { app.repository.seedDocumentTagCatalog(scanTagCatalog) }
         val known = app.repository.getDriveFileIds().toSet()
         var restored = 0
         var failures = 0

@@ -214,6 +214,24 @@ class ScanRepository(
     }.getOrNull() // download/decrypt failure: skip the photo, keep the card record
 
     /**
+     * Ensures every tag in the manifest's Business Card tag catalog exists
+     * locally, including ones not currently applied to any card. Without
+     * this, a tag created but not yet applied to anything is silently
+     * dropped on restore: [restoreCards]'s resolveTag is only ever invoked
+     * for a title some card entry actually references, so an orphan
+     * catalog entry never gets a matching local row. Local color/description
+     * wins when a same-titled tag already exists.
+     */
+    internal suspend fun seedCardTagCatalog(catalogTags: List<DriveManifest.TagEntry>) = withContext(Dispatchers.IO) {
+        val existingTitles = tagDao.getAll().mapTo(mutableSetOf()) { it.title.lowercase() }
+        for (entry in catalogTags) {
+            if (existingTitles.add(entry.title.lowercase())) {
+                tagDao.insert(Tag(title = entry.title, description = entry.description, color = entry.color))
+            }
+        }
+    }
+
+    /**
      * Inserts manifest cards not already in the library, downloading each
      * card's backed-up photo (if any) alongside its text fields. A manifest
      * entry that matches an existing local card missing its photo (e.g. a
@@ -335,6 +353,21 @@ class ScanRepository(
     /** Reactive scanId -> tags map, so the Documents list's tag filter/chips stay live. */
     val scanTagsByScan: Flow<Map<Long, List<DocumentTag>>> = scanTagDao.observeAllScanTagRows()
         .map { rows -> rows.groupBy({ it.scanId }, { DocumentTag(it.tagId, it.title, "", it.color) }) }
+
+    /**
+     * Document-tag counterpart of [seedCardTagCatalog] — ensures every tag in
+     * the manifest's Documents tag catalog exists locally, including ones not
+     * currently applied to any scan, which [resolveScanTag] alone would never
+     * create since it only runs for titles a scan entry actually references.
+     */
+    internal suspend fun seedDocumentTagCatalog(catalogTags: List<DriveManifest.TagEntry>) = withContext(Dispatchers.IO) {
+        val existingTitles = scanTagDao.getAll().mapTo(mutableSetOf()) { it.title.lowercase() }
+        for (entry in catalogTags) {
+            if (existingTitles.add(entry.title.lowercase())) {
+                scanTagDao.insert(DocumentTag(title = entry.title, description = entry.description, color = entry.color))
+            }
+        }
+    }
 
     /**
      * Resolve-or-create a document tag by title, seeding color/description
