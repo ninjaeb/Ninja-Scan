@@ -43,5 +43,7 @@ jobs:
           # don't perpetually eat into the repo's Actions storage quota —
           # this workflow previously hit "Artifact storage quota has been
           # hit" outright, failing the job even though the build/tests
-          # both passed.
-          retention-days: 7
+          # both passed. 3 is also this repo's actual enforced maximum
+          # (GitHub silently caps anything higher and warns), so this is
+          # the highest value that doesn't trigger that warning.
+          retention-days: 3
