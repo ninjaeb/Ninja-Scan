@@ -24,14 +24,14 @@ val hasReleaseSigning = releaseProp("RELEASE_STORE_FILE") != null &&
 
 android {
     namespace = "com.ninja.scan"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.ninja.scan"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 11
-        versionName = "1.3"
+        targetSdk = 36
+        versionCode = 12
+        versionName = "1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
