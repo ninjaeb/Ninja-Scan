@@ -3,6 +3,12 @@ name: Android Release
 on:
   workflow_dispatch:
 
+# This workflow only checks out the repo and uploads build artifacts — it
+# never creates GitHub releases, comments, or pushes commits — so pin
+# GITHUB_TOKEN down to read-only rather than inheriting the repo/org default.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

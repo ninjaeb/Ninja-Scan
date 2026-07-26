@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Checkout is the only thing this workflow needs from GITHUB_TOKEN; pin it
+# explicitly so it can't inherit broader repo/org-level default permissions.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
