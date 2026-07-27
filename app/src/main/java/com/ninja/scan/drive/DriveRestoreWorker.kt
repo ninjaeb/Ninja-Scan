@@ -48,6 +48,11 @@ class DriveRestoreWorker(
             return@withContext Result.retry()
         }
         if (folderIds.isEmpty()) {
+            // Nothing to restore, but setEnabled(true) now routes its
+            // initial sync through here instead of an immediate backup pass
+            // (see DriveBackup.setEnabled) — so this is also where that
+            // first backup of a brand-new library gets kicked off.
+            DriveBackup.enqueue(applicationContext)
             return@withContext Result.success(workDataOf(KEY_SCANS to 0, KEY_CARDS to 0))
         }
 
@@ -157,6 +162,11 @@ class DriveRestoreWorker(
         if (failures > 0) {
             Result.retry()
         } else {
+            // See the comment on the early return above: the local library
+            // now reflects everything Drive had, so it's finally safe for a
+            // backup pass to write the manifest without it looking like
+            // (or, previously, causing) data loss.
+            DriveBackup.enqueue(applicationContext)
             Result.success(workDataOf(KEY_SCANS to restored, KEY_CARDS to cardsRestored))
         }
     }

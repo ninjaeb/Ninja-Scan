@@ -110,7 +110,23 @@ object DriveBackup {
     fun setEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_ENABLED, enabled) }
         if (enabled) {
-            enqueue(context)
+            // Restore first, not an immediate backup pass: this fires right
+            // after reinstall/new-device setup as often as it fires for an
+            // already-populated library, and an immediate backup pass reads
+            // whatever is locally present *right now* — on a freshly
+            // reinstalled device that's an empty library, and
+            // DriveBackupWorker.uploadManifest() unconditionally overwrites
+            // the shared manifest with that empty state. The manifest is the
+            // ONLY place business cards and both tag catalogs live (unlike
+            // scans, which also restore independently from the PDF files
+            // themselves), so this used to permanently wipe every card and
+            // tag from Drive before the user got a chance to restore them —
+            // the PDFs alone survived, which is exactly the asymmetry
+            // reported (documents fine, cards/tags gone). DriveRestoreWorker
+            // enqueues the matching backup pass itself once restore
+            // completes (a no-op if Drive has nothing to restore), so any
+            // local-only unsynced data still gets backed up right after.
+            enqueueRestore(context)
             enqueuePeriodic(context)
         } else {
             cancelPeriodic(context)
