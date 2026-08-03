@@ -2,12 +2,14 @@ package com.ninja.scan
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Bundle
 import com.ninja.scan.data.ScanDatabase
 import com.ninja.scan.data.ScanRepository
 import com.ninja.scan.drive.DriveBackup
 import com.ninja.scan.security.AppLock
 import com.ninja.scan.security.AppLockActivity
+import com.ninja.scan.ui.theme.LocalePrefs
 
 class DocScannerApp : Application(), Application.ActivityLifecycleCallbacks {
 
@@ -16,6 +18,14 @@ class DocScannerApp : Application(), Application.ActivityLifecycleCallbacks {
         ScanRepository(
             this, database.scanDao(), database.cardDao(), database.tagDao(), database.scanTagDao(),
         )
+    }
+
+    // Every Activity applies the same wrap in its own attachBaseContext (see
+    // LocalePrefs.wrap), but this one matters too: applicationContext-derived
+    // resources (e.g. from a WorkManager Worker) would otherwise stay on the
+    // system language regardless of the in-app override.
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(base))
     }
 
     override fun onCreate() {

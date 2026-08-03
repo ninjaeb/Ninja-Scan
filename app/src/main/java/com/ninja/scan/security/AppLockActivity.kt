@@ -41,6 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.ninja.scan.R
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.LocalePrefs
 import com.ninja.scan.ui.theme.ThemePrefs
 
 /**
@@ -52,6 +53,10 @@ import com.ninja.scan.ui.theme.ThemePrefs
  * unauthenticated.
  */
 class AppLockActivity : FragmentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

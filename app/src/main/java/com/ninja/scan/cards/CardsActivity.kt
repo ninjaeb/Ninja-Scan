@@ -137,6 +137,7 @@ import com.ninja.scan.ui.ThemeToggleButton
 import com.ninja.scan.ui.WhatsAppGreen
 import com.ninja.scan.ui.brandedNavigationItemColors
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.LocalePrefs
 import com.ninja.scan.ui.theme.ThemePrefs
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
@@ -148,6 +149,10 @@ import kotlin.math.abs
 
 /** Business card library: scan cards, manage contacts, export CSV/Excel. */
 class CardsActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

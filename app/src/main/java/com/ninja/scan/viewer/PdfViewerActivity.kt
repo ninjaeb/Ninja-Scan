@@ -94,6 +94,7 @@ import com.ninja.scan.ui.PagesShareSheet
 import com.ninja.scan.ui.ShareBlue
 import com.ninja.scan.ui.ShareFormatSheet
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.LocalePrefs
 import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.PdfEditor
@@ -114,6 +115,10 @@ import java.io.File
  * Add Scan / Share (format sheet) / Edit pages / Print / Save (PDF or images).
  */
 class PdfViewerActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

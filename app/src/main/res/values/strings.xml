@@ -166,6 +166,12 @@
     <string name="delete_tag_title">Delete tag?</string>
     <string name="delete_tag_body">“%1$s” will be removed from all cards it\'s applied to.</string>
     <string name="create">Create</string>
+    <string name="language_setting">Language</string>
+    <string name="language_dialog_title">Choose language</string>
+    <string name="language_system_default">System default</string>
+    <string name="language_option_en">English</string>
+    <string name="language_option_zh">中文</string>
+    <string name="language_option_ms">Bahasa Melayu</string>
     <string-array name="changelog_items">
         <item>Documents now use tags instead of folders, just like Business Cards</item>
         <item>Combining a card\'s front and back now adds it as a new page in the same document</item>

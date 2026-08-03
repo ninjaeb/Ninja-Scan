@@ -70,6 +70,7 @@ import com.ninja.scan.ui.ActionGreen
 import com.ninja.scan.ui.DestructiveRed
 import com.ninja.scan.ui.EditAmber
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.LocalePrefs
 import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.EditPage
 import com.ninja.scan.util.ImageOptimizer
@@ -88,6 +89,10 @@ import java.io.File
  * scanned pages, and stamp an optional text watermark across the document.
  */
 class PageEditorActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

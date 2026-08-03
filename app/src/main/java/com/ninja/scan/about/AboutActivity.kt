@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,6 +33,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -39,9 +43,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +76,7 @@ import com.ninja.scan.ui.ThemeToggleButton
 import com.ninja.scan.ui.WhatsAppGreen
 import com.ninja.scan.ui.brandedNavigationItemColors
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.LocalePrefs
 import com.ninja.scan.ui.theme.ThemePrefs
 import kotlin.math.abs
 
@@ -79,12 +86,17 @@ private const val COMMUNITY_URL = "https://chat.whatsapp.com/IcN8xKtmPmF2Icz9wNs
 /** Short app intro, ways to share Ninja Scan or join the community, and a changelog. */
 class AboutActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             var isDarkTheme by remember { mutableStateOf(ThemePrefs.isDark(this)) }
             var appLockAvailable by remember { mutableStateOf(AppLock.isAvailable(this)) }
             var appLockEnabled by remember { mutableStateOf(AppLock.isEnabled(this)) }
+            var currentLanguage by remember { mutableStateOf(LocalePrefs.getLanguage(this)) }
             // Documents/Cards/About are separate Activities; re-read the
             // shared preference on every resume so a toggle made on another
             // screen is reflected here after navigating back — also picks up
@@ -93,6 +105,7 @@ class AboutActivity : ComponentActivity() {
                 isDarkTheme = ThemePrefs.isDark(this@AboutActivity)
                 appLockAvailable = AppLock.isAvailable(this@AboutActivity)
                 appLockEnabled = AppLock.isEnabled(this@AboutActivity)
+                currentLanguage = LocalePrefs.getLanguage(this@AboutActivity)
                 onPauseOrDispose { }
             }
             DocScannerTheme(darkTheme = isDarkTheme) {
@@ -125,6 +138,24 @@ class AboutActivity : ComponentActivity() {
                         appLockEnabled = it
                         AppLock.setEnabled(this, it)
                     },
+                    currentLanguage = currentLanguage,
+                    onSelectLanguage = { language ->
+                        LocalePrefs.setLanguage(this, language)
+                        // A per-Activity Configuration override only takes
+                        // effect from attachBaseContext at creation time, and
+                        // this app has several independent entry Activities
+                        // (Main/Cards/About/Viewer/PageEditor) — recreating
+                        // just this one would leave the rest on the old
+                        // language until they happened to restart on their
+                        // own. A full restart back to Documents is the
+                        // simplest way to put every screen on the new
+                        // language at once.
+                        startActivity(
+                            Intent(this, MainActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            }
+                        )
+                    },
                 )
             }
         }
@@ -146,8 +177,11 @@ private fun AboutScreen(
     appLockAvailable: Boolean,
     appLockEnabled: Boolean,
     onToggleAppLock: (Boolean) -> Unit,
+    currentLanguage: String,
+    onSelectLanguage: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         // A horizontal swipe goes back to Documents/Cards, matching the same
@@ -264,6 +298,13 @@ private fun AboutScreen(
             }
             HorizontalDivider()
             SheetAction(
+                Icons.Filled.Translate,
+                stringResource(R.string.language_setting),
+                iconTint = ActionGreen,
+                onClick = { showLanguageDialog = true },
+            )
+            HorizontalDivider()
+            SheetAction(
                 Icons.Filled.Share,
                 stringResource(R.string.share_app),
                 iconTint = ShareBlue,
@@ -306,4 +347,53 @@ private fun AboutScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+
+    if (showLanguageDialog) {
+        LanguagePickerDialog(
+            current = currentLanguage,
+            onDismiss = { showLanguageDialog = false },
+            onSelect = {
+                showLanguageDialog = false
+                onSelectLanguage(it)
+            },
+        )
+    }
+}
+
+@Composable
+private fun LanguagePickerDialog(
+    current: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    val options = listOf(
+        LocalePrefs.SYSTEM_DEFAULT to stringResource(R.string.language_system_default),
+        LocalePrefs.ENGLISH to stringResource(R.string.language_option_en),
+        LocalePrefs.CHINESE to stringResource(R.string.language_option_zh),
+        LocalePrefs.MALAY to stringResource(R.string.language_option_ms),
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.language_dialog_title)) },
+        text = {
+            Column {
+                options.forEach { (code, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = code == current, onClick = { onSelect(code) })
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = code == current, onClick = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(label)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
+        },
+    )
 }

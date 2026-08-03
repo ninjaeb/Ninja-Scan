@@ -1,5 +1,6 @@
 package com.ninja.scan
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -33,6 +34,7 @@ import com.ninja.scan.ui.ScanListScreen
 import com.ninja.scan.ui.ScanViewModel
 import com.ninja.scan.ui.SyncProgress
 import com.ninja.scan.ui.theme.DocScannerTheme
+import com.ninja.scan.ui.theme.LocalePrefs
 import com.ninja.scan.ui.theme.ThemePrefs
 import com.ninja.scan.util.ShareActions
 import com.ninja.scan.viewer.PdfViewerActivity
@@ -43,6 +45,10 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(newBase))
+    }
 
     private val viewModel: ScanViewModel by viewModels { ScanViewModel.Factory }
 
