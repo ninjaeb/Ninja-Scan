@@ -30,7 +30,7 @@ android {
         applicationId = "com.ninja.scan"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
+        versionCode = 18
         versionName = "1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
