@@ -1,0 +1,51 @@
+package com.ninja.scan.data
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.Query
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ScanDao {
+
+    @Query("SELECT * FROM scans ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<ScanDocument>>
+
+    @Query(
+        "SELECT * FROM scans WHERE title LIKE '%' || :query || '%' " +
+            "OR ocrText LIKE '%' || :query || '%' ORDER BY createdAt DESC"
+    )
+    fun search(query: String): Flow<List<ScanDocument>>
+
+    @Query("SELECT * FROM scans WHERE id = :id")
+    suspend fun getById(id: Long): ScanDocument?
+
+    @Query("SELECT * FROM scans WHERE driveFileId IS NULL ORDER BY createdAt ASC")
+    suspend fun getPendingBackup(): List<ScanDocument>
+
+    @Query("SELECT * FROM scans WHERE driveFileId IS NOT NULL ORDER BY createdAt ASC")
+    suspend fun getBackedUp(): List<ScanDocument>
+
+    @Query("SELECT driveFileId FROM scans WHERE driveFileId IS NOT NULL")
+    suspend fun getDriveFileIds(): List<String>
+
+    @Query("SELECT * FROM scans WHERE driveFileId = :fileId")
+    suspend fun getByDriveFileId(fileId: String): ScanDocument?
+
+    @Query("UPDATE scans SET driveFileId = :fileId WHERE id = :id")
+    suspend fun setDriveFileId(id: Long, fileId: String)
+
+    @Insert
+    suspend fun insert(scan: ScanDocument): Long
+
+    @Update
+    suspend fun update(scan: ScanDocument)
+
+    @Delete
+    suspend fun delete(scan: ScanDocument)
+
+    @Delete
+    suspend fun delete(scans: List<ScanDocument>)
+}

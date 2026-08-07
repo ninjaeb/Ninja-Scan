@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,18 +8,52 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Release signing is optional: absent locally, it's supplied by CI via
+// app/keystore.properties (git-ignored, written from GitHub secrets — see
+// docs/RELEASE.md). Without it, `bundleRelease` still builds, just unsigned,
+// exactly as it does today.
+val keystorePropsFile = rootProject.file("app/keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) load(FileInputStream(keystorePropsFile))
+}
+fun releaseProp(name: String) = keystoreProps.getProperty(name) ?: System.getenv(name)
+val hasReleaseSigning = releaseProp("RELEASE_STORE_FILE") != null &&
+    releaseProp("RELEASE_STORE_PASSWORD") != null &&
+    releaseProp("RELEASE_KEY_ALIAS") != null &&
+    releaseProp("RELEASE_KEY_PASSWORD") != null
+
 android {
-    namespace = "com.eugeneboon.docscanner"
-    compileSdk = 34
+    namespace = "com.ninja.scan"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.eugeneboon.docscanner"
+        applicationId = "com.ninja.scan"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = 18
+        versionName = "1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        // Fixed debug key committed to the repo so CI builds keep a stable
+        // signature: updates install over each other, and the SHA-1
+        // registered for the Google Drive OAuth client stays valid.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseProp("RELEASE_STORE_FILE")!!)
+                storePassword = releaseProp("RELEASE_STORE_PASSWORD")
+                keyAlias = releaseProp("RELEASE_KEY_ALIAS")
+                keyPassword = releaseProp("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -27,6 +64,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            ndk {
+                // Produces app/build/outputs/native-debug-symbols/release/
+                // native-debug-symbols.zip during bundleRelease, for Play
+                // Console's (optional) native crash symbolication.
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
     compileOptions {
@@ -65,6 +111,9 @@ dependencies {
     implementation(libs.play.services.auth)
     implementation(libs.androidx.work.runtime.ktx)
 
+    // App-open biometric lock
+    implementation(libs.androidx.biometric)
+
     // Local library of scans
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
@@ -74,6 +123,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    // org.json is Android-provided at runtime but stubbed (throws) in local
+    // JVM unit tests; pull in the real implementation for DriveManifestTest.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     debugImplementation(libs.androidx.compose.ui.tooling)

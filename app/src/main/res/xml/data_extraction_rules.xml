@@ -1,11 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+     The library's own source of truth is the encrypted Google Drive backup
+     (see drive/DriveBackupWorker, DriveRestoreWorker), not Android's OS-level
+     cloud backup or device-transfer — so every domain it would otherwise
+     auto-include is excluded here. Empty <cloud-backup>/<device-transfer>
+     elements do NOT achieve this: Android's default, with no rules for a
+     given domain, is to back that domain up in full, so exclusion has to be
+     explicit.
+
+     This mattered as a real bug, not just redundancy: `sharedpref` was never
+     mentioned in the old version of this file, so it kept the default
+     (fully included) behavior and the wrapped local backup-encryption key
+     (DriveBackup.KEY_BACKUP_KEY_WRAPPED) got silently restored on reinstall
+     — but the Android Keystore entry that unwraps it does NOT survive an
+     uninstall, so DriveBackup.hasLocalKey() reported true for a key that
+     could no longer actually be loaded, skipping the recovery-key prompt
+     entirely and leaving every encrypted download to fail silently.
+     Likewise, database/, scans/, and cards/ being auto-included let Android
+     silently restore a stale/partial local snapshot before the app's own
+     Drive restore ever ran, which then deduped against those already-
+     present rows and skipped re-downloading them.
+-->
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="file" path="scans/" />
-        <include domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="scans/" />
+        <exclude domain="file" path="cards/" />
     </cloud-backup>
     <device-transfer>
-        <include domain="file" path="scans/" />
-        <include domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="scans/" />
+        <exclude domain="file" path="cards/" />
     </device-transfer>
 </data-extraction-rules>

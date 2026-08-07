@@ -1,0 +1,70 @@
+name: Android Release
+
+on:
+  workflow_dispatch:
+
+# This workflow only checks out the repo and uploads build artifacts — it
+# never creates GitHub releases, comments, or pushes commits — so pin
+# GITHUB_TOKEN down to read-only rather than inheriting the repo/org default.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Read app version
+        id: version
+        run: |
+          CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "### App version" >> "$GITHUB_STEP_SUMMARY"
+          echo "versionCode **$CODE** — versionName **$NAME**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5.6.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.2.0
+
+      - name: Decode keystore
+        run: echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+
+      - name: Write keystore.properties
+        run: |
+          cat > app/keystore.properties <<EOF
+          RELEASE_STORE_FILE=release.keystore
+          RELEASE_STORE_PASSWORD=${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}
+          EOF
+
+      - name: Build release bundle
+        run: ./gradlew :app:bundleRelease --stacktrace
+
+      - name: Clean up signing material
+        if: always()
+        run: rm -f app/release.keystore app/keystore.properties
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: app-release-aab-v${{ steps.version.outputs.code }}
+          path: app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload native debug symbols
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: native-debug-symbols
+          path: app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
+          if-no-files-found: ignore

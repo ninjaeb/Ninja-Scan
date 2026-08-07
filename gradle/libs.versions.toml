@@ -1,5 +1,5 @@
 [versions]
-agp = "8.5.2"
+agp = "8.12.2"
 kotlin = "2.0.20"
 ksp = "2.0.20-1.0.25"
 coreKtx = "1.13.1"
@@ -11,6 +11,7 @@ mlkitDocScanner = "16.0.0-beta1"
 mlkitTextRecognition = "19.0.1"
 playServicesAuth = "21.2.0"
 work = "2.9.1"
+biometric = "1.1.0"
 coil = "2.7.0"
 coroutines = "1.9.0"
 junit = "4.13.2"
@@ -37,6 +38,7 @@ mlkit-document-scanner = { group = "com.google.android.gms", name = "play-servic
 mlkit-text-recognition = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version.ref = "mlkitTextRecognition" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
